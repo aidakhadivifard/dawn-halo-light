@@ -72,53 +72,60 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
         <p className="mt-4 text-dawn-ink/75 leading-relaxed text-[15px] text-pretty max-w-[46ch]">{card.message}</p>
 
         {!readOnly && (
-          <div className="mt-7 pt-6 border-t border-dawn-haze/10 flex flex-wrap gap-2">
-            <button onClick={toggleSave}
-              className={"text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 rounded-full transition-colors " +
-                (saved
-                  ? "bg-dawn-rose text-dawn-sky"
-                  : "bg-dawn-ink text-dawn-sky hover:bg-dawn-haze")}>
-              {saved ? "Saved" : "Save"}
-            </button>
-            {showCanDraw && onDrawAgain && (
-              <button onClick={onDrawAgain}
-                className="text-[10px] uppercase tracking-[0.18em] font-medium px-4 py-2 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
-                Draw another
+          <div className="mt-7 pt-6 border-t border-dawn-haze/10 flex flex-col gap-2">
+            <div className="flex gap-2">
+              <button onClick={toggleSave}
+                className={"text-[10px] uppercase tracking-[0.18em] font-bold px-5 py-2.5 rounded-full transition-colors " +
+                  (saved
+                    ? "bg-dawn-rose text-dawn-sky"
+                    : "bg-dawn-ink text-dawn-sky hover:bg-dawn-cream")}>
+                {saved ? "Saved" : "Save"}
               </button>
-            )}
-            {!followUpUsed && (
-              <button onClick={() => document.getElementById(`fu-${card.id}`)?.focus()}
-                className="text-[10px] uppercase tracking-[0.18em] font-medium px-4 py-2 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
-                Ask a follow-up
+              {showCanDraw && onDrawAgain && (
+                <button onClick={onDrawAgain}
+                  className="text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
+                  Draw another
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {!followUpUsed && (
+                <button onClick={() => document.getElementById(`fu-${card.id}`)?.focus()}
+                  className="text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
+                  Ask a follow-up
+                </button>
+              )}
+              <button onClick={() => setSparkOpen((s) => !s)}
+                className={"text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 rounded-full transition-colors " +
+                  (sparkOpen
+                    ? "bg-dawn-haze/15 border border-dawn-haze/30 text-dawn-ink"
+                    : "border border-dawn-haze/20 text-dawn-ink/80 hover:bg-dawn-haze/10")}>
+                Share
               </button>
-            )}
-            <button onClick={() => setSparkOpen((s) => !s)}
-              className="text-[10px] uppercase tracking-[0.18em] font-medium px-4 py-2 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
-              Share
-            </button>
+            </div>
           </div>
         )}
         {readOnly && (
           <div className="mt-7 pt-6 border-t border-dawn-haze/10">
             <button onClick={() => setSparkOpen((s) => !s)}
-              className="text-[10px] uppercase tracking-[0.18em] font-medium px-4 py-2 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
+              className="text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
               Share
             </button>
           </div>
         )}
 
         {sparkOpen && (
-          <div className="mt-5 p-4 bg-dawn-night/70 border border-dawn-haze/15 rounded-xl space-y-3">
+          <div className="mt-5 p-5 bg-dawn-sky/60 border border-dawn-haze/15 rounded-2xl space-y-4">
             <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-60">Add a note (optional)</label>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={140} rows={2}
               placeholder="Saw this and thought of you. Take a breath. xx"
-              className="w-full bg-dawn-sky/60 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30 resize-none" />
-            <div className="flex items-center gap-3">
+              className="w-full bg-dawn-night/60 text-dawn-ink placeholder:text-dawn-ink/25 border border-dawn-haze/15 rounded-xl p-4 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30 resize-none" />
+            <div className="flex items-center gap-4">
               <button onClick={doShare}
-                className="text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze">
+                className="text-[10px] uppercase tracking-[0.18em] font-bold px-6 py-2.5 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors">
                 {copied ? "Link copied" : "Share"}
               </button>
-              <button onClick={() => setSparkOpen(false)} className="text-[10px] uppercase tracking-[0.18em] opacity-50">Cancel</button>
+              <button onClick={() => setSparkOpen(false)} className="text-[10px] uppercase tracking-[0.18em] opacity-50 hover:opacity-80 transition-opacity">Cancel</button>
             </div>
           </div>
         )}
@@ -131,7 +138,7 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
             placeholder="Anything you want to ask this card…"
             className="w-full bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-4 pr-24 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30" />
           <button type="submit"
-            className="absolute right-2 top-[34px] text-[10px] uppercase tracking-[0.18em] font-bold px-3 py-2 bg-dawn-rose text-dawn-sky rounded-full">
+            className="absolute right-2 top-[34px] text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors">
             Ask
           </button>
         </form>
