@@ -10,7 +10,7 @@ const items = [
 export function BottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/85 backdrop-blur-xl border-t border-dawn-ink/5 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-dawn-sky/80 backdrop-blur-xl border-t border-dawn-haze/15 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <ul className="mx-auto flex max-w-md justify-around items-center">
         {items.map((it) => {
           const active = it.to === "/" ? pathname === "/" : pathname.startsWith(it.to);
