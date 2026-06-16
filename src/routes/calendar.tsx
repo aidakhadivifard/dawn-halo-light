@@ -84,7 +84,7 @@ function CalendarPage() {
               <ul className="space-y-3">
                 {dayCards.map((c) => (
                   <li key={c.id} className="flex items-start gap-4 p-4 bg-white border border-dawn-ink/5 rounded-xl">
-                    <img src={ART[c.art]} alt="" width={56} height={70} className="size-14 rounded-md object-cover ring-1 ring-dawn-ink/5" loading="lazy" />
+                    <img src={artForCard(c)} alt="" width={56} height={70} className="size-14 rounded-md object-cover ring-1 ring-dawn-ink/5" loading="lazy" />
                     <div className="min-w-0">
                       <p className="font-serif text-lg leading-tight">{c.title}</p>
                       <p className="text-xs opacity-60 line-clamp-2">{c.message}</p>

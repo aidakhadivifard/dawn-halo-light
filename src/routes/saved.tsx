@@ -36,7 +36,7 @@ function SavedPage() {
             {cards.map((c) => (
               <li key={c.id}>
                 <button onClick={() => setOpen(c)} className="w-full flex items-center gap-4 p-3 bg-white border border-dawn-ink/5 rounded-xl text-left hover:bg-dawn-glow/50 transition-colors">
-                  <img src={ART[c.art]} alt="" width={64} height={80} className="size-16 rounded-md object-cover ring-1 ring-dawn-ink/5" loading="lazy" />
+                  <img src={artForCard(c)} alt="" width={64} height={80} className="size-16 rounded-md object-cover ring-1 ring-dawn-ink/5" loading="lazy" />
                   <div className="min-w-0 flex-1">
                     <p className="font-serif text-lg leading-tight truncate">{c.title}</p>
                     <p className="text-xs opacity-60 truncate">{c.message}</p>
