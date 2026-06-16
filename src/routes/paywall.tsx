@@ -1,0 +1,77 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+
+export const Route = createFileRoute("/paywall")({
+  head: () => ({ meta: [{ title: "Plans — Dawnhalo" }, { name: "description", content: "Unlimited cards, from $4.99/mo." }] }),
+  component: PaywallPage,
+});
+
+function PaywallPage() {
+  const [plan, setPlan] = useState<"yearly" | "monthly">("yearly");
+  return (
+    <div className="min-h-screen bg-dawn-sky flex flex-col">
+      <main className="flex-1 max-w-md w-full mx-auto px-6 pt-12 pb-16">
+        <Link to="/" className="text-[10px] uppercase tracking-[0.18em] opacity-50">← Not now</Link>
+
+        <header className="mt-8 text-center">
+          <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 mb-2">Deepen your practice</p>
+          <h1 className="text-4xl font-serif font-light italic leading-tight">Keep the light on.</h1>
+          <p className="mt-4 text-sm opacity-70 leading-relaxed max-w-[34ch] mx-auto">
+            You've drawn your free cards for the day. Choose a plan to keep the oracle open — and the mornings warmer.
+          </p>
+        </header>
+
+        <div className="mt-10 space-y-3">
+          <button onClick={() => setPlan("yearly")}
+            className={"w-full text-left p-5 rounded-2xl border transition-all " +
+              (plan === "yearly" ? "bg-dawn-ink text-white border-dawn-ink shadow-lg" : "bg-white border-dawn-ink/10")}>
+            <div className="flex justify-between items-start">
+              <div>
+                <p className={"text-[10px] uppercase tracking-[0.18em] " + (plan === "yearly" ? "opacity-70" : "text-dawn-rose")}>Best value · save 50%</p>
+                <p className="font-serif text-2xl mt-1">Yearly</p>
+                <p className={"text-xs mt-1 " + (plan === "yearly" ? "opacity-70" : "opacity-60")}>Billed once at $59.99</p>
+              </div>
+              <div className="text-right">
+                <p className="font-serif text-2xl">$4.99<span className="text-sm opacity-60">/mo</span></p>
+              </div>
+            </div>
+          </button>
+
+          <button onClick={() => setPlan("monthly")}
+            className={"w-full text-left p-5 rounded-2xl border transition-all " +
+              (plan === "monthly" ? "bg-dawn-ink text-white border-dawn-ink shadow-lg" : "bg-white border-dawn-ink/10")}>
+            <div className="flex justify-between items-start">
+              <div>
+                <p className={"text-[10px] uppercase tracking-[0.18em] " + (plan === "monthly" ? "opacity-70" : "opacity-50")}>Flexible</p>
+                <p className="font-serif text-2xl mt-1">Monthly</p>
+                <p className={"text-xs mt-1 " + (plan === "monthly" ? "opacity-70" : "opacity-60")}>Cancel anytime</p>
+              </div>
+              <div className="text-right">
+                <p className="font-serif text-2xl">$9.99<span className="text-sm opacity-60">/mo</span></p>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <ul className="mt-8 space-y-3 text-sm opacity-80">
+          {[
+            "Unlimited card draws and follow-ups",
+            "Full history and saved collection",
+            "Gentle daily reminders",
+            "Send Sparks to people you love",
+          ].map((f) => (
+            <li key={f} className="flex items-center gap-3">
+              <span className="size-1.5 rounded-full bg-dawn-rose" />
+              {f}
+            </li>
+          ))}
+        </ul>
+
+        <button className="mt-8 w-full py-4 bg-dawn-ink text-white text-[11px] uppercase tracking-[0.2em] font-bold rounded-full hover:bg-dawn-ink/90">
+          Begin {plan === "yearly" ? "yearly" : "monthly"} plan
+        </button>
+        <p className="mt-3 text-center text-[10px] uppercase tracking-widest opacity-40">Prototype — no real payment</p>
+      </main>
+    </div>
+  );
+}
