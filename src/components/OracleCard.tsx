@@ -51,15 +51,25 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
 
   return (
     <article className="relative group animate-card-rise">
-      <div className="absolute -inset-6 bg-dawn-haze/30 blur-3xl rounded-[3rem] animate-halo -z-10" aria-hidden />
-      <div className="relative bg-white border border-dawn-ink/5 rounded-2xl p-7 sm:p-8 shadow-[0_30px_60px_-30px_rgba(45,42,46,0.18)]">
-        <div className="w-full aspect-[4/5] mb-7 rounded-lg overflow-hidden ring-1 ring-dawn-ink/5 bg-stone-50">
+      {/* Warm sunrise glow behind the card */}
+      <div
+        aria-hidden
+        className="absolute -inset-12 -z-10 rounded-[3rem] blur-3xl animate-halo opacity-80"
+        style={{
+          background:
+            "radial-gradient(60% 55% at 50% 40%, rgba(245,207,138,0.55) 0%, rgba(244,163,122,0.35) 35%, rgba(189,92,120,0.18) 65%, transparent 80%)",
+        }}
+      />
+      <div
+        className="relative rounded-2xl p-7 sm:p-8 border border-dawn-haze/15 bg-dawn-surface/80 backdrop-blur-xl shadow-[0_40px_120px_-30px_rgba(245,180,120,0.35),inset_0_1px_0_rgba(255,220,180,0.08)]"
+      >
+        <div className="w-full aspect-[4/5] mb-7 rounded-lg overflow-hidden ring-1 ring-dawn-haze/15 bg-black/30">
           <img src={ART[card.art]} alt={card.title} width={800} height={1000} className="h-full w-full object-cover" loading="lazy" />
         </div>
 
         <p className="text-sm italic font-serif opacity-60 leading-relaxed text-pretty">{card.opener}</p>
-        <h2 className="mt-3 text-3xl font-serif font-light tracking-tight text-balance">{card.title}</h2>
-        <p className="mt-4 text-dawn-ink/80 leading-relaxed text-[15px] text-pretty max-w-[46ch]">{card.message}</p>
+        <h2 className="mt-3 text-3xl font-serif font-light tracking-tight text-balance text-dawn-ink">{card.title}</h2>
+        <p className="mt-4 text-dawn-ink/75 leading-relaxed text-[15px] text-pretty max-w-[46ch]">{card.message}</p>
 
         {!readOnly && (
           <div className="mt-7 pt-6 border-t border-dawn-ink/5 flex flex-wrap gap-2">
