@@ -5,11 +5,15 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-dawn-sky: #fdfcfb;
-  --color-dawn-haze: #e2d1c3;
-  --color-dawn-ink: #2d2a2e;
-  --color-dawn-glow: #fff7ed;
-  --color-dawn-rose: #f43f5e;
+  /* Dark, warm, atmospheric */
+  --color-dawn-sky: #0e0a14;       /* deep plum-black background */
+  --color-dawn-night: #16101d;     /* slightly lifted surface */
+  --color-dawn-surface: #1e1726;   /* card / chip surface */
+  --color-dawn-haze: #f5b78a;      /* warm peach haze for glow */
+  --color-dawn-ink: #f6ecdf;       /* warm cream foreground */
+  --color-dawn-glow: #3a2a2a;      /* muted ember-tinted surface */
+  --color-dawn-rose: #f4a37a;      /* soft sunrise accent */
+  --color-dawn-gold: #f5cf8a;      /* gold horizon */
   --color-dawn-cream: #faf5ee;
 
   --font-serif: "Fraunces", ui-serif, Georgia, serif;
@@ -83,13 +87,13 @@
   to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
 @keyframes halo-pulse {
-  0%, 100% { opacity: 0.45; }
-  50%      { opacity: 0.85; }
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.9;  transform: scale(1.03); }
 }
 
 @utility animate-card-rise {
   animation: card-rise 900ms cubic-bezier(0.19, 1, 0.22, 1) both;
 }
 @utility animate-halo {
-  animation: halo-pulse 6s ease-in-out infinite;
+  animation: halo-pulse 7s ease-in-out infinite;
 }
