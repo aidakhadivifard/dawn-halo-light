@@ -20,7 +20,7 @@ export function BottomNav() {
                 to={it.to}
                 className={
                   "flex flex-col items-center gap-1 px-3 py-1 " +
-                  (active ? "text-dawn-rose" : "text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors")
+                  (active ? "text-dawn-haze" : "text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors")
                 }
               >
                 <span className={"size-1.5 rounded-full " + (active ? "bg-dawn-rose" : "bg-current")} />
