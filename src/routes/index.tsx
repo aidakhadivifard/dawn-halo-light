@@ -35,11 +35,13 @@ function TodayPage() {
   });
   const [input, setInput] = useState("");
   const [drawCount, setDrawCount] = useState(0);
+  const [dateLabel, setDateLabel] = useState("");
 
   useEffect(() => {
     recordHistory(drawDailyCard(today));
     setStreak(computeStreak(loadHistory()));
     setDrawCount(getDrawCount());
+    setDateLabel(formatDate(today));
   }, [today]);
 
   const remaining = useMemo(() => Math.max(0, FREE_DRAWS - drawCount), [drawCount]);
@@ -71,7 +73,7 @@ function TodayPage() {
       <main className="max-w-md mx-auto px-6 pt-12 pb-32">
         <header className="mb-10 flex justify-between items-end">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 mb-1">{formatDate(today)}</p>
+            <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 mb-1">{dateLabel}</p>
             <h1 className="text-3xl font-serif font-light tracking-tight italic">Good morning.</h1>
           </div>
           <div className="text-right">

@@ -66,7 +66,7 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
             <button onClick={toggleSave}
               className={"text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 rounded-full transition-colors " +
                 (saved ? "bg-dawn-rose text-white" : "bg-dawn-ink text-white hover:bg-dawn-ink/90")}>
-              {saved ? "Collected" : "Collect"}
+              {saved ? "Saved" : "Save"}
             </button>
             {showCanDraw && onDrawAgain && (
               <button onClick={onDrawAgain}
@@ -77,12 +77,12 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
             {!followUpUsed && (
               <button onClick={() => document.getElementById(`fu-${card.id}`)?.focus()}
                 className="text-[10px] uppercase tracking-[0.18em] font-medium px-4 py-2 border border-dawn-ink/10 rounded-full hover:bg-dawn-glow transition-colors">
-                One follow-up
+                Ask a follow-up
               </button>
             )}
             <button onClick={() => setSparkOpen((s) => !s)}
               className="text-[10px] uppercase tracking-[0.18em] font-medium px-4 py-2 border border-dawn-ink/10 rounded-full hover:bg-dawn-glow transition-colors">
-              Send a Spark
+              Share
             </button>
           </div>
         )}
@@ -90,7 +90,7 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
           <div className="mt-7 pt-6 border-t border-dawn-ink/5">
             <button onClick={() => setSparkOpen((s) => !s)}
               className="text-[10px] uppercase tracking-[0.18em] font-medium px-4 py-2 border border-dawn-ink/10 rounded-full hover:bg-dawn-glow transition-colors">
-              Send a Spark
+              Share
             </button>
           </div>
         )}
@@ -114,7 +114,7 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
 
       {!readOnly && !followUpUsed && (
         <form onSubmit={submitFollowUp} className="mt-6 relative">
-          <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-2 ml-1">One follow-up</label>
+          <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-2 ml-1">Ask a follow-up</label>
           <input id={`fu-${card.id}`} value={followUp} onChange={(e) => setFollowUp(e.target.value)}
             placeholder="Anything you want to ask this card…"
             className="w-full bg-white border border-dawn-ink/5 rounded-xl px-5 py-4 pr-24 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/20" />
