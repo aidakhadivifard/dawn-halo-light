@@ -27,12 +27,7 @@ function TodayPage() {
   const [today] = useState(() => new Date());
   const [activeCard, setActiveCard] = useState<OracleCard>(() => drawDailyCard(today));
   const [streak, setStreak] = useState(0);
-  const [reminders] = useState(() => {
-    const a = Math.floor(Math.random() * REMINDERS.length);
-    let b = Math.floor(Math.random() * REMINDERS.length);
-    if (b === a) b = (b + 1) % REMINDERS.length;
-    return [REMINDERS[a], REMINDERS[b]];
-  });
+  const [reminders, setReminders] = useState<[string, string]>([REMINDERS[0], REMINDERS[1]]);
   const [input, setInput] = useState("");
   const [drawCount, setDrawCount] = useState(0);
   const [dateLabel, setDateLabel] = useState("");
@@ -42,6 +37,10 @@ function TodayPage() {
     setStreak(computeStreak(loadHistory()));
     setDrawCount(getDrawCount());
     setDateLabel(formatDate(today));
+    const a = Math.floor(Math.random() * REMINDERS.length);
+    let b = Math.floor(Math.random() * REMINDERS.length);
+    if (b === a) b = (b + 1) % REMINDERS.length;
+    setReminders([REMINDERS[a], REMINDERS[b]]);
   }, [today]);
 
   const remaining = useMemo(() => Math.max(0, FREE_DRAWS - drawCount), [drawCount]);
