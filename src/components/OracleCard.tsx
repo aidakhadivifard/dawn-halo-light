@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ART, type OracleCard as OracleCardT, saveCard, isSaved, removeSaved, askOracle, encodeShare } from "@/lib/dawnhalo";
+import { artForCard, type OracleCard as OracleCardT, saveCard, isSaved, removeSaved, askOracle, encodeShare } from "@/lib/dawnhalo";
 
 type Props = {
   card: OracleCardT;
@@ -10,7 +10,9 @@ type Props = {
 };
 
 export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true }: Props) {
-  const [saved, setSaved] = useState<boolean>(() => isSaved(card.id));
+  // Read from localStorage only after mount to avoid SSR/client hydration mismatch.
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { setSaved(isSaved(card.id)); }, [card.id]);
   const [followUp, setFollowUp] = useState("");
   const [followUpUsed, setFollowUpUsed] = useState(false);
   const [followCard, setFollowCard] = useState<OracleCardT | null>(null);
@@ -64,7 +66,7 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
         className="relative rounded-2xl p-7 sm:p-8 border border-dawn-haze/15 bg-dawn-surface/80 backdrop-blur-xl shadow-[0_40px_120px_-30px_rgba(245,180,120,0.35),inset_0_1px_0_rgba(255,220,180,0.08)]"
       >
         <div className="w-full aspect-[4/5] mb-7 rounded-lg overflow-hidden ring-1 ring-dawn-haze/15 bg-black/30">
-          <img src={ART[card.art]} alt={card.title} width={800} height={1000} className="h-full w-full object-cover" loading="lazy" />
+          <img src={artForCard(card)} alt={card.title} width={768} height={1152} className="h-full w-full object-cover" loading="lazy" />
         </div>
 
         <p className="text-sm italic font-serif opacity-60 leading-relaxed text-pretty">{card.opener}</p>
