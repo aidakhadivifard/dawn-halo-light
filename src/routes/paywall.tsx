@@ -56,9 +56,9 @@ function PaywallPage() {
         <ul className="mt-8 space-y-3 text-sm opacity-80">
           {[
             "Unlimited card draws and follow-ups",
-            "Full history and saved collection",
+            "Full history and saved cards",
             "Gentle daily reminders",
-            "Send Sparks to people you love",
+            "Share cards with people you love",
           ].map((f) => (
             <li key={f} className="flex items-center gap-3">
               <span className="size-1.5 rounded-full bg-dawn-rose" />
