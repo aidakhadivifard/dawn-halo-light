@@ -23,7 +23,7 @@ export function BottomNav() {
                   (active ? "text-dawn-haze" : "text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors")
                 }
               >
-                <span className={"size-1.5 rounded-full " + (active ? "bg-dawn-rose" : "bg-current")} />
+                <span className={"size-1.5 rounded-full " + (active ? "bg-dawn-haze shadow-[0_0_12px_rgba(245,180,120,0.6)]" : "bg-current")} />
                 <span className="text-[10px] uppercase tracking-[0.18em] font-medium">{it.label}</span>
               </Link>
             </li>
