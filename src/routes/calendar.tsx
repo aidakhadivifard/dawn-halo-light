@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { loadHistory, computeStreak, cardsByDay, ART, type OracleCard } from "@/lib/dawnhalo";
+import { loadHistory, computeStreak, cardsByDay, ART, artForCard, type OracleCard } from "@/lib/dawnhalo";
 import { BottomNav } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/calendar")({

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { loadSaved, ART, type OracleCard } from "@/lib/dawnhalo";
+import { loadSaved, ART, artForCard, type OracleCard } from "@/lib/dawnhalo";
 import { OracleCardView } from "@/components/OracleCard";
 import { BottomNav } from "@/components/BottomNav";
 
