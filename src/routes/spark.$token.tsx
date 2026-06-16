@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { decodeShare, ART } from "@/lib/dawnhalo";
+import { decodeShare, artForCard } from "@/lib/dawnhalo";
 
 export const Route = createFileRoute("/spark/$token")({
   head: () => ({
@@ -48,7 +48,7 @@ function SparkPage() {
           <div className="absolute -inset-6 bg-dawn-haze/30 blur-3xl rounded-[3rem] animate-halo -z-10" aria-hidden />
           <div className="relative bg-white border border-dawn-ink/5 rounded-2xl p-7 shadow-[0_30px_60px_-30px_rgba(45,42,46,0.18)]">
             <div className="w-full aspect-[4/5] mb-7 rounded-lg overflow-hidden ring-1 ring-dawn-ink/5">
-              <img src={ART[data.art]} alt={data.title} width={800} height={1000} className="h-full w-full object-cover" />
+              <img src={artForCard({ id: token, art: data.art, theme: data.theme })} alt={data.title} width={800} height={1000} className="h-full w-full object-cover" />
             </div>
             <p className="text-sm italic font-serif opacity-60 leading-relaxed">{data.opener}</p>
             <h2 className="mt-3 text-3xl font-serif font-light tracking-tight">{data.title}</h2>
