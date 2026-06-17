@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { loadSaved, ART, artForCard, type OracleCard } from "@/lib/dawnhalo";
+import { useEffect, useState } from "react";
+import { getSaved, type SavedCard } from "@/lib/store";
 import { OracleCardView } from "@/components/OracleCard";
 import { BottomNav } from "@/components/BottomNav";
 
@@ -10,8 +10,16 @@ export const Route = createFileRoute("/saved")({
 });
 
 function SavedPage() {
-  const [cards] = useState<OracleCard[]>(() => loadSaved());
-  const [open, setOpen] = useState<OracleCard | null>(null);
+  const [cards, setCards] = useState<SavedCard[]>([]);
+  const [open, setOpen] = useState<SavedCard | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getSaved().then((list) => alive && setCards(list));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-dawn-sky">
@@ -36,12 +44,12 @@ function SavedPage() {
             {cards.map((c) => (
               <li key={c.id}>
                 <button onClick={() => setOpen(c)} className="w-full flex items-center gap-4 p-3 bg-white border border-dawn-ink/5 rounded-xl text-left hover:bg-dawn-glow/50 transition-colors">
-                  <img src={artForCard(c)} alt="" width={64} height={80} className="size-16 rounded-md object-cover ring-1 ring-dawn-ink/5" loading="lazy" />
+                  <img src={c.illustration} alt="" width={64} height={80} className="size-16 rounded-md object-cover ring-1 ring-dawn-ink/5" loading="lazy" />
                   <div className="min-w-0 flex-1">
                     <p className="font-serif text-lg leading-tight truncate">{c.title}</p>
                     <p className="text-xs opacity-60 truncate">{c.message}</p>
                     <p className="mt-1 text-[10px] uppercase tracking-widest opacity-40">
-                      Saved {new Date(c.savedAt ?? c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      Saved {new Date(c.savedAt ?? c.createdAt ?? Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </p>
                   </div>
                 </button>

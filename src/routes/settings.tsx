@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { loadSettings, saveSettings, resetDrawCount } from "@/lib/dawnhalo";
+import { useEffect, useState } from "react";
+import { getSettings, saveSettings } from "@/lib/store";
+import type { Settings } from "@/lib/dawnhalo";
 import { BottomNav } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/settings")({
@@ -9,10 +10,23 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const [s, setS] = useState(() => loadSettings());
+  const [s, setS] = useState<Settings>({ reminderTime: "07:30", notificationsOn: true });
   const [savedMsg, setSavedMsg] = useState(false);
 
-  const update = (next: typeof s) => { setS(next); saveSettings(next); setSavedMsg(true); setTimeout(() => setSavedMsg(false), 1200); };
+  useEffect(() => {
+    let alive = true;
+    getSettings().then((loaded) => alive && setS(loaded));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const update = (next: Settings) => {
+    setS(next);
+    void saveSettings(next);
+    setSavedMsg(true);
+    setTimeout(() => setSavedMsg(false), 1200);
+  };
 
   return (
     <div className="min-h-screen bg-dawn-sky">
@@ -43,18 +57,9 @@ function SettingsPage() {
           </div>
         </div>
 
-        <div className="mt-8 bg-white border border-dawn-ink/5 rounded-2xl p-5">
-          <p className="font-serif text-lg">Free draws today</p>
-          <p className="text-xs opacity-60 mt-1">Prototype-only — reset to test the paywall flow.</p>
-          <button onClick={() => { resetDrawCount(); setSavedMsg(true); setTimeout(() => setSavedMsg(false), 1200); }}
-            className="mt-4 text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 border border-dawn-ink/10 rounded-full hover:bg-dawn-glow">
-            Reset draw count
-          </button>
-        </div>
-
         {savedMsg && <p className="mt-6 text-center text-xs italic opacity-60">Saved.</p>}
 
-        <p className="mt-12 text-center text-[10px] uppercase tracking-[0.2em] opacity-30">Dawnhalo · v0 prototype</p>
+        <p className="mt-12 text-center text-[10px] uppercase tracking-[0.2em] opacity-30">Dawnhalo · a little light for your next step</p>
       </main>
       <BottomNav />
     </div>

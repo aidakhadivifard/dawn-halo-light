@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { api } from "@/lib/api";
 
 export const Route = createFileRoute("/paywall")({
   head: () => ({ meta: [{ title: "Plans — Dawnhalo" }, { name: "description", content: "Unlimited cards, from $4.99/mo." }] }),
@@ -8,6 +9,25 @@ export const Route = createFileRoute("/paywall")({
 
 function PaywallPage() {
   const [plan, setPlan] = useState<"yearly" | "monthly">("yearly");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const beginCheckout = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const { url } = await api.checkout(plan);
+      if (url) {
+        window.location.href = url;
+      } else {
+        setError("Checkout isn't available right now. Please try again later.");
+      }
+    } catch {
+      setError("Checkout isn't available right now. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <div className="min-h-screen bg-dawn-sky flex flex-col">
       <main className="flex-1 max-w-md w-full mx-auto px-6 pt-12 pb-16">
@@ -67,10 +87,12 @@ function PaywallPage() {
           ))}
         </ul>
 
-        <button className="mt-8 w-full py-4 bg-dawn-ink text-white text-[11px] uppercase tracking-[0.2em] font-bold rounded-full hover:bg-dawn-ink/90">
-          Begin {plan === "yearly" ? "yearly" : "monthly"} plan
+        <button onClick={beginCheckout} disabled={loading}
+          className="mt-8 w-full py-4 bg-dawn-ink text-white text-[11px] uppercase tracking-[0.2em] font-bold rounded-full hover:bg-dawn-ink/90 disabled:opacity-60">
+          {loading ? "Opening checkout…" : `Begin ${plan === "yearly" ? "yearly" : "monthly"} plan`}
         </button>
-        <p className="mt-3 text-center text-[10px] uppercase tracking-widest opacity-40">Prototype — no real payment</p>
+        {error && <p className="mt-3 text-center text-[11px] text-dawn-rose">{error}</p>}
+        <p className="mt-3 text-center text-[10px] uppercase tracking-widest opacity-40">Secure checkout · cancel anytime</p>
       </main>
     </div>
   );

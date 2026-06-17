@@ -143,6 +143,20 @@ export function cardsByTheme(theme: CardTheme): CardImage[] {
   return CARD_LIBRARY.filter((c) => c.theme === theme);
 }
 
+const BY_ID: Record<string, CardImage> = Object.fromEntries(
+  CARD_LIBRARY.map((c) => [c.id, c]),
+);
+
+/** Resolve a backend illustration id (e.g. "card-exhaustion_rest-02") to a URL. */
+export function srcForId(id: string | undefined, theme?: CardTheme): string | undefined {
+  if (id && BY_ID[id]) return BY_ID[id].src;
+  if (theme) {
+    const pool = cardsByTheme(theme);
+    if (pool.length) return pool[0].src;
+  }
+  return undefined;
+}
+
 export function pickCardForTheme(theme: CardTheme, seed?: number): CardImage {
   const pool = cardsByTheme(theme);
   const i = seed === undefined ? Math.floor(Math.random() * pool.length) : seed % pool.length;

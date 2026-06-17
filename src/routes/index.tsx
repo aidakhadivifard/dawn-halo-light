@@ -1,10 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  drawDailyCard, drawRandomCard, askOracle, recordHistory, loadHistory,
-  computeStreak, REMINDERS, bumpDrawCount, getDrawCount, FREE_DRAWS,
-  type OracleCard,
-} from "@/lib/dawnhalo";
+  getDailyWithEntitlement,
+  drawCardEx,
+  offlineDailyCard,
+  type Card,
+  type Entitlement,
+} from "@/lib/cards";
+import { getCalendar } from "@/lib/store";
+import { REMINDERS } from "@/lib/dawnhalo";
 import { OracleCardView } from "@/components/OracleCard";
 import { BottomNav } from "@/components/BottomNav";
 
@@ -25,46 +29,69 @@ function formatDate(d: Date) {
 function TodayPage() {
   const navigate = useNavigate();
   const [today] = useState(() => new Date());
-  const [activeCard, setActiveCard] = useState<OracleCard>(() => drawDailyCard(today));
+  const [activeCard, setActiveCard] = useState<Card>(() => offlineDailyCard(today));
   const [streak, setStreak] = useState(0);
   const [reminders, setReminders] = useState<[string, string]>([REMINDERS[0], REMINDERS[1]]);
   const [input, setInput] = useState("");
-  const [drawCount, setDrawCount] = useState(0);
+  const [entitlement, setEntitlement] = useState<Entitlement | null>(null);
   const [dateLabel, setDateLabel] = useState("");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    recordHistory(drawDailyCard(today));
-    setStreak(computeStreak(loadHistory()));
-    setDrawCount(getDrawCount());
+    let alive = true;
+    getDailyWithEntitlement().then(({ card, entitlement }) => {
+      if (!alive) return;
+      setActiveCard(card);
+      if (entitlement) setEntitlement(entitlement);
+    });
+    getCalendar().then(({ streak }) => alive && setStreak(streak));
     setDateLabel(formatDate(today));
     const a = Math.floor(Math.random() * REMINDERS.length);
     let b = Math.floor(Math.random() * REMINDERS.length);
     if (b === a) b = (b + 1) % REMINDERS.length;
     setReminders([REMINDERS[a], REMINDERS[b]]);
+    return () => {
+      alive = false;
+    };
   }, [today]);
 
-  const remaining = useMemo(() => Math.max(0, FREE_DRAWS - drawCount), [drawCount]);
+  const remaining = entitlement?.freeDrawsRemaining ?? null; // -1 unlimited, null unknown
+  const unlimited = entitlement?.subscribed || remaining === -1;
 
-  const handleNewCard = (card: OracleCard) => {
-    recordHistory(card);
-    bumpDrawCount();
-    setDrawCount(getDrawCount());
-    setActiveCard(card);
+  const handleOutcome = (out: Awaited<ReturnType<typeof drawCardEx>>) => {
+    if (out.kind === "crisis") {
+      navigate({ to: "/support" });
+      return false;
+    }
+    if (out.kind === "paywall") {
+      navigate({ to: "/paywall" });
+      return false;
+    }
+    setActiveCard(out.card);
+    if (out.entitlement) setEntitlement(out.entitlement);
+    return true;
   };
 
-  const submitInput = (e: React.FormEvent) => {
+  const submitInput = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
-    if (remaining <= 0) { navigate({ to: "/paywall" }); return; }
-    const r = askOracle(input);
-    if (r.kind === "crisis") { navigate({ to: "/support" }); return; }
-    handleNewCard(r.card);
-    setInput("");
+    if (!input.trim() || busy) return;
+    setBusy(true);
+    try {
+      const out = await drawCardEx({ intent: "ask", text: input });
+      if (handleOutcome(out)) setInput("");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const drawAgain = () => {
-    if (remaining <= 0) { navigate({ to: "/paywall" }); return; }
-    handleNewCard(drawRandomCard());
+  const drawAgain = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      handleOutcome(await drawCardEx({ intent: "ask", text: "" }));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -99,13 +126,19 @@ function TodayPage() {
               rows={3}
               placeholder="What's on your mind?"
               className="w-full bg-dawn-surface/70 backdrop-blur-md text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-2xl p-5 pr-16 text-sm leading-relaxed focus:outline-none focus:ring-1 ring-dawn-rose/30 min-h-[120px] shadow-[0_20px_60px_-30px_rgba(245,180,120,0.25)] resize-none" />
-            <button type="submit" aria-label="Draw a card from your prompt"
-              className="absolute bottom-4 right-4 size-11 bg-dawn-rose text-dawn-sky border border-dawn-haze/40 rounded-full flex items-center justify-center hover:bg-dawn-haze transition-colors">
+            <button type="submit" aria-label="Draw a card from your prompt" disabled={busy}
+              className="absolute bottom-4 right-4 size-11 bg-dawn-rose text-dawn-sky border border-dawn-haze/40 rounded-full flex items-center justify-center hover:bg-dawn-haze transition-colors disabled:opacity-50">
               <svg viewBox="0 0 24 24" fill="none" className="size-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
             </button>
           </form>
           <p className="mt-2 ml-1 text-[10px] uppercase tracking-[0.18em] opacity-40">
-            {remaining > 0 ? `${remaining} free draw${remaining === 1 ? "" : "s"} left today` : "Free draws used — open a plan to keep drawing"}
+            {unlimited
+              ? "Unlimited draws"
+              : remaining === null
+                ? " "
+                : remaining > 0
+                  ? `${remaining} free draw${remaining === 1 ? "" : "s"} left today`
+                  : "Free draws used — open a plan to keep drawing"}
           </p>
         </section>
 

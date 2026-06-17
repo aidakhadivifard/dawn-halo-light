@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { loadHistory, computeStreak, cardsByDay, ART, artForCard, type OracleCard } from "@/lib/dawnhalo";
+import { useEffect, useMemo, useState } from "react";
+import { getCalendar } from "@/lib/store";
+import type { Card } from "@/lib/cards";
 import { BottomNav } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/calendar")({
@@ -8,13 +9,29 @@ export const Route = createFileRoute("/calendar")({
   component: CalendarPage,
 });
 
+// Local YYYY-MM-DD key, matching the backend's local_date keys.
+function ymd(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function CalendarPage() {
   const today = new Date();
   const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
-  const history = useMemo(() => loadHistory(), []);
-  const byDay = useMemo(() => cardsByDay(history), [history]);
-  const streak = useMemo(() => computeStreak(history), [history]);
+  const [byDay, setByDay] = useState<Record<string, Card[]>>({});
+  const [streak, setStreak] = useState(0);
   const [selected, setSelected] = useState<Date | null>(today);
+
+  useEffect(() => {
+    let alive = true;
+    getCalendar().then(({ byDay, streak }) => {
+      if (!alive) return;
+      setByDay(byDay);
+      setStreak(streak);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const firstWeekday = month.getDay();
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
@@ -22,7 +39,7 @@ function CalendarPage() {
   for (let i = 0; i < firstWeekday; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(month.getFullYear(), month.getMonth(), d));
 
-  const dayCards: OracleCard[] = selected ? (byDay[selected.toDateString()] || []) : [];
+  const dayCards: Card[] = selected ? byDay[ymd(selected)] || [] : [];
 
   return (
     <div className="min-h-screen bg-dawn-sky">
@@ -55,9 +72,9 @@ function CalendarPage() {
           <div className="grid grid-cols-7 gap-1">
             {cells.map((c, i) => {
               if (!c) return <span key={i} className="aspect-square" />;
-              const has = !!byDay[c.toDateString()];
-              const isToday = c.toDateString() === today.toDateString();
-              const isSel = !!selected && c.toDateString() === selected.toDateString();
+              const has = !!byDay[ymd(c)];
+              const isToday = ymd(c) === ymd(today);
+              const isSel = !!selected && ymd(c) === ymd(selected);
               return (
                 <button key={i} onClick={() => setSelected(c)}
                   className={
@@ -84,7 +101,7 @@ function CalendarPage() {
               <ul className="space-y-3">
                 {dayCards.map((c) => (
                   <li key={c.id} className="flex items-start gap-4 p-4 bg-white border border-dawn-ink/5 rounded-xl">
-                    <img src={artForCard(c)} alt="" width={56} height={70} className="size-14 rounded-md object-cover ring-1 ring-dawn-ink/5" loading="lazy" />
+                    <img src={c.illustration} alt="" width={56} height={70} className="size-14 rounded-md object-cover ring-1 ring-dawn-ink/5" loading="lazy" />
                     <div className="min-w-0">
                       <p className="font-serif text-lg leading-tight">{c.title}</p>
                       <p className="text-xs opacity-60 line-clamp-2">{c.message}</p>

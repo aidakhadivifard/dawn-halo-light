@@ -1,50 +1,87 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { artForCard, type OracleCard as OracleCardT, saveCard, isSaved, removeSaved, askOracle, encodeShare } from "@/lib/dawnhalo";
+import { askFollowUpEx, type Card } from "@/lib/cards";
+import { saveCard, removeSaved, getSaved, createSpark } from "@/lib/store";
 
 type Props = {
-  card: OracleCardT;
+  card: Card;
   onDrawAgain?: () => void;
+  /** Called when the user chooses "Draw a new card" after a follow-up answer. */
+  onDrawNew?: () => void;
   readOnly?: boolean;
   showCanDraw?: boolean;
 };
 
-export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true }: Props) {
-  // Read from localStorage only after mount to avoid SSR/client hydration mismatch.
+export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCanDraw = true }: Props) {
+  // Read saved-state only after mount to avoid SSR/client hydration mismatch.
   const [saved, setSaved] = useState(false);
-  useEffect(() => { setSaved(isSaved(card.id)); }, [card.id]);
+  useEffect(() => {
+    let alive = true;
+    getSaved()
+      .then((list) => alive && setSaved(list.some((c) => c.id === card.id)))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [card.id]);
+
   const [followUp, setFollowUp] = useState("");
-  const [followUpUsed, setFollowUpUsed] = useState(false);
-  const [followCard, setFollowCard] = useState<OracleCardT | null>(null);
+  const [followUpUsed, setFollowUpUsed] = useState(!!card.followUpUsed);
+  const [followCard, setFollowCard] = useState<Card | null>(null);
   const [sparkOpen, setSparkOpen] = useState(false);
   const [note, setNote] = useState("");
   const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
 
-  const toggleSave = () => {
-    if (saved) { removeSaved(card.id); setSaved(false); }
-    else { saveCard(card); setSaved(true); }
+  const toggleSave = async () => {
+    if (saved) {
+      await removeSaved(card.id);
+      setSaved(false);
+    } else {
+      await saveCard(card);
+      setSaved(true);
+    }
   };
 
-  const submitFollowUp = (e: React.FormEvent) => {
+  const submitFollowUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!followUp.trim() || followUpUsed) return;
-    const r = askOracle(followUp);
-    if (r.kind === "crisis") { navigate({ to: "/support" }); return; }
-    setFollowCard(r.card);
-    setFollowUpUsed(true);
-  };
-
-  const shareUrl = () => {
-    const token = encodeShare(card, note);
-    return `${window.location.origin}/spark/${token}`;
+    if (!followUp.trim() || followUpUsed || busy) return;
+    setBusy(true);
+    try {
+      const out = await askFollowUpEx({ previous: card, text: followUp });
+      if (out.kind === "crisis") {
+        navigate({ to: "/support" });
+        return;
+      }
+      if (out.kind === "paywall") {
+        navigate({ to: "/paywall" });
+        return;
+      }
+      setFollowCard(out.card);
+      setFollowUpUsed(true);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const doShare = async () => {
-    const url = shareUrl();
+    const url = await createSpark(card, note);
     const text = `${card.title} — ${card.message}`;
-    if (typeof navigator !== "undefined" && (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }).share) {
-      try { await (navigator as Navigator & { share: (d: ShareData) => Promise<void> }).share({ title: "Dawnhalo", text, url }); return; } catch { /* fallthrough */ }
+    if (
+      typeof navigator !== "undefined" &&
+      (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }).share
+    ) {
+      try {
+        await (navigator as Navigator & { share: (d: ShareData) => Promise<void> }).share({
+          title: "Dawnhalo",
+          text,
+          url,
+        });
+        return;
+      } catch {
+        /* fallthrough to copy */
+      }
     }
     await navigator.clipboard.writeText(url);
     setCopied(true);
@@ -66,7 +103,7 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
         className="relative rounded-2xl p-7 sm:p-8 border border-dawn-haze/15 bg-dawn-surface/80 backdrop-blur-xl shadow-[0_40px_120px_-30px_rgba(245,180,120,0.35),inset_0_1px_0_rgba(255,220,180,0.08)]"
       >
         <div className="w-full aspect-[4/5] mb-7 rounded-lg overflow-hidden ring-1 ring-dawn-haze/15 bg-black/30">
-          <img src={artForCard(card)} alt={card.title} width={768} height={1152} className="h-full w-full object-cover" loading="lazy" />
+          <img src={card.illustration} alt={card.title} width={768} height={1152} className="h-full w-full object-cover" loading="lazy" />
         </div>
 
         <p className="text-sm italic font-serif opacity-60 leading-relaxed text-pretty">{card.opener}</p>
@@ -108,7 +145,18 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
           </div>
         )}
         {readOnly && (
-          <div className="mt-7 pt-6 border-t border-dawn-haze/10">
+          <div className="mt-7 pt-6 border-t border-dawn-haze/10 flex gap-2">
+            <button onClick={toggleSave}
+              className={"text-[10px] uppercase tracking-[0.18em] font-bold px-5 py-2.5 rounded-full transition-colors " +
+                (saved ? "bg-dawn-rose text-dawn-sky" : "bg-dawn-ink text-dawn-sky hover:bg-dawn-cream")}>
+              {saved ? "Saved" : "Save"}
+            </button>
+            {onDrawNew && (
+              <button onClick={onDrawNew}
+                className="text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
+                Draw a new card
+              </button>
+            )}
             <button onClick={() => setSparkOpen((s) => !s)}
               className="text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
               Share
@@ -139,9 +187,9 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
           <input id={`fu-${card.id}`} value={followUp} onChange={(e) => setFollowUp(e.target.value)}
             placeholder="Anything you want to ask this card…"
             className="w-full bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-4 pr-24 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30" />
-          <button type="submit"
-            className="absolute right-2 top-[34px] text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors">
-            Ask
+          <button type="submit" disabled={busy}
+            className="absolute right-2 top-[34px] text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors disabled:opacity-50">
+            {busy ? "…" : "Ask"}
           </button>
         </form>
       )}
@@ -149,7 +197,8 @@ export function OracleCardView({ card, onDrawAgain, readOnly, showCanDraw = true
       {followCard && (
         <div className="mt-8">
           <p className="text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">The card answered</p>
-          <OracleCardView card={followCard} readOnly showCanDraw={false} />
+          {/* Bounded: after the one follow-up, offer only Save or Draw a new card. */}
+          <OracleCardView card={followCard} readOnly showCanDraw={false} onDrawNew={onDrawAgain} />
         </div>
       )}
     </article>
