@@ -15,6 +15,11 @@ name: Build Android app (.apk)
 
 on:
   workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Backend API URL (leave empty for offline mode)"
+        required: false
+        default: ""
   push:
     branches: [main]
     paths-ignore:
@@ -47,6 +52,8 @@ jobs:
 
       - name: Build web app (SPA)
         run: bun run build
+        env:
+          VITE_API_URL: ${{ github.event.inputs.api_url || vars.VITE_API_URL || '' }}
 
       - name: Prepare bundled web folder
         run: bun run cap:web
