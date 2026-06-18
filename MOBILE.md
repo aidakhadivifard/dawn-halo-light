@@ -17,47 +17,57 @@ testing and for users who don't want a store download.
 
 ---
 
-## Level 2 — Build the native apps (Capacitor)
+## Level 2 — Get an installable Android app (no Android Studio needed) ⭐
 
-This produces the actual Android (`.aab`) and iOS apps the stores require. The
-native shell loads your **deployed** site and adds native features on top.
+This is the easiest way to put a **real, self-contained app on your phone**. The
+app bundles the whole UI **and** all card images, so it runs fully offline — no
+server required. GitHub builds the `.apk` for you in the cloud.
 
-### Prerequisites
-- **Node 18+** and this repo on your computer.
-- **Android:** [Android Studio](https://developer.android.com/studio) (any OS).
-- **iOS:** a **Mac** with **Xcode** (Apple requires this; there is no way around it).
+### Download the app from GitHub Actions
+1. On GitHub, open the repo → **Actions** tab.
+2. In the left sidebar choose **"Build Android app (.apk)"**.
+3. Click **Run workflow** → **Run workflow** (green button). Wait ~5–10 min for
+   the green check. (It also runs automatically on every push to `main`.)
+4. Open the finished run → scroll to **Artifacts** → download
+   **`dawnhalo-android-apk`**. Unzip it to get **`app-debug.apk`**.
 
-### One-time setup
+### Install it on your Android phone
+1. Send `app-debug.apk` to your phone (email it to yourself, Google Drive, or USB).
+2. Tap the file on the phone. If it warns about "unknown sources", allow it for
+   your browser/Files app, then tap **Install**.
+3. Done — Dawnhalo is on your home screen and opens like any other app. 🎉
+
+> This `app-debug.apk` is perfect for using it yourself and sharing with testers.
+> For the **Google Play store** you'll instead build a *signed* `.aab` (see Level 3).
+
+### Build it locally instead (optional — needs Android Studio)
 ```bash
-# from the repo root
-bun install                      # installs the Capacitor packages now in package.json
-
-# Point the native shell at your deployed frontend URL:
-export CAP_SERVER_URL="https://YOUR-DEPLOYED-SITE"   # e.g. https://dawnhalo.pages.dev
-
-bun run cap:add:android          # creates the android/ project
-bun run cap:add:ios              # creates the ios/ project (Mac only)
-
-# App icon + splash from public/app-icon.svg:
-#   export public/app-icon.svg to a 1024x1024 PNG named "icon.png" in an
-#   "assets/" folder, then:
-npx @capacitor/assets generate --iconBackgroundColor '#fdfcfb' --splashBackgroundColor '#fdfcfb'
-```
-
-### Every time you change config or the deployed URL
-```bash
-export CAP_SERVER_URL="https://YOUR-DEPLOYED-SITE"
+bun install
+bun run build          # builds the SPA (static index.html + assets)
+bun run cap:web        # bundles the build into dist/cap
+bun run cap:add:android
 bun run cap:sync
+bun run cap:open:android   # opens Android Studio → press Run
 ```
 
-### Open and run
+### iOS
+iOS apps can **only** be built on a **Mac with Xcode** (Apple's rule — no cloud
+shortcut, and GitHub's free runners can't sign iOS apps). On a Mac:
 ```bash
-bun run cap:open:android   # opens Android Studio → press Run to test on a device/emulator
-bun run cap:open:ios       # opens Xcode (Mac) → press Run
+bun install && bun run build && bun run cap:web
+bun run cap:add:ios
+bun run cap:sync
+bun run cap:open:ios       # opens Xcode → set your Team → press Run
 ```
 
-> The `android/` and `ios/` folders are generated locally and are **not** committed
-> (they're large and machine-specific). Regenerate with the commands above.
+> The `android/` and `ios/` folders are generated and **not** committed (large,
+> machine-specific). They're recreated by the commands above / by CI every time.
+
+### Want the app to use the live backend instead of offline mode?
+By default the app runs offline (cards generated on-device). To point it at your
+deployed Express backend, set `VITE_API_URL` before the build (e.g. as a repo
+**Actions secret/variable** the workflow passes to `bun run build`, or locally
+`export VITE_API_URL="https://your-backend"`). Then rebuild the `.apk`.
 
 ---
 

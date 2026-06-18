@@ -1,24 +1,24 @@
 /// <reference types="@capacitor/cli" />
 import type { CapacitorConfig } from "@capacitor/cli";
 
-// Dawnhalo native shell config (Android + iOS via Capacitor).
+// Dawnhalo native app config (Android + iOS via Capacitor).
 //
-// Because the web app is server-rendered (TanStack Start), the native apps load
-// the DEPLOYED site inside the native shell and add native value on top (push
-// reminders, etc.). Set CAP_SERVER_URL to your deployed frontend URL before
-// `npx cap sync`. When unset, the shell shows the local loading/offline screen
-// in `mobile-shell/`.
+// DEFAULT (self-contained): the app bundles the built SPA (`dist/cap`, produced
+// by `bun run cap:web`) and runs entirely on the device — no server required,
+// works offline. This is what `.github/workflows/android.yml` builds into an
+// installable .apk.
+//
+// OPTIONAL (load a deployed site): set CAP_SERVER_URL to make the native shell
+// load your deployed frontend instead of the bundled copy.
 const serverUrl = process.env.CAP_SERVER_URL;
 
 const config: CapacitorConfig = {
   appId: "com.dawnhalo.app",
   appName: "Dawnhalo",
-  // A minimal local shell (loading + offline screen). The real UI comes from
-  // server.url when configured.
-  webDir: "mobile-shell",
-  ...(serverUrl
-    ? { server: { url: serverUrl, cleartext: false } }
-    : {}),
+  // The bundled SPA build. Populated by `bun run cap:web` (copies dist/client
+  // and renames the SPA shell to index.html).
+  webDir: "dist/cap",
+  ...(serverUrl ? { server: { url: serverUrl, cleartext: false } } : {}),
   backgroundColor: "#fdfcfb",
   ios: { contentInset: "always" },
   android: { backgroundColor: "#fdfcfb" },
