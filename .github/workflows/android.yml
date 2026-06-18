@@ -1,0 +1,70 @@
+name: Build Android app (.apk)
+
+# Builds a self-contained, installable Android app from the repo — no Android
+# Studio needed on your machine. The .apk is attached to the run as a download.
+#
+# How to use:
+#   1. Go to the repo's "Actions" tab on GitHub.
+#   2. Pick "Build Android app (.apk)" → "Run workflow" → Run.
+#   3. When it finishes (green check), open the run and download the
+#      "dawnhalo-android-apk" artifact. Unzip it to get app-debug.apk.
+#   4. Copy that .apk to your Android phone and tap it to install
+#      (enable "install from unknown sources" if prompted).
+#
+# It also runs automatically on every push to main.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "server/**"
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Set up Java (JDK 17 — required by Capacitor/Gradle)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build web app (SPA)
+        run: bun run build
+
+      - name: Prepare bundled web folder
+        run: bun run cap:web
+
+      - name: Add Android platform
+        run: bun run cap:add:android
+
+      - name: Sync web assets into Android project
+        run: bun run cap:sync
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dawnhalo-android-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30

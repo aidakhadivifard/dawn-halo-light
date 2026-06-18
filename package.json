@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "cap:web": "node scripts/prepare-cap-web.mjs",
     "cap:add:android": "cap add android",
     "cap:add:ios": "cap add ios",
     "cap:sync": "cap sync",
