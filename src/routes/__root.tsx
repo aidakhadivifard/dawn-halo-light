@@ -80,6 +80,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Dawnhalo — a little light for your next step" },
       { name: "description", content: "A daily affirmation and oracle-card companion. A quiet moment of clarity, every morning." },
       { name: "theme-color", content: "#fdfcfb" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "Dawnhalo" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { property: "og:title", content: "Dawnhalo" },
       { property: "og:description", content: "A little light for your next step." },
       { property: "og:type", content: "website" },
@@ -87,6 +91,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "icon", href: "/app-icon.svg", type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: "/app-icon.svg" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {

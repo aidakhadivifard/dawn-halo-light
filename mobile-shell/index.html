@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Dawnhalo</title>
+    <style>
+      html, body {
+        margin: 0; height: 100%;
+        background: #fdfcfb; color: #2d2a2e;
+        font-family: ui-serif, Georgia, "Times New Roman", serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        height: 100%; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; text-align: center; padding: 2rem;
+      }
+      .halo {
+        width: 160px; height: 160px; border-radius: 50%;
+        background: radial-gradient(circle at 50% 58%, #f7d79a 0%, #f4a37a 38%, #bd5c78 68%, transparent 80%);
+        filter: blur(2px); animation: pulse 2.4s ease-in-out infinite;
+      }
+      @keyframes pulse { 0%,100% { opacity: .7; transform: scale(.96); } 50% { opacity: 1; transform: scale(1.02); } }
+      h1 { font-weight: 300; font-style: italic; font-size: 1.8rem; margin: 1.5rem 0 .25rem; }
+      p { font-size: .9rem; opacity: .6; max-width: 22rem; line-height: 1.6; }
+      button {
+        margin-top: 1.5rem; padding: .8rem 1.6rem; border: none; border-radius: 999px;
+        background: #2d2a2e; color: #fdfcfb; font-size: .7rem; letter-spacing: .18em;
+        text-transform: uppercase; font-weight: 700; font-family: ui-sans-serif, system-ui, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      This is the native shell's local screen. When CAP_SERVER_URL is set the app
+      loads the live site instead and this is only seen while loading / offline.
+    -->
+    <div class="wrap">
+      <div class="halo"></div>
+      <h1>Dawnhalo</h1>
+      <p id="msg">A little light for your next step. Settling in…</p>
+      <button id="retry" style="display:none" onclick="location.reload()">Try again</button>
+    </div>
+    <script>
+      // If we can't reach the network shortly, show an offline message.
+      setTimeout(function () {
+        if (!navigator.onLine) {
+          document.getElementById("msg").textContent =
+            "You're offline right now. Reconnect to draw your card.";
+          document.getElementById("retry").style.display = "inline-block";
+        }
+      }, 1500);
+    </script>
+  </body>
+</html>

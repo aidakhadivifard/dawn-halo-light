@@ -20,6 +20,10 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Capacitor — generated native projects (regenerate with `cap add`)
+/android
+/ios
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
