@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: dawnhalo-api
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: APP_BASE_URL
+        value: https://dawnhalo-api.onrender.com
