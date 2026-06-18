@@ -1,4 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { fromApiCard, type Card } from "@/lib/cards";
 import { decodeShare, artForCard } from "@/lib/dawnhalo";
 
 export const Route = createFileRoute("/spark/$token")({
@@ -15,9 +18,51 @@ export const Route = createFileRoute("/spark/$token")({
 
 function SparkPage() {
   const { token } = Route.useParams();
-  const data = decodeShare(token);
+  const [state, setState] = useState<{ card: Card; note: string } | null | "error">(null);
 
-  if (!data) {
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      // Prefer the backend-stored spark; fall back to a legacy encoded token.
+      try {
+        const { card, note } = await api.getSpark(token);
+        if (alive) setState({ card: fromApiCard(card), note });
+        return;
+      } catch {
+        /* try legacy decode below */
+      }
+      const data = decodeShare(token);
+      if (!data) {
+        if (alive) setState("error");
+        return;
+      }
+      if (alive)
+        setState({
+          card: {
+            id: token,
+            opener: data.opener,
+            title: data.title,
+            message: data.message,
+            theme: data.theme,
+            illustration: artForCard({ id: token, art: data.art, theme: data.theme }),
+          },
+          note: data.note,
+        });
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+
+  if (state === null) {
+    return (
+      <div className="min-h-screen bg-dawn-sky flex items-center justify-center px-6">
+        <p className="text-sm italic opacity-60 font-serif">Opening your spark…</p>
+      </div>
+    );
+  }
+
+  if (state === "error") {
     return (
       <div className="min-h-screen bg-dawn-sky flex items-center justify-center px-6">
         <div className="text-center max-w-sm">
@@ -29,6 +74,8 @@ function SparkPage() {
     );
   }
 
+  const { card, note } = state;
+
   return (
     <div className="min-h-screen bg-dawn-sky">
       <main className="max-w-md mx-auto px-6 pt-12 pb-16">
@@ -37,10 +84,10 @@ function SparkPage() {
           <h1 className="mt-2 font-serif text-2xl italic font-light">Someone thought of you.</h1>
         </header>
 
-        {data.note && (
+        {note && (
           <div className="mb-6 p-5 bg-dawn-glow/60 border border-dawn-haze/30 rounded-2xl">
             <p className="text-[10px] uppercase tracking-[0.18em] opacity-50 mb-2">Their note</p>
-            <p className="font-serif italic text-lg leading-relaxed">"{data.note}"</p>
+            <p className="font-serif italic text-lg leading-relaxed">"{note}"</p>
           </div>
         )}
 
@@ -48,11 +95,11 @@ function SparkPage() {
           <div className="absolute -inset-6 bg-dawn-haze/30 blur-3xl rounded-[3rem] animate-halo -z-10" aria-hidden />
           <div className="relative bg-white border border-dawn-ink/5 rounded-2xl p-7 shadow-[0_30px_60px_-30px_rgba(45,42,46,0.18)]">
             <div className="w-full aspect-[4/5] mb-7 rounded-lg overflow-hidden ring-1 ring-dawn-ink/5">
-              <img src={artForCard({ id: token, art: data.art, theme: data.theme })} alt={data.title} width={800} height={1000} className="h-full w-full object-cover" />
+              <img src={card.illustration} alt={card.title} width={800} height={1000} className="h-full w-full object-cover" />
             </div>
-            <p className="text-sm italic font-serif opacity-60 leading-relaxed">{data.opener}</p>
-            <h2 className="mt-3 text-3xl font-serif font-light tracking-tight">{data.title}</h2>
-            <p className="mt-4 text-dawn-ink/80 leading-relaxed text-[15px] max-w-[46ch]">{data.message}</p>
+            <p className="text-sm italic font-serif opacity-60 leading-relaxed">{card.opener}</p>
+            <h2 className="mt-3 text-3xl font-serif font-light tracking-tight">{card.title}</h2>
+            <p className="mt-4 text-dawn-ink/80 leading-relaxed text-[15px] max-w-[46ch]">{card.message}</p>
           </div>
         </article>
 

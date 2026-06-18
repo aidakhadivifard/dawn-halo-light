@@ -1,0 +1,20 @@
+{
+  "name": "Dawnhalo",
+  "short_name": "Dawnhalo",
+  "description": "A little light for your next step — your daily oracle-card companion.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fdfcfb",
+  "theme_color": "#fdfcfb",
+  "categories": ["lifestyle", "health"],
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

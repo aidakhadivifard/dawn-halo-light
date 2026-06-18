@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Dawnhalo">
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="58%" r="60%">
+      <stop offset="0%" stop-color="#f7d79a"/>
+      <stop offset="38%" stop-color="#f4a37a"/>
+      <stop offset="68%" stop-color="#bd5c78"/>
+      <stop offset="100%" stop-color="#3a2740"/>
+    </radialGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2b2333"/>
+      <stop offset="100%" stop-color="#1a1622"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#sky)"/>
+  <circle cx="512" cy="560" r="300" fill="url(#halo)"/>
+  <circle cx="512" cy="560" r="150" fill="#fff3df" opacity="0.95"/>
+  <rect x="0" y="708" width="1024" height="316" rx="0" fill="#1a1622" opacity="0.55"/>
+</svg>
