@@ -57,6 +57,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     opener: string;
     title: string;
     message: string;
+    reflection?: string | null;
     theme: string;
     illustration_id: string;
     created_at: string;
@@ -68,6 +69,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       opener: row.opener,
       title: row.title,
       message: row.message,
+      reflection: row.reflection ?? undefined,
       theme: row.theme as CardTheme,
       illustrationId: row.illustration_id,
       createdAt: row.created_at,
@@ -101,6 +103,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         opener: gen.opener,
         title: gen.title,
         message: gen.message,
+        reflection: gen.reflection || null,
         prompt: null,
         parent_id: null,
         fallback: gen.fallback ? 1 : 0,
@@ -143,6 +146,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         opener: gen.opener,
         title: gen.title,
         message: gen.message,
+        reflection: gen.reflection || null,
         prompt: text || null,
         parent_id: null,
         fallback: gen.fallback ? 1 : 0,
@@ -194,6 +198,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         opener: gen.opener,
         title: gen.title,
         message: gen.message,
+        reflection: gen.reflection || null,
         prompt: text || null,
         parent_id: parent.id,
         fallback: gen.fallback ? 1 : 0,

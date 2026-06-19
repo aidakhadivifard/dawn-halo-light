@@ -22,8 +22,10 @@ export type Card = {
   opener: string;
   /** Card title. */
   title: string;
-  /** Main card body / message. */
+  /** Main card body / guidance. */
   message: string;
+  /** One gentle reflection question shown beneath the guidance. */
+  reflection?: string;
   /** Resolved illustration URL (already mapped from the library). */
   illustration: string;
   /** Backend illustration id (for save/share round-trips). */
@@ -63,6 +65,7 @@ function apiToCard(c: ApiCard): Card {
     opener: c.opener,
     title: c.title,
     message: c.message,
+    reflection: c.reflection,
     theme: c.theme,
     illustrationId: c.illustrationId,
     illustration: srcForId(c.illustrationId, c.theme) ?? artForCard({ id: c.id, theme: c.theme }),
@@ -78,6 +81,7 @@ function mockToCard(o: OracleCard): Card {
     opener: o.opener,
     title: o.title,
     message: o.message,
+    reflection: o.reflection,
     theme: o.theme,
     illustration: artForCard(o),
     createdAt: o.createdAt,

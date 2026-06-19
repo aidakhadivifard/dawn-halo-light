@@ -24,6 +24,8 @@ export interface Card {
   opener: string;
   title: string;
   message: string;
+  /** One gentle reflection question shown beneath the guidance. */
+  reflection?: string;
   theme: CardTheme;
   /** Library image id (e.g. "card-exhaustion_rest-02"); client resolves to a URL. */
   illustrationId: string;

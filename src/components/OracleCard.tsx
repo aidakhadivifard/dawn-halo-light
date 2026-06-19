@@ -127,7 +127,18 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
         <h2 className="mt-3 text-3xl font-serif font-light tracking-tight text-balance text-dawn-ink">{card.title}</h2>
 
         <div className="animate-message-unfold">
-          <p className="mt-4 text-dawn-ink/75 leading-relaxed text-[15px] text-pretty max-w-[46ch]">{card.message}</p>
+          <div className="mt-4 space-y-3 max-w-[46ch]">
+            {card.message.split(/\n{2,}/).map((para, i) => (
+              <p key={i} className="text-dawn-ink/75 leading-relaxed text-[15px] text-pretty">{para}</p>
+            ))}
+          </div>
+
+          {card.reflection && (
+            <div className="mt-6 pl-4 border-l-2 border-dawn-rose/40">
+              <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-rose/70 mb-1.5">Reflection</p>
+              <p className="text-[15px] font-serif italic text-dawn-ink/85 leading-relaxed text-pretty max-w-[44ch]">{card.reflection}</p>
+            </div>
+          )}
         </div>
 
         {/* Action buttons — single row, wrapping naturally */}
@@ -181,15 +192,30 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
       </div>
 
       {!readOnly && !followUpUsed && (
-        <form onSubmit={submitFollowUp} className="mt-6 relative">
-          <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-2 ml-1">Ask a follow-up</label>
-          <input id={`fu-${card.id}`} value={followUp} onChange={(e) => setFollowUp(e.target.value)}
-            placeholder="Anything you want to ask this card…"
-            className="w-full bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-4 pr-24 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30" />
-          <button type="submit" disabled={busy}
-            className="absolute right-2 top-[34px] text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors disabled:opacity-50">
-            {busy ? "…" : "Ask"}
-          </button>
+        <form onSubmit={submitFollowUp} className="mt-6">
+          <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">What would you like to know more about?</label>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {["My next step", "What I need to hear", "A different perspective"].map((s) => (
+              <button key={s} type="button" onClick={() => setFollowUp(s)}
+                className={
+                  "text-[11px] px-4 py-2 rounded-full border transition-colors " +
+                  (followUp === s
+                    ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
+                    : "border-dawn-haze/20 text-dawn-ink/70 hover:bg-dawn-haze/10")
+                }>
+                {s}
+              </button>
+            ))}
+          </div>
+          <div className="relative">
+            <input id={`fu-${card.id}`} value={followUp} onChange={(e) => setFollowUp(e.target.value)}
+              placeholder="Something else…"
+              className="w-full bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-4 pr-24 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30" />
+            <button type="submit" disabled={busy}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors disabled:opacity-50">
+              {busy ? "…" : "Ask"}
+            </button>
+          </div>
         </form>
       )}
 

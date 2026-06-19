@@ -17,6 +17,7 @@ export interface GenResult {
   opener: string;
   title: string;
   message: string;
+  reflection: string;
   theme: CardTheme;
   fallback: boolean;
 }
@@ -25,51 +26,59 @@ const DEFAULT_TIMEOUT_MS = 12_000;
 
 // A small, tasteful offline library used when Claude is slow/unavailable, or
 // for any parse failure. Keeps the app working end-to-end without a key.
-const FALLBACK: Record<GenInput["intent"], { title: string; message: string; theme: CardTheme }[]> =
-  {
-    question: [
-      {
-        title: "The Patient Choice",
-        message:
-          "This isn't a yes-or-no answer; it's a next step. Ask what you'd choose if no one were watching, then take the smallest version of that today.",
-        theme: "guidance_decision",
-      },
-      {
-        title: "Two Doors, One You",
-        message:
-          "Either path holds something for you. The real question is which version of yourself you want to practice being — start there, in one small way.",
-        theme: "guidance_decision",
-      },
-    ],
-    feeling: [
-      {
-        title: "It Makes Sense",
-        message:
-          "Of course you feel this way — anyone would, in your shoes. Let that be true first. The next step can wait until your shoulders drop a little.",
-        theme: "exhaustion_rest",
-      },
-      {
-        title: "You Are Seen Here",
-        message:
-          "Right now, in this quiet moment, you are noticed — by this card, and by the part of you that reached for it. You are not as invisible as today felt.",
-        theme: "feeling_unseen",
-      },
-    ],
-    general: [
-      {
-        title: "A Little Light",
-        message:
-          "You're doing better than you think. Take this with you into the next small thing, and let that be enough for now.",
-        theme: "daily_general",
-      },
-      {
-        title: "The Soft Knowing",
-        message:
-          "You already know. Trust the version of you who's been quietly paying attention all along.",
-        theme: "daily_general",
-      },
-    ],
-  };
+const FALLBACK: Record<
+  GenInput["intent"],
+  { title: string; message: string; reflection: string; theme: CardTheme }[]
+> = {
+  question: [
+    {
+      title: "The Patient Choice",
+      message:
+        "There's a part of you already leaning one way, even before the reasons line up.\n\nThis isn't a yes-or-no answer; it's a next step. The question isn't which path is perfect — it's which one feels more like yourself.\n\nYou could take the smallest version of that today and see how it sits.",
+      reflection: "If no one were watching, which way would you quietly lean?",
+      theme: "guidance_decision",
+    },
+    {
+      title: "Two Doors, One You",
+      message:
+        "You're weighing this carefully, which means it matters more than you're letting on.\n\nEither path holds something for you. The real question is which version of yourself you want to practice being.\n\nStart there, in one small way, and the rest tends to clarify.",
+      reflection: "Which choice lets you be more honest with yourself?",
+      theme: "guidance_decision",
+    },
+  ],
+  feeling: [
+    {
+      title: "It Makes Sense",
+      message:
+        "There's a heaviness here you've probably been carrying longer than today.\n\nOf course you feel this way — anyone would, in your shoes. Let that be true first, before any fixing.\n\nThe next step can wait until your shoulders drop a little.",
+      reflection: "What would ease feel like, even just for an hour?",
+      theme: "exhaustion_rest",
+    },
+    {
+      title: "You Are Seen Here",
+      message:
+        "There's a quiet wish underneath this — to be noticed, to matter to someone.\n\nRight now, in this small moment, you are seen: by this card, and by the part of you that reached for it.\n\nYou are not as invisible as today made you feel.",
+      reflection: "Where in your life do you already feel a little more seen?",
+      theme: "feeling_unseen",
+    },
+  ],
+  general: [
+    {
+      title: "A Little Light",
+      message:
+        "You're moving through more than you're giving yourself credit for.\n\nYou don't have to be extraordinary today. Presence is enough.\n\nTake this with you into the next small thing, and let that be plenty.",
+      reflection: "What small thing today deserves your full attention?",
+      theme: "daily_general",
+    },
+    {
+      title: "The Soft Knowing",
+      message:
+        "There's an answer in you that's been waiting quietly for room to speak.\n\nYou already know more than the noise lets you hear. Trust the version of you that's been paying attention.\n\nFollow the small, honest impulse you keep brushing aside.",
+      reflection: "What have you been quietly knowing but not saying?",
+      theme: "daily_general",
+    },
+  ],
+};
 
 function fallbackCard(input: GenInput, rand = Math.random): GenResult {
   const pool = FALLBACK[input.intent] ?? FALLBACK.general;
@@ -78,6 +87,7 @@ function fallbackCard(input: GenInput, rand = Math.random): GenResult {
     opener: pickOpener(undefined, rand),
     title: pick.title,
     message: pick.message,
+    reflection: pick.reflection,
     theme: pick.theme,
     fallback: true,
   };
@@ -88,6 +98,7 @@ export function parseCardJson(raw: string): {
   opener?: string;
   title?: string;
   message?: string;
+  reflection?: string;
   theme?: string;
 } | null {
   if (!raw) return null;
@@ -104,12 +115,12 @@ export function parseCardJson(raw: string): {
 
 function coerce(parsed: ReturnType<typeof parseCardJson>, input: GenInput): GenResult | null {
   if (!parsed) return null;
-  const { opener, title, message } = parsed;
+  const { opener, title, message, reflection } = parsed;
   if (!opener || !title || !message) return null;
   const theme = (CARD_THEMES as readonly string[]).includes(parsed.theme ?? "")
     ? (parsed.theme as CardTheme)
     : defaultTheme(input.intent);
-  return { opener, title, message, theme, fallback: false };
+  return { opener, title, message, reflection: reflection ?? "", theme, fallback: false };
 }
 
 function defaultTheme(intent: GenInput["intent"]): CardTheme {
@@ -148,7 +159,7 @@ export async function generateCardText(
     const result = await Promise.race([
       client.messages.create({
         model: anthropicModel,
-        max_tokens: 500,
+        max_tokens: 800,
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: buildUserPrompt(input) }],
       }),
