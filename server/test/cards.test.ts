@@ -17,17 +17,26 @@ function fakeClient(json: object): MessagesClient {
 
 const goodCard = {
   opener: "I'm reading the energy of today's card for you…",
-  title: "The Still Point",
+  title: "The Quiet Harbor", // a real deck card (theme exhaustion_rest)
   message: "Of course this feels heavy. Let it be true first, then take one small breath.",
   theme: "exhaustion_rest",
 };
 
 describe("generateCardText", () => {
-  it("parses a valid model response", async () => {
+  it("parses a valid model response and keeps a deck title", async () => {
     const r = await generateCardText({ intent: "feeling", text: "I'm tired" }, { client: fakeClient(goodCard) });
     expect(r.fallback).toBe(false);
-    expect(r.title).toBe("The Still Point");
+    expect(r.title).toBe("The Quiet Harbor");
     expect(r.theme).toBe("exhaustion_rest");
+  });
+
+  it("snaps an off-deck title back onto the fixed deck", async () => {
+    const offDeck = { ...goodCard, title: "Some Invented Title", theme: "exhaustion_rest" };
+    const r = await generateCardText({ intent: "feeling", text: "I'm tired" }, { client: fakeClient(offDeck) });
+    expect(r.fallback).toBe(false);
+    // Title must be a real deck card, never the invented one.
+    expect(r.title).not.toBe("Some Invented Title");
+    expect(r.title.length).toBeGreaterThan(0);
   });
 
   it("falls back when JSON is malformed", async () => {
@@ -54,12 +63,24 @@ describe("generateCardText", () => {
     expect(r.fallback).toBe(true);
   });
 
-  it("coerces an invalid theme to a sensible default", async () => {
+  it("coerces an invalid theme to a sensible default (off-deck title)", async () => {
+    // With an off-deck title, the deck can't supply a theme, so the invalid
+    // theme falls back to the intent default.
     const r = await generateCardText(
       { intent: "question", text: "x" },
-      { client: fakeClient({ ...goodCard, theme: "not_a_theme" }) },
+      { client: fakeClient({ ...goodCard, title: "Some Invented Title", theme: "not_a_theme" }) },
     );
     expect(r.theme).toBe("guidance_decision");
+  });
+
+  it("a valid deck title sets the card's canonical theme", async () => {
+    // "The Quiet Harbor" is an exhaustion_rest card; its theme wins even if the
+    // model returns a different (or invalid) theme.
+    const r = await generateCardText(
+      { intent: "question", text: "x" },
+      { client: fakeClient({ ...goodCard, title: "The Quiet Harbor", theme: "not_a_theme" }) },
+    );
+    expect(r.theme).toBe("exhaustion_rest");
   });
 });
 
