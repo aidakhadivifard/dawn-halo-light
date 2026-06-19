@@ -114,6 +114,7 @@ export function createApp(db: DB, opts: AppOptions = {}) {
       opener: r.opener,
       title: r.title,
       message: r.message,
+      reflection: r.reflection ?? undefined,
       theme: r.theme,
       illustrationId: r.illustration_id,
       createdAt: r.created_at,
@@ -133,6 +134,7 @@ export function createApp(db: DB, opts: AppOptions = {}) {
       opener: c.opener ?? "",
       title: c.title,
       message: c.message,
+      reflection: c.reflection ?? null,
       created_at: c.createdAt ?? new Date().toISOString(),
     });
     res.json({ ok: true });

@@ -14,6 +14,7 @@ export interface ApiCard {
   opener: string;
   title: string;
   message: string;
+  reflection?: string;
   theme: CardTheme;
   illustrationId: string;
   isCrisis?: boolean;

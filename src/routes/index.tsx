@@ -40,6 +40,10 @@ function TodayPage() {
   const [busy, setBusy] = useState(false);
   const [ritual, setRitual] = useState<RitualState>("arrival");
   const [hasDrawnToday, setHasDrawnToday] = useState(false);
+  const [intention, setIntention] = useState("");
+  const [showOther, setShowOther] = useState(false);
+
+  const INTENTIONS = ["I need clarity", "I need calm", "I need courage"];
 
   useEffect(() => {
     let alive = true;
@@ -77,24 +81,33 @@ function TodayPage() {
     return true;
   };
 
-  const drawMyCard = useCallback(async () => {
-    setRitual("drawing");
-    setBusy(true);
-    try {
-      const { card, entitlement } = await getDailyWithEntitlement();
-      setActiveCard(card);
-      if (entitlement) setEntitlement(entitlement);
-      setHasDrawnToday(true);
-      setTimeout(() => setRitual("reveal"), 1200);
-    } catch {
-      const fallback = offlineDailyCard(today);
-      setActiveCard(fallback);
-      setHasDrawnToday(true);
-      setTimeout(() => setRitual("reveal"), 1200);
-    } finally {
-      setBusy(false);
-    }
-  }, [today]);
+  // Draw the card. If the user set an intention, the card responds to it;
+  // otherwise it's the gentle daily reading.
+  const drawMyCard = useCallback(
+    async (withIntention: string) => {
+      setRitual("drawing");
+      setBusy(true);
+      try {
+        if (withIntention.trim()) {
+          const out = await drawCardEx({ intent: "ask", text: withIntention });
+          if (!handleOutcome(out)) return;
+        } else {
+          const { card, entitlement } = await getDailyWithEntitlement();
+          setActiveCard(card);
+          if (entitlement) setEntitlement(entitlement);
+        }
+        setHasDrawnToday(true);
+        setTimeout(() => setRitual("reveal"), 1200);
+      } catch {
+        setActiveCard(offlineDailyCard(today));
+        setHasDrawnToday(true);
+        setTimeout(() => setRitual("reveal"), 1200);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [today],
+  );
 
   const submitInput = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,11 +167,10 @@ function TodayPage() {
           </div>
         </header>
 
-        {/* STATE 1: Arrival — invite the user to draw */}
+        {/* STATE 1: Arrival / Intention — what brought you here today? */}
         {ritual === "arrival" && (
-          <section className="flex flex-col items-center text-center py-16 animate-card-rise">
-            {/* Floating particles */}
-            <div className="relative w-48 h-48 mb-8">
+          <section className="flex flex-col items-center text-center py-10 animate-card-rise">
+            <div className="relative w-40 h-40 mb-6">
               <div
                 aria-hidden
                 className="absolute inset-0 rounded-full blur-[60px] opacity-70 animate-halo"
@@ -168,32 +180,73 @@ function TodayPage() {
                 <span
                   key={i}
                   className="absolute size-1.5 rounded-full bg-dawn-gold/60 animate-float-drift"
-                  style={{
-                    top: `${20 + i * 14}%`,
-                    left: `${15 + i * 16}%`,
-                    animationDelay: `${i * 1.1}s`,
-                  }}
+                  style={{ top: `${20 + i * 14}%`, left: `${15 + i * 16}%`, animationDelay: `${i * 1.1}s` }}
                 />
               ))}
             </div>
 
-            <p className="text-dawn-ink/50 text-sm leading-relaxed max-w-[28ch] mb-2">
-              A small moment of guidance is waiting for you.
+            <h2 className="text-2xl font-serif font-light tracking-tight text-balance text-dawn-ink">
+              What brought you here today?
+            </h2>
+            <p className="mt-3 text-dawn-ink/50 text-sm leading-relaxed max-w-[30ch]">
+              You can type it, choose a feeling, or simply hold it in your mind.
             </p>
 
+            <div className="mt-7 flex flex-wrap justify-center gap-2 max-w-sm">
+              {INTENTIONS.map((label) => (
+                <button key={label}
+                  onClick={() => { setIntention(label); setShowOther(false); }}
+                  className={
+                    "text-[12px] px-4 py-2.5 rounded-full border transition-colors " +
+                    (intention === label
+                      ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
+                      : "border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10")
+                  }>
+                  {label}
+                </button>
+              ))}
+              <button
+                onClick={() => { setShowOther(true); setIntention(""); }}
+                className={
+                  "text-[12px] px-4 py-2.5 rounded-full border transition-colors " +
+                  (showOther
+                    ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
+                    : "border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10")
+                }>
+                Something else…
+              </button>
+            </div>
+
+            {showOther && (
+              <input
+                autoFocus
+                value={intention}
+                onChange={(e) => setIntention(e.target.value)}
+                placeholder="What's on your mind?"
+                className="mt-4 w-full max-w-sm bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-3.5 text-sm text-center focus:outline-none focus:ring-1 ring-dawn-rose/30"
+              />
+            )}
+
             <button
-              onClick={drawMyCard}
+              onClick={() => drawMyCard(intention)}
               disabled={busy}
               className="mt-8 px-10 py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(244,163,122,0.5)] hover:shadow-[0_16px_50px_-12px_rgba(244,163,122,0.6)] hover:bg-dawn-haze transition-all disabled:opacity-50"
             >
               Draw My Card
             </button>
+            <button
+              onClick={() => drawMyCard("")}
+              disabled={busy}
+              className="mt-4 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors disabled:opacity-50"
+            >
+              I'll skip for now
+            </button>
           </section>
         )}
 
-        {/* STATE 2: Drawing — card is being pulled */}
+        {/* STATE 2: Ritual — take a slow breath */}
         {ritual === "drawing" && (
-          <section className="flex flex-col items-center text-center py-20">
+          <section className="flex flex-col items-center text-center py-16">
             <div className="relative w-56 h-56 mb-6">
               <div
                 aria-hidden
@@ -201,7 +254,12 @@ function TodayPage() {
                 style={{ background: "radial-gradient(circle, rgba(245,207,138,0.6) 0%, rgba(244,163,122,0.35) 40%, transparent 70%)" }}
               />
             </div>
-            <p className="text-dawn-haze/80 text-sm italic font-serif animate-card-rise">
+            <p className="font-serif text-lg italic text-dawn-ink/80 animate-card-rise leading-relaxed">
+              Take a slow breath.
+              <br />
+              We're drawing a card just for you.
+            </p>
+            <p className="mt-4 text-[11px] uppercase tracking-[0.2em] text-dawn-haze/70 animate-card-rise">
               Drawing your card…
             </p>
           </section>
@@ -232,6 +290,13 @@ function TodayPage() {
                   className="mt-8 w-full py-4 bg-dawn-rose/15 border border-dawn-rose/30 text-dawn-rose text-sm uppercase tracking-[0.2em] font-bold rounded-full hover:bg-dawn-rose/25 transition-colors"
                 >
                   Reveal Message
+                </button>
+                <button
+                  onClick={drawAgain}
+                  disabled={busy}
+                  className="mt-3 w-full py-3 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/45 hover:text-dawn-ink/75 transition-colors disabled:opacity-50"
+                >
+                  Draw a New Card
                 </button>
               </div>
             </article>

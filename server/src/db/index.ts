@@ -24,6 +24,7 @@ export interface DrawRow {
   opener: string;
   title: string;
   message: string;
+  reflection: string | null; // one gentle reflection question
   prompt: string | null;
   parent_id: string | null;
   follow_up_used: number; // 0/1
@@ -52,6 +53,7 @@ CREATE TABLE IF NOT EXISTS draws (
   opener TEXT NOT NULL,
   title TEXT NOT NULL,
   message TEXT NOT NULL,
+  reflection TEXT,
   prompt TEXT,
   parent_id TEXT,
   follow_up_used INTEGER NOT NULL DEFAULT 0,
@@ -69,6 +71,7 @@ CREATE TABLE IF NOT EXISTS saved (
   opener TEXT NOT NULL,
   title TEXT NOT NULL,
   message TEXT NOT NULL,
+  reflection TEXT,
   created_at TEXT NOT NULL,
   saved_at TEXT NOT NULL
 );
@@ -99,6 +102,18 @@ export function createDb(path = ":memory:") {
   sqlite.pragma("journal_mode = WAL");
   sqlite.exec(SCHEMA);
 
+  // Idempotent migrations for databases created before a column existed.
+  for (const sql of [
+    "ALTER TABLE draws ADD COLUMN reflection TEXT",
+    "ALTER TABLE saved ADD COLUMN reflection TEXT",
+  ]) {
+    try {
+      sqlite.exec(sql);
+    } catch {
+      /* column already exists */
+    }
+  }
+
   const stmts = {
     getDevice: sqlite.prepare<[string]>("SELECT * FROM devices WHERE device_id = ?"),
     insertDevice: sqlite.prepare(
@@ -111,9 +126,9 @@ export function createDb(path = ":memory:") {
     ),
     insertDraw: sqlite.prepare(
       `INSERT INTO draws (id, device_id, local_date, type, theme, illustration_id,
-         opener, title, message, prompt, parent_id, follow_up_used, fallback, created_at)
+         opener, title, message, reflection, prompt, parent_id, follow_up_used, fallback, created_at)
        VALUES (@id, @device_id, @local_date, @type, @theme, @illustration_id,
-         @opener, @title, @message, @prompt, @parent_id, 0, @fallback, @created_at)`,
+         @opener, @title, @message, @reflection, @prompt, @parent_id, 0, @fallback, @created_at)`,
     ),
     countDrawsToday: sqlite.prepare<[string, string]>(
       "SELECT COUNT(*) AS n FROM draws WHERE device_id = ? AND local_date = ? AND type != 'followup'",
@@ -134,8 +149,8 @@ export function createDb(path = ":memory:") {
        ORDER BY created_at DESC LIMIT ?`,
     ),
     insertSaved: sqlite.prepare(
-      `INSERT OR REPLACE INTO saved (id, device_id, theme, illustration_id, opener, title, message, created_at, saved_at)
-       VALUES (@id, @device_id, @theme, @illustration_id, @opener, @title, @message, @created_at, @saved_at)`,
+      `INSERT OR REPLACE INTO saved (id, device_id, theme, illustration_id, opener, title, message, reflection, created_at, saved_at)
+       VALUES (@id, @device_id, @theme, @illustration_id, @opener, @title, @message, @reflection, @created_at, @saved_at)`,
     ),
     listSaved: sqlite.prepare<[string]>(
       "SELECT * FROM saved WHERE device_id = ? ORDER BY saved_at DESC",
@@ -223,9 +238,14 @@ export function createDb(path = ":memory:") {
       opener: string;
       title: string;
       message: string;
+      reflection?: string | null;
       created_at: string;
     }) {
-      stmts.insertSaved.run({ ...row, saved_at: new Date().toISOString() });
+      stmts.insertSaved.run({
+        reflection: null,
+        ...row,
+        saved_at: new Date().toISOString(),
+      });
     },
     listSaved(deviceId: string) {
       return stmts.listSaved.all(deviceId) as any[];
