@@ -28,8 +28,15 @@ Also include:
 
 TONE: warm, observant, deeply human, gently mysterious, hopeful. Plain language — emotionally specific, factually open.
 
+VOICE — THE TIMELESS PRINCIPLE (most important):
+Write as if these sentences have existed for centuries, but no one can remember who first said them. Each line should feel like inherited wisdom — something a grandmother might have murmured, or a saying carried quietly across generations.
+- Favor simple, enduring words over clever or modern ones. No slang, no trendy phrasing, no therapy or productivity vocabulary, no dates or current references.
+- Use the cadence of a proverb or a quiet blessing: unhurried, plain, a little weathered.
+- It should sound discovered, not authored — never "I think", never advice-giving. State gentle truths as if they simply are.
+- Avoid sounding like a coach or a brand. If a line feels like it could trend on social media, rewrite it older and quieter.
+
 GOOD EXAMPLE:
-{"opener":"I'm sitting with what you brought for a moment…","title":"The Weight You Carry Quietly","message":"There's a tiredness here that isn't only about today — it's the kind that builds when you've been holding things together for everyone else.\\n\\nYou don't have to keep proving you can carry it. Strength isn't the same as never setting anything down.\\n\\nMaybe today, one small thing can be allowed to wait.","reflection":"What would it feel like to let one thing be unfinished today?","theme":"exhaustion_rest"}
+{"opener":"I'm sitting with what you brought for a moment…","title":"The Weight You Carry Quietly","message":"There is a kind of tiredness that does not come from the day, but from holding others together for a long while.\\n\\nStrength was never meant to mean never setting anything down.\\n\\nEven the steadiest hands are allowed to open.","reflection":"What might you let rest, just for today?","theme":"exhaustion_rest"}
 
 OUTPUT FORMAT: respond with ONLY the JSON object — no prose, no code fences.`;
 

@@ -34,14 +34,14 @@ const FALLBACK: Record<
     {
       title: "The Patient Choice",
       message:
-        "There's a part of you already leaning one way, even before the reasons line up.\n\nThis isn't a yes-or-no answer; it's a next step. The question isn't which path is perfect — it's which one feels more like yourself.\n\nYou could take the smallest version of that today and see how it sits.",
+        "The heart often leans one way long before the reasons arrive.\n\nNot every question asks for an answer; some only ask for the next small step.\n\nThe truest path is rarely the perfect one — it is the one that feels most like your own.",
       reflection: "If no one were watching, which way would you quietly lean?",
       theme: "guidance_decision",
     },
     {
       title: "Two Doors, One You",
       message:
-        "You're weighing this carefully, which means it matters more than you're letting on.\n\nEither path holds something for you. The real question is which version of yourself you want to practice being.\n\nStart there, in one small way, and the rest tends to clarify.",
+        "What we weigh most carefully is what matters most to us.\n\nEvery road carries its own gift, and its own cost.\n\nThe question was never which door is right, but who you wish to become as you walk through it.",
       reflection: "Which choice lets you be more honest with yourself?",
       theme: "guidance_decision",
     },
@@ -50,14 +50,14 @@ const FALLBACK: Record<
     {
       title: "It Makes Sense",
       message:
-        "There's a heaviness here you've probably been carrying longer than today.\n\nOf course you feel this way — anyone would, in your shoes. Let that be true first, before any fixing.\n\nThe next step can wait until your shoulders drop a little.",
+        "Some weariness comes not from the day, but from carrying what could not be set down.\n\nA feeling this heavy has earned its place; it need not be explained to be true.\n\nWhat must be mended can wait until the shoulders have rested.",
       reflection: "What would ease feel like, even just for an hour?",
       theme: "exhaustion_rest",
     },
     {
       title: "You Are Seen Here",
       message:
-        "There's a quiet wish underneath this — to be noticed, to matter to someone.\n\nRight now, in this small moment, you are seen: by this card, and by the part of you that reached for it.\n\nYou are not as invisible as today made you feel.",
+        "Beneath the wish to be noticed is the older wish: simply to matter.\n\nThe one who reaches out is never as unseen as they fear.\n\nYou were seen the moment you turned toward the light.",
       reflection: "Where in your life do you already feel a little more seen?",
       theme: "feeling_unseen",
     },
@@ -66,14 +66,14 @@ const FALLBACK: Record<
     {
       title: "A Little Light",
       message:
-        "You're moving through more than you're giving yourself credit for.\n\nYou don't have to be extraordinary today. Presence is enough.\n\nTake this with you into the next small thing, and let that be plenty.",
+        "A day does not ask us to be remarkable; it asks only that we are here for it.\n\nTo be present is its own quiet kind of enough.\n\nCarry this into the next small thing, and let it be plenty.",
       reflection: "What small thing today deserves your full attention?",
       theme: "daily_general",
     },
     {
       title: "The Soft Knowing",
       message:
-        "There's an answer in you that's been waiting quietly for room to speak.\n\nYou already know more than the noise lets you hear. Trust the version of you that's been paying attention.\n\nFollow the small, honest impulse you keep brushing aside.",
+        "There is an answer in you that has only been waiting for quiet enough to be heard.\n\nThe noise of the world is loud; the knowing is patient.\n\nFollow the small, honest pull you keep setting aside.",
       reflection: "What have you been quietly knowing but not saying?",
       theme: "daily_general",
     },
