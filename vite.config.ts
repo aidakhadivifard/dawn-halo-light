@@ -5,22 +5,27 @@
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
-import { copyFileSync, mkdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
-function copyServerBuildPlugin() {
+function patchServerBuildPlugin() {
   return {
-    name: "copy-server-build",
+    name: "patch-server-build",
     closeBundle() {
-      console.log("[copy-server-build] closeBundle hook running");
       try {
         const src = resolve("dist/server/index.mjs");
         const dst = resolve("dist/server/server.js");
         mkdirSync(resolve("dist/server"), { recursive: true });
         copyFileSync(src, dst);
-        console.log("[copy-server-build] copied index.mjs to server.js");
+        let code = readFileSync(dst, "utf-8");
+        // Patch augmentReq to not fail when req.ip is read-only (Node.js preview server)
+        code = code.replace(
+          'req.ip = cfReq.headers.get("cf-connecting-ip") || void 0;',
+          'try { req.ip = cfReq.headers.get("cf-connecting-ip") || void 0; } catch {}'
+        );
+        writeFileSync(dst, code);
       } catch (e) {
-        console.error("[copy-server-build] failed:", e);
+        console.error("[patch-server-build] failed:", e);
       }
     },
   };
