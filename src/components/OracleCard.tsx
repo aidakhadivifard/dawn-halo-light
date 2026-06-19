@@ -6,14 +6,12 @@ import { saveCard, removeSaved, getSaved, createSpark } from "@/lib/store";
 type Props = {
   card: Card;
   onDrawAgain?: () => void;
-  /** Called when the user chooses "Draw a new card" after a follow-up answer. */
   onDrawNew?: () => void;
   readOnly?: boolean;
   showCanDraw?: boolean;
 };
 
 export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCanDraw = true }: Props) {
-  // Read saved-state only after mount to avoid SSR/client hydration mismatch.
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     let alive = true;
@@ -88,9 +86,30 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
     setTimeout(() => setCopied(false), 1600);
   };
 
+  const ActionButton = ({
+    onClick,
+    active,
+    children,
+  }: {
+    onClick: () => void;
+    active?: boolean;
+    children: React.ReactNode;
+  }) => (
+    <button
+      onClick={onClick}
+      className={
+        "text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 rounded-full transition-colors " +
+        (active
+          ? "bg-dawn-rose text-dawn-sky font-bold"
+          : "border border-dawn-haze/20 text-dawn-ink/80 hover:bg-dawn-haze/10")
+      }
+    >
+      {children}
+    </button>
+  );
+
   return (
     <article className="relative group animate-card-rise">
-      {/* Warm sunrise glow behind the card */}
       <div
         aria-hidden
         className="absolute -inset-12 -z-10 rounded-[3rem] blur-3xl animate-halo opacity-80"
@@ -99,68 +118,48 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
             "radial-gradient(60% 55% at 50% 40%, rgba(245,207,138,0.55) 0%, rgba(244,163,122,0.35) 35%, rgba(189,92,120,0.18) 65%, transparent 80%)",
         }}
       />
-      <div
-        className="relative rounded-2xl p-7 sm:p-8 border border-dawn-haze/15 bg-dawn-surface/80 backdrop-blur-xl shadow-[0_40px_120px_-30px_rgba(245,180,120,0.35),inset_0_1px_0_rgba(255,220,180,0.08)]"
-      >
+      <div className="relative rounded-2xl p-7 sm:p-8 border border-dawn-haze/15 bg-dawn-surface/80 backdrop-blur-xl shadow-[0_40px_120px_-30px_rgba(245,180,120,0.35),inset_0_1px_0_rgba(255,220,180,0.08)]">
         <div className="w-full aspect-[4/5] mb-7 rounded-lg overflow-hidden ring-1 ring-dawn-haze/15 bg-black/30">
           <img src={card.illustration} alt={card.title} width={768} height={1152} className="h-full w-full object-cover" loading="lazy" />
         </div>
 
         <p className="text-sm italic font-serif opacity-60 leading-relaxed text-pretty">{card.opener}</p>
         <h2 className="mt-3 text-3xl font-serif font-light tracking-tight text-balance text-dawn-ink">{card.title}</h2>
-        <p className="mt-4 text-dawn-ink/75 leading-relaxed text-[15px] text-pretty max-w-[46ch]">{card.message}</p>
 
+        <div className="animate-message-unfold">
+          <p className="mt-4 text-dawn-ink/75 leading-relaxed text-[15px] text-pretty max-w-[46ch]">{card.message}</p>
+        </div>
+
+        {/* Action buttons — single row, wrapping naturally */}
         {!readOnly && (
-          <div className="mt-7 pt-6 border-t border-dawn-haze/10 flex flex-col gap-2">
-            <div className="flex gap-2">
-              <button onClick={toggleSave}
-                className={"text-[10px] uppercase tracking-[0.18em] font-bold px-5 py-2.5 rounded-full transition-colors " +
-                  (saved
-                    ? "bg-dawn-rose text-dawn-sky"
-                    : "bg-dawn-ink text-dawn-sky hover:bg-dawn-cream")}>
-                {saved ? "Saved" : "Save"}
-              </button>
-              {showCanDraw && onDrawAgain && (
-                <button onClick={onDrawAgain}
-                  className="text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
-                  Draw another
-                </button>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {!followUpUsed && (
-                <button onClick={() => document.getElementById(`fu-${card.id}`)?.focus()}
-                  className="text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
-                  Ask a follow-up
-                </button>
-              )}
-              <button onClick={() => setSparkOpen((s) => !s)}
-                className={"text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 rounded-full transition-colors " +
-                  (sparkOpen
-                    ? "bg-dawn-haze/15 border border-dawn-haze/30 text-dawn-ink"
-                    : "border border-dawn-haze/20 text-dawn-ink/80 hover:bg-dawn-haze/10")}>
-                Share
-              </button>
-            </div>
+          <div className="mt-7 pt-6 border-t border-dawn-haze/10 flex flex-wrap gap-2">
+            <ActionButton onClick={toggleSave} active={saved}>
+              {saved ? "Saved" : "Save"}
+            </ActionButton>
+            {showCanDraw && onDrawAgain && (
+              <ActionButton onClick={onDrawAgain}>Draw another</ActionButton>
+            )}
+            {!followUpUsed && (
+              <ActionButton onClick={() => document.getElementById(`fu-${card.id}`)?.focus()}>
+                Ask a follow-up
+              </ActionButton>
+            )}
+            <ActionButton onClick={() => setSparkOpen((s) => !s)} active={sparkOpen}>
+              Share
+            </ActionButton>
           </div>
         )}
         {readOnly && (
-          <div className="mt-7 pt-6 border-t border-dawn-haze/10 flex gap-2">
-            <button onClick={toggleSave}
-              className={"text-[10px] uppercase tracking-[0.18em] font-bold px-5 py-2.5 rounded-full transition-colors " +
-                (saved ? "bg-dawn-rose text-dawn-sky" : "bg-dawn-ink text-dawn-sky hover:bg-dawn-cream")}>
+          <div className="mt-7 pt-6 border-t border-dawn-haze/10 flex flex-wrap gap-2">
+            <ActionButton onClick={toggleSave} active={saved}>
               {saved ? "Saved" : "Save"}
-            </button>
+            </ActionButton>
             {onDrawNew && (
-              <button onClick={onDrawNew}
-                className="text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
-                Draw a new card
-              </button>
+              <ActionButton onClick={onDrawNew}>Draw a new card</ActionButton>
             )}
-            <button onClick={() => setSparkOpen((s) => !s)}
-              className="text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 border border-dawn-haze/20 text-dawn-ink/80 rounded-full hover:bg-dawn-haze/10 transition-colors">
+            <ActionButton onClick={() => setSparkOpen((s) => !s)} active={sparkOpen}>
               Share
-            </button>
+            </ActionButton>
           </div>
         )}
 
@@ -197,7 +196,6 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
       {followCard && (
         <div className="mt-8">
           <p className="text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">The card answered</p>
-          {/* Bounded: after the one follow-up, offer only Save or Draw a new card. */}
           <OracleCardView card={followCard} readOnly showCanDraw={false} onDrawNew={onDrawAgain} />
         </div>
       )}

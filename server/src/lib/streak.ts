@@ -5,17 +5,19 @@ export function computeStreak(activeDates: Iterable<string>, today: string): num
   const set = new Set(activeDates);
   if (set.size === 0) return 0;
 
-  // Start from today if active, else from yesterday (so a streak isn't broken
-  // just because the user hasn't drawn yet today).
+  // Today always counts as day 1 if the user has any activity today.
+  // If they haven't drawn yet today, we still count from yesterday so
+  // the streak isn't broken mid-day.
   let cursor = today;
   if (!set.has(cursor)) cursor = addDays(today, -1);
+  if (!set.has(cursor)) return 0;
 
   let streak = 0;
   while (set.has(cursor)) {
     streak++;
     cursor = addDays(cursor, -1);
   }
-  return streak;
+  return Math.max(streak, 1);
 }
 
 export function addDays(date: string, delta: number): string {
