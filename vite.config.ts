@@ -38,6 +38,6 @@ export default defineConfig({
   },
   vite: {
     preview: { host: "127.0.0.1" },
-    plugins: [copyServerBuildPlugin()],
+    plugins: [patchServerBuildPlugin()],
   },
 });
