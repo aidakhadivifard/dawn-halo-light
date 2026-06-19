@@ -51,12 +51,12 @@ const openers = [
 ];
 
 const dailyCards: Omit<OracleCard, "id" | "createdAt">[] = [
-  { art: "dawn",  theme: "daily_general",   title: "The Gentle Return",  opener: openers[0], message: "The morning asks for your presence, not your hurry.\n\nThe noise will keep; it always does.\n\nLet the day be slow, if slow is what it wants to be.", reflection: "What would it feel like to begin today without hurrying?" },
-  { art: "silk",  theme: "quiet_strength",  title: "The Still Point",    opener: openers[1], message: "Much of our weariness is spent bracing for a day that has not yet arrived.\n\nThere is a quiet strength in moving at the pace of one's own breath.\n\nLet the day come to meet you.", reflection: "Where could you let yourself move a little more slowly?" },
-  { art: "flame", theme: "quiet_strength",  title: "Small Steady Light", opener: openers[2], message: "A flame need not burn brighter to be worthy; it need only keep burning.\n\nWhat is steady outlasts what is sudden.\n\nToday, that is more than enough.", reflection: "What's one expectation you could gently lower today?" },
-  { art: "bloom", theme: "hope_abundance",  title: "What Wants to Open", opener: openers[3], message: "Something tender in you is turning toward the light.\n\nWhat is meant to bloom cannot be hurried into it.\n\nNotice it is there, and give it room.", reflection: "What in your life is quietly asking for a little more room?" },
-  { art: "moon",  theme: "daily_general",   title: "The Soft Knowing",   opener: openers[4], message: "There is an answer in you that only the quiet can reach.\n\nThe world is loud; the knowing is patient.\n\nTrust the part of you that has been paying attention all along.", reflection: "What have you been quietly knowing but not saying out loud?" },
-  { art: "hand",  theme: "exhaustion_rest", title: "The Held Hour",      opener: openers[5], message: "No one was meant to carry everything alone, though many have tried.\n\nWhat you set down for an hour will still be there, and so will you.\n\nLet your hands rest a while.", reflection: "What's one thing you could let yourself put down today?" },
+  { art: "dawn",  theme: "daily_general",   title: "The Morning Field", opener: openers[0], message: "The morning asks for your presence, not your hurry.\n\nThe noise will keep; it always does.\n\nLet the day be slow, if slow is what it wants to be.", reflection: "What would it feel like to begin today without hurrying?" },
+  { art: "silk",  theme: "quiet_strength",  title: "The Still Lake",    opener: openers[1], message: "Much of our weariness is spent bracing for a day that has not yet arrived.\n\nThere is a quiet strength in moving at the pace of one's own breath.\n\nLet the day come to meet you.", reflection: "Where could you let yourself move a little more slowly?" },
+  { art: "flame", theme: "quiet_strength",  title: "The Last Ember", opener: openers[2], message: "A flame need not burn brighter to be worthy; it need only keep burning.\n\nWhat is steady outlasts what is sudden.\n\nToday, that is more than enough.", reflection: "What's one expectation you could gently lower today?" },
+  { art: "bloom", theme: "hope_abundance",  title: "The Sleeping Seed", opener: openers[3], message: "Something tender in you is turning toward the light.\n\nWhat is meant to bloom cannot be hurried into it.\n\nNotice it is there, and give it room.", reflection: "What in your life is quietly asking for a little more room?" },
+  { art: "moon",  theme: "daily_general",   title: "The Quiet Compass", opener: openers[4], message: "There is an answer in you that only the quiet can reach.\n\nThe world is loud; the knowing is patient.\n\nTrust the part of you that has been paying attention all along.", reflection: "What have you been quietly knowing but not saying out loud?" },
+  { art: "hand",  theme: "exhaustion_rest", title: "The Quiet Harbor",  opener: openers[5], message: "No one was meant to carry everything alone, though many have tried.\n\nWhat you set down for an hour will still be there, and so will you.\n\nLet your hands rest a while.", reflection: "What's one thing you could let yourself put down today?" },
 ];
 
 export const REMINDERS = [
@@ -85,36 +85,36 @@ export function classifyInput(raw: string): Intent {
 
 const responses: Record<Exclude<Intent, "crisis">, Omit<OracleCard, "id" | "createdAt" | "prompt">[]> = {
   question: [
-    { art: "moon", theme: "guidance_decision", opener: "Let me lean in — your question has weight to it…", title: "The Patient Choice",
+    { art: "moon", theme: "guidance_decision", opener: "Let me lean in — your question has weight to it…", title: "The Quiet Compass",
       message: "There's a part of you already leaning one way, even before the reasons line up.\n\nThis isn't a yes-or-no answer; it's a next step.\n\nYou could take the smallest version of that today and see how it sits.",
       reflection: "If no one were watching, which way would you quietly lean?" },
-    { art: "dawn", theme: "guidance_decision", opener: "Mm. This card stepped forward the moment you asked…", title: "Two Doors, One You",
+    { art: "dawn", theme: "guidance_decision", opener: "Mm. This card stepped forward the moment you asked…", title: "The Crossing Stones",
       message: "You're weighing this carefully, which means it matters more than you're letting on.\n\nEither path holds something for you. The real question is which version of yourself you want to practice being.\n\nStart there, in one small way.",
       reflection: "Which choice lets you be more honest with yourself?" },
   ],
   feeling: [
-    { art: "hand", theme: "exhaustion_rest", opener: "Let me sit with what you just said for a moment…", title: "It Makes Sense",
+    { art: "hand", theme: "exhaustion_rest", opener: "Let me sit with what you just said for a moment…", title: "The Quiet Harbor",
       message: "There's a heaviness here you've likely been carrying a while.\n\nOf course you feel this way — anyone would, in your shoes. Let it be true first.\n\nReframing can wait until your shoulders drop.",
       reflection: "What would ease feel like, even just for an hour?" },
-    { art: "silk", theme: "exhaustion_rest", opener: "I'm catching something tender underneath this…", title: "Soften, Don't Solve",
+    { art: "silk", theme: "exhaustion_rest", opener: "I'm catching something tender underneath this…", title: "The Open Hand",
       message: "You're reaching for a fix, but this moment may not need one yet.\n\nNothing here has to be solved in the next ten minutes.\n\nPut a hand on your chest and breathe — the next step shows up when you're warmer.",
       reflection: "What might soften if you stopped trying to fix it for a moment?" },
   ],
   loneliness: [
-    { art: "bloom", theme: "feeling_unseen", opener: "I want to read this one slowly with you…", title: "You Are Seen Here",
+    { art: "bloom", theme: "feeling_unseen", opener: "I want to read this one slowly with you…", title: "The Watchful Moon",
       message: "There's a quiet wish underneath this — to be noticed, to matter.\n\nRight now, in this small moment, you are seen: by this card, and by the part of you that reached for it.\n\nYou are not as invisible as today made you feel.",
       reflection: "Where in your life do you already feel a little more seen?" },
   ],
   appearance: [
-    { art: "flame", theme: "self_image", opener: "Let me move past the surface of what you said…", title: "Tend the Light, Not the Lamp",
+    { art: "flame", theme: "self_image", opener: "Let me move past the surface of what you said…", title: "The Tended Flame",
       message: "What you said about the surface is really about something underneath.\n\nWhat does today actually ask of you — rest, courage, softness?\n\nThat tender part is what the world is really meeting.",
       reflection: "What does the feeling underneath actually need from you today?" },
   ],
   general: [
-    { art: "dawn", theme: "daily_general", opener: "Here — this is the card that wanted to be seen today…", title: "A Little Light",
+    { art: "dawn", theme: "daily_general", opener: "Here — this is the card that wanted to be seen today…", title: "The Morning Field",
       message: "You're moving through more than you give yourself credit for.\n\nYou don't have to be extraordinary today — presence is enough.\n\nTake this into the next small thing.",
       reflection: "What small thing today deserves your full attention?" },
-    { art: "moon", theme: "daily_general", opener: "Mm. The deck settled on this one quickly…", title: "Trust the Quiet Lead",
+    { art: "moon", theme: "daily_general", opener: "Mm. The deck settled on this one quickly…", title: "The Quiet Return",
       message: "There's an impulse you keep brushing aside.\n\nIt's quieter than the worry, but it's the most honest thing in the room.\n\nFollow it one small step.",
       reflection: "What honest impulse have you been talking yourself out of?" },
   ],

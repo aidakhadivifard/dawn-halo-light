@@ -5,6 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getConfig } from "../config";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt";
 import { pickOpener } from "./openers";
+import { findHalo, halosForTheme } from "./deck";
 import { CARD_THEMES, type CardTheme } from "../types";
 
 export interface GenInput {
@@ -32,48 +33,48 @@ const FALLBACK: Record<
 > = {
   question: [
     {
-      title: "The Patient Choice",
+      title: "The Quiet Compass",
       message:
-        "The heart often leans one way long before the reasons arrive.\n\nNot every question asks for an answer; some only ask for the next small step.\n\nThe truest path is rarely the perfect one — it is the one that feels most like your own.",
+        "This card carries an inner direction steadier than the noise around it.\n\nThe heart often leans one way long before the reasons arrive.\n\nNot every question asks for an answer; some only ask for the next small step.\n\nThe truest path is rarely the perfect one — it is the one that feels most like your own.",
       reflection: "If no one were watching, which way would you quietly lean?",
       theme: "guidance_decision",
     },
     {
-      title: "Two Doors, One You",
+      title: "The Crossing Stones",
       message:
-        "What we weigh most carefully is what matters most to us.\n\nEvery road carries its own gift, and its own cost.\n\nThe question was never which door is right, but who you wish to become as you walk through it.",
+        "This card speaks of moving across uncertain water one careful stone at a time.\n\nWhat we weigh most carefully is what matters most to us.\n\nEvery road carries its own gift, and its own cost.\n\nThe question was never which stone is perfect, but who you become as you cross.",
       reflection: "Which choice lets you be more honest with yourself?",
       theme: "guidance_decision",
     },
   ],
   feeling: [
     {
-      title: "It Makes Sense",
+      title: "The Quiet Harbor",
       message:
-        "Some weariness comes not from the day, but from carrying what could not be set down.\n\nA feeling this heavy has earned its place; it need not be explained to be true.\n\nWhat must be mended can wait until the shoulders have rested.",
+        "This card is a sheltered place to set the weight down for a while.\n\nSome weariness comes not from the day, but from carrying what could not be set down.\n\nA feeling this heavy has earned its place; it need not be explained to be true.\n\nWhat must be mended can wait until the shoulders have rested.",
       reflection: "What would ease feel like, even just for an hour?",
       theme: "exhaustion_rest",
     },
     {
-      title: "You Are Seen Here",
+      title: "The Watchful Moon",
       message:
-        "Beneath the wish to be noticed is the older wish: simply to matter.\n\nThe one who reaches out is never as unseen as they fear.\n\nYou were seen the moment you turned toward the light.",
+        "This card watches over what moves in the dark; nothing here goes unseen.\n\nBeneath the wish to be noticed is the older wish: simply to matter.\n\nThe one who reaches out is never as unseen as they fear.\n\nYou were seen the moment you turned toward the light.",
       reflection: "Where in your life do you already feel a little more seen?",
       theme: "feeling_unseen",
     },
   ],
   general: [
     {
-      title: "A Little Light",
+      title: "The Morning Field",
       message:
-        "A day does not ask us to be remarkable; it asks only that we are here for it.\n\nTo be present is its own quiet kind of enough.\n\nCarry this into the next small thing, and let it be plenty.",
+        "This card is an open field at first light, asking nothing of you yet.\n\nA day does not ask us to be remarkable; it asks only that we are here for it.\n\nTo be present is its own quiet kind of enough.\n\nCarry this into the next small thing, and let it be plenty.",
       reflection: "What small thing today deserves your full attention?",
       theme: "daily_general",
     },
     {
-      title: "The Soft Knowing",
+      title: "The Quiet Return",
       message:
-        "There is an answer in you that has only been waiting for quiet enough to be heard.\n\nThe noise of the world is loud; the knowing is patient.\n\nFollow the small, honest pull you keep setting aside.",
+        "This card speaks of finding your way back to yourself.\n\nThere is an answer in you that has only been waiting for quiet enough to be heard.\n\nThe noise of the world is loud; the knowing is patient.\n\nFollow the small, honest pull you keep setting aside.",
       reflection: "What have you been quietly knowing but not saying?",
       theme: "daily_general",
     },
@@ -117,10 +118,30 @@ function coerce(parsed: ReturnType<typeof parseCardJson>, input: GenInput): GenR
   if (!parsed) return null;
   const { opener, title, message, reflection } = parsed;
   if (!opener || !title || !message) return null;
-  const theme = (CARD_THEMES as readonly string[]).includes(parsed.theme ?? "")
-    ? (parsed.theme as CardTheme)
-    : defaultTheme(input.intent);
-  return { opener, title, message, reflection: reflection ?? "", theme, fallback: false };
+
+  // Keep titles on the fixed deck so cards recur and accrue meaning. If the
+  // model chose a real deck card, trust its theme; otherwise snap the title
+  // back onto a deck card of the requested theme.
+  const onDeck = findHalo(title);
+  const theme: CardTheme = onDeck
+    ? onDeck.theme
+    : (CARD_THEMES as readonly string[]).includes(parsed.theme ?? "")
+      ? (parsed.theme as CardTheme)
+      : defaultTheme(input.intent);
+  const finalTitle = onDeck
+    ? onDeck.title
+    : (snapToDeck(theme, message) ?? title);
+
+  return { opener, title: finalTitle, message, reflection: reflection ?? "", theme, fallback: false };
+}
+
+/** Pick a stable deck card for a theme (deterministic by message hash). */
+function snapToDeck(theme: CardTheme, seed: string): string | undefined {
+  const pool = halosForTheme(theme);
+  if (!pool.length) return undefined;
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  return pool[Math.abs(h) % pool.length].title;
 }
 
 function defaultTheme(intent: GenInput["intent"]): CardTheme {
