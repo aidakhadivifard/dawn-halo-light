@@ -91,9 +91,44 @@
   50%      { opacity: 0.9;  transform: scale(1.03); }
 }
 
+/* The ritual: a card lifting out of the glow and turning to face you. */
+@keyframes card-draw {
+  0%   { opacity: 0; transform: translateY(60px) scale(0.86) rotateX(18deg); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0)    scale(1)    rotateX(0deg); }
+}
+/* Anticipation: the halo breathing brighter while a card is drawn. */
+@keyframes halo-breathe {
+  0%, 100% { opacity: 0.6; transform: scale(0.96); }
+  50%      { opacity: 1;   transform: scale(1.08); }
+}
+/* The message unfolding once the reader chooses to open it. */
+@keyframes message-unfold {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* A soft drifting shimmer for arrival particles. */
+@keyframes float-drift {
+  0%, 100% { transform: translateY(0)     translateX(0); opacity: 0.5; }
+  50%      { transform: translateY(-14px) translateX(6px); opacity: 0.9; }
+}
+
 @utility animate-card-rise {
   animation: card-rise 900ms cubic-bezier(0.19, 1, 0.22, 1) both;
 }
 @utility animate-halo {
   animation: halo-pulse 7s ease-in-out infinite;
+}
+@utility animate-card-draw {
+  animation: card-draw 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: center bottom;
+}
+@utility animate-halo-breathe {
+  animation: halo-breathe 1.4s ease-in-out infinite;
+}
+@utility animate-message-unfold {
+  animation: message-unfold 700ms cubic-bezier(0.19, 1, 0.22, 1) both;
+}
+@utility animate-float-drift {
+  animation: float-drift 6s ease-in-out infinite;
 }
