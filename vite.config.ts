@@ -5,20 +5,32 @@
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { copyFileSync, mkdirSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+function copyServerBuildPlugin() {
+  return {
+    name: "copy-server-build",
+    closeBundle() {
+      try {
+        const src = resolve("dist/server/index.mjs");
+        const dst = resolve("dist/server/server.js");
+        mkdirSync(resolve("dist/server"), { recursive: true });
+        copyFileSync(src, dst);
+      } catch {
+        /* nitro may not have run */
+      }
+    },
+  };
+}
 
 export default defineConfig({
   tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
     server: { entry: "server" },
-    // SPA mode emits a static index.html shell that boots the client router with
-    // no server. This is what lets the app run fully offline inside the native
-    // (Capacitor) app and as a static deploy — see CAP_BUILD below.
     spa: { enabled: true },
   },
-  // The SPA prerender step starts a Vite preview server; force it onto IPv4 so it
-  // can bind in environments without IPv6 (CI/sandboxes default to `::`).
   vite: {
     preview: { host: "127.0.0.1" },
+    plugins: [copyServerBuildPlugin()],
   },
 });
