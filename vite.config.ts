@@ -12,13 +12,15 @@ function copyServerBuildPlugin() {
   return {
     name: "copy-server-build",
     closeBundle() {
+      console.log("[copy-server-build] closeBundle hook running");
       try {
         const src = resolve("dist/server/index.mjs");
         const dst = resolve("dist/server/server.js");
         mkdirSync(resolve("dist/server"), { recursive: true });
         copyFileSync(src, dst);
-      } catch {
-        /* nitro may not have run */
+        console.log("[copy-server-build] copied index.mjs to server.js");
+      } catch (e) {
+        console.error("[copy-server-build] failed:", e);
       }
     },
   };
