@@ -28,6 +28,11 @@ function formatDate(d: Date) {
 
 type RitualState = "arrival" | "drawing" | "reveal" | "open";
 
+// A gentle floor on the ritual so the draw never feels instant — but we don't
+// pile extra time on top of slow network latency. Total ≈ max(latency, floor).
+const RITUAL_FLOOR_MS = 1100;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 function TodayPage() {
   const navigate = useNavigate();
   const [today] = useState(() => new Date());
@@ -87,6 +92,7 @@ function TodayPage() {
     async (withIntention: string) => {
       setRitual("drawing");
       setBusy(true);
+      const started = Date.now();
       try {
         if (withIntention.trim()) {
           const out = await drawCardEx({ intent: "ask", text: withIntention });
@@ -97,11 +103,13 @@ function TodayPage() {
           if (entitlement) setEntitlement(entitlement);
         }
         setHasDrawnToday(true);
-        setTimeout(() => setRitual("reveal"), 1200);
+        await sleep(Math.max(0, RITUAL_FLOOR_MS - (Date.now() - started)));
+        setRitual("reveal");
       } catch {
         setActiveCard(offlineDailyCard(today));
         setHasDrawnToday(true);
-        setTimeout(() => setRitual("reveal"), 1200);
+        await sleep(Math.max(0, RITUAL_FLOOR_MS - (Date.now() - started)));
+        setRitual("reveal");
       } finally {
         setBusy(false);
       }
@@ -114,11 +122,13 @@ function TodayPage() {
     if (!input.trim() || busy) return;
     setRitual("drawing");
     setBusy(true);
+    const started = Date.now();
     try {
       const out = await drawCardEx({ intent: "ask", text: input });
       if (handleOutcome(out)) {
         setInput("");
-        setTimeout(() => setRitual("reveal"), 1200);
+        await sleep(Math.max(0, RITUAL_FLOOR_MS - (Date.now() - started)));
+        setRitual("reveal");
       }
     } finally {
       setBusy(false);
@@ -129,10 +139,12 @@ function TodayPage() {
     if (busy) return;
     setRitual("drawing");
     setBusy(true);
+    const started = Date.now();
     try {
       const out = await drawCardEx({ intent: "ask", text: "" });
       if (handleOutcome(out)) {
-        setTimeout(() => setRitual("reveal"), 1200);
+        await sleep(Math.max(0, RITUAL_FLOOR_MS - (Date.now() - started)));
+        setRitual("reveal");
       }
     } finally {
       setBusy(false);

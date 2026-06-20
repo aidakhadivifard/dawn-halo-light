@@ -46,8 +46,13 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
     e.preventDefault();
     if (!followUp.trim() || followUpUsed || busy) return;
     setBusy(true);
+    const started = Date.now();
     try {
       const out = await askFollowUpEx({ previous: card, text: followUp });
+      // A gentle minimum pause so it feels like the card is being read —
+      // never jarringly instant, never an artificial wait on top of real latency.
+      const elapsed = Date.now() - started;
+      if (elapsed < 1000) await new Promise((r) => setTimeout(r, 1000 - elapsed));
       if (out.kind === "crisis") {
         navigate({ to: "/support" });
         return;
@@ -191,7 +196,20 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
         )}
       </div>
 
-      {!readOnly && !followUpUsed && (
+      {!readOnly && !followUpUsed && busy && (
+        <div className="mt-6 flex flex-col items-center text-center py-8">
+          <div className="relative w-20 h-20 mb-4">
+            <div
+              aria-hidden
+              className="absolute inset-0 rounded-full blur-2xl animate-halo-breathe"
+              style={{ background: "radial-gradient(circle, rgba(245,207,138,0.6) 0%, rgba(244,163,122,0.3) 45%, transparent 70%)" }}
+            />
+          </div>
+          <p className="font-serif italic text-dawn-haze/80 text-sm animate-card-rise">Reading your card…</p>
+        </div>
+      )}
+
+      {!readOnly && !followUpUsed && !busy && (
         <form onSubmit={submitFollowUp} className="mt-6">
           <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">What would you like to know more about?</label>
           <div className="flex flex-wrap gap-2 mb-3">
@@ -211,9 +229,9 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
             <input id={`fu-${card.id}`} value={followUp} onChange={(e) => setFollowUp(e.target.value)}
               placeholder="Something else…"
               className="w-full bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-4 pr-24 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30" />
-            <button type="submit" disabled={busy}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors disabled:opacity-50">
-              {busy ? "…" : "Ask"}
+            <button type="submit"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors">
+              Ask
             </button>
           </div>
         </form>
