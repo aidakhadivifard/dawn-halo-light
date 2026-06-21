@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- Background: muted slate top → warm mauve → deep plum bottom -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#62627e"/>
+      <stop offset="38%" stop-color="#9e7880"/>
+      <stop offset="68%" stop-color="#a84868"/>
+      <stop offset="100%" stop-color="#260a1c"/>
+    </linearGradient>
+
+    <!-- Soft ambient glow for the halo -->
+    <filter id="haloGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="22" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Stronger center sun glow -->
+    <filter id="sunGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="40" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Halo ring gradient: warm cream top-left → peach → coral-pink bottom-right -->
+    <linearGradient id="haloGrad" x1="0.1" y1="0.1" x2="0.9" y2="0.9">
+      <stop offset="0%" stop-color="#fff0c0"/>
+      <stop offset="35%" stop-color="#ffb878"/>
+      <stop offset="75%" stop-color="#ff7058"/>
+      <stop offset="100%" stop-color="#ff4a68"/>
+    </linearGradient>
+
+    <!-- Center sun: bright warm white core → amber → transparent -->
+    <radialGradient id="sunGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff8e0"/>
+      <stop offset="25%" stop-color="#ffd080"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Rounded-square background -->
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#bg)"/>
+
+  <!-- Center sun glow -->
+  <circle cx="512" cy="480" r="150" fill="url(#sunGrad)" filter="url(#sunGlow)"/>
+
+  <!--
+    Crescent halo band (filled path between outer and inner arcs).
+    Small gap at top (~20°). Center (512, 480), outer R=300, inner R=235.
+  -->
+  <g filter="url(#haloGlow)">
+    <path d="
+      M 564 185
+      A 300 300 0 1 1 460 185
+      L 471 249
+      A 235 235 0 1 1 553 249
+      Z" fill="url(#haloGrad)"/>
+  </g>
+
+  <!-- Crisp outer-edge stroke for halo definition -->
+  <path d="M 564 185 A 300 300 0 1 1 460 185" fill="none" stroke="url(#haloGrad)"
+        stroke-width="10" stroke-linecap="round" filter="url(#haloGlow)"/>
+
+  <!-- Wordmark -->
+  <text x="512" y="855"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+        font-size="120"
+        font-weight="300"
+        letter-spacing="10"
+        fill="#f5e8d8"
+        text-anchor="middle"
+        style="text-shadow: 0 2px 24px rgba(0,0,0,0.45);">
+    Dawnhalo
+  </text>
+</svg>
