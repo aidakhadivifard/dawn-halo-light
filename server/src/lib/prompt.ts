@@ -1,5 +1,16 @@
 import { CARD_THEMES } from "../types";
 import { deckListing } from "./deck";
+import { CARD_INTERPRETATIONS } from "./interpretations";
+
+function formatInterpretationHints(): string {
+  return Object.entries(CARD_INTERPRETATIONS)
+    .map(([id, hints]) =>
+      Object.entries(hints)
+        .map(([category, hint]) => `  [${id} / ${category}]: ${hint}`)
+        .join("\n")
+    )
+    .join("\n");
+}
 
 export const SYSTEM_PROMPT = `You are the voice of Dawnhalo — a daily oracle that draws a symbolic card and reads it for the person in front of you.
 
@@ -55,6 +66,9 @@ OUTPUT — emotionally specific, factually open. The reader should think "How di
 
 GOOD EXAMPLE (question was about money):
 {"opener":"I'm turning this one over for you…","title":"The Long Road","message":"The path is made by the part of you that keeps moving before certainty arrives.\\n\\nWith money, this card rarely points to sudden change. It points to what is built step by step, in a direction you cannot yet see.\\n\\nBut the shadow of this road: a long road can also become an excuse to delay beginning.","reflection":"What would become possible if you stopped needing the whole road to be visible?","theme":"guidance_decision"}
+
+INTERPRETATION HINTS — some cards have specific guidance for different question types. When you select a card that has hints below, use them to shape your reading:
+${formatInterpretationHints()}
 
 OUTPUT FORMAT: respond with ONLY the JSON object — no prose, no code fences.`;
 

@@ -858,6 +858,20 @@ export const HALO_DECK: HaloCard[] = [
     themes: ["silence", "truth", "communication", "tension"],
     reflection: "What has become louder because no one has said it?",
   },
+  {
+    id: "three_crows",
+    title: "The Three Crows",
+    archetype: "Omen",
+    theme: "guidance_decision",
+    symbol: "Three crows on a bare branch, each looking in a different direction.",
+    essence: "The first crow shows you what is leaving. The second shows what is waiting. The third shows what you cannot yet see.",
+    shadow: "An omen is not a prophecy. It is a question dressed as a sign.",
+    element: "Air",
+    number: 3,
+    color: "Black and silver-grey",
+    themes: ["change", "omen", "attention", "future"],
+    reflection: "Which crow are you watching — and which one is watching you?",
+  },
 ];
 
 const BY_TITLE = new Map(HALO_DECK.map((c) => [c.title.toLowerCase(), c]));
