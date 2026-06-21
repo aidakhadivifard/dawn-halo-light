@@ -11,13 +11,13 @@ export type HaloElement = "Fire" | "Water" | "Earth" | "Air" | "Spirit";
 export interface HaloCard {
   title: string;
   theme: CardTheme;
-  symbol?: string;
+  symbol: string;
   /** A cryptic, poetic anchor — like a whisper from an oracle. */
   essence: string;
-  element?: HaloElement;
-  number?: number;
-  color?: string;
-  reflection?: string;
+  element: HaloElement;
+  number: number;
+  color: string;
+  reflection: string;
 }
 
 export const HALO_DECK: HaloCard[] = [
@@ -421,16 +421,106 @@ export const HALO_DECK: HaloCard[] = [
     color: "Dusk blue and weathered wood",
     reflection: "What storm have you been sailing in — that you were never asked to cross?",
   },
-  { title: "The Unopened Letter", theme: "hope_abundance", essence: "news or possibility not yet known" },
-  { title: "The Steady Hands", theme: "quiet_strength", essence: "you are more able to hold this than you feel" },
-  { title: "The Wandering Path", theme: "guidance_decision", essence: "meaning found even in the detours" },
-  { title: "The Waiting Dawn", theme: "hope_abundance", essence: "the light that always returns after a long night" },
-  { title: "The Deep Well", theme: "self_image", essence: "inner resources greater than they appear" },
-  { title: "The Two Rivers", theme: "relationship_tension", essence: "two lives meeting; both connection and friction" },
-  { title: "The Shared Fire", theme: "relationship_tension", essence: "warmth between people; the wish to belong" },
-  { title: "The Distant Bell", theme: "feeling_unseen", essence: "a call that wishes to be heard and answered" },
-  { title: "The Open Window", theme: "hope_abundance", essence: "fresh air; a new way of seeing the same room" },
-  { title: "The Roots and the Sky", theme: "self_image", essence: "who you have been and who you are becoming, held together" },
+  {
+    title: "The Unopened Letter",
+    theme: "hope_abundance",
+    symbol: "A sealed envelope on a windowsill, yellowed by sun. The handwriting on the front is your own — but you do not remember writing it. The seal is wax, pressed with a symbol you almost recognize.",
+    essence: "There is a message waiting for you — written by someone you used to be, to someone you have not yet become.",
+    element: "Air",
+    number: 7,
+    color: "Parchment yellow and faded ink",
+    reflection: "If your past self had written you a letter — what question would it ask about now?",
+  },
+  {
+    title: "The Steady Hands",
+    theme: "quiet_strength",
+    symbol: "Two hands holding a cracked bowl filled with water — the crack leaks slowly, but the hands are still. They do not grip harder. They do not tilt. They simply hold, and the water that remains is enough.",
+    essence: "Strength is not the absence of trembling. It is the bowl still held — even as it leaks.",
+    element: "Earth",
+    number: 16,
+    color: "Clay red and quiet bronze",
+    reflection: "What are you holding together — that does not need to be whole to be enough?",
+  },
+  {
+    title: "The Wandering Path",
+    theme: "guidance_decision",
+    symbol: "A trail that forks, rejoins, forks again — never straight, never lost. Along it, objects left by other travelers: a shoe, a coin, a sketch of a face. None of them are yours, but all of them feel familiar.",
+    essence: "The wandering was not the mistake. The mistake was believing the straight line was the only way home.",
+    element: "Air",
+    number: 5,
+    color: "Forest green dappled with moving light",
+    reflection: "What did you find on a detour — that you never would have found on the road you planned?",
+  },
+  {
+    title: "The Waiting Dawn",
+    theme: "hope_abundance",
+    symbol: "The sky one minute before sunrise — the horizon is glowing but the sun has not appeared. The land is still in shadow. A single bird is already singing, as if it can see what you cannot yet.",
+    essence: "The dawn does not rush because you are waiting. But it has never, not once, failed to come.",
+    element: "Fire",
+    number: 1,
+    color: "Pre-dawn rose bleeding into night blue",
+    reflection: "What would you do differently tonight — if you truly believed the morning was certain?",
+  },
+  {
+    title: "The Deep Well",
+    theme: "self_image",
+    symbol: "A stone well in a courtyard — no rope, no bucket. Leaning over the edge, you see not water but stars. The well goes down further than the ground should allow. A faint sound rises from it — your own voice, echoing back from a depth you did not know you had.",
+    essence: "You have been drawing from the surface. Beneath it, there is something that has never been touched — and it is yours.",
+    element: "Water",
+    number: 20,
+    color: "Midnight blue with scattered starlight",
+    reflection: "If you dropped a stone into your own depth — how long would it take to hear it land?",
+  },
+  {
+    title: "The Two Rivers",
+    theme: "relationship_tension",
+    symbol: "Two rivers meeting at a confluence — one clear, one silted. Where they merge, the water is neither clear nor muddy but a third color entirely. The current at the meeting point is rough, but downstream, it calms into something wider than either river was alone.",
+    essence: "Where two waters meet, the turbulence is not the problem. It is the merging — and merging is never still.",
+    element: "Water",
+    number: 13,
+    color: "Two blues becoming a third",
+    reflection: "Where in your life are two currents meeting — and what new color are they making?",
+  },
+  {
+    title: "The Shared Fire",
+    theme: "relationship_tension",
+    symbol: "Two figures sitting on opposite sides of a campfire — their faces lit, their backs in shadow. Between them, the fire casts both their shadows outward in opposite directions. Neither has spoken, but neither has left.",
+    essence: "The fire does not ask why you came. It only asks that you both stay long enough to be warm.",
+    element: "Fire",
+    number: 6,
+    color: "Firelight gold and human shadow",
+    reflection: "What would you say to the person across the fire — if the silence were not so comfortable?",
+  },
+  {
+    title: "The Distant Bell",
+    theme: "feeling_unseen",
+    symbol: "A bell tower in fog — the bell is ringing, but the tower is not visible. The sound comes from everywhere and nowhere. On the ground below, people walk past without looking up, though one person has stopped and turned their ear toward the sky.",
+    essence: "The bell does not ring for those who hear it clearly. It rings for the one who almost missed it — and turned.",
+    element: "Air",
+    number: 11,
+    color: "Fog-white and tarnished bronze",
+    reflection: "What has been calling you — that you have been hearing but pretending is the wind?",
+  },
+  {
+    title: "The Open Window",
+    theme: "hope_abundance",
+    symbol: "A room you have lived in for years — same walls, same furniture, same light. But today, a window you never noticed is open. The curtain moves. Outside, a landscape you have never seen: hills, water, a sky that is a different blue than the one you know.",
+    essence: "The room did not change. A wall you thought was solid had a window in it all along.",
+    element: "Air",
+    number: 3,
+    color: "Interior shadow and exterior blue",
+    reflection: "What in your life has been a wall — that might, if you looked closer, be a window?",
+  },
+  {
+    title: "The Roots and the Sky",
+    theme: "self_image",
+    symbol: "A tree seen from inside the earth — roots spreading like branches into dark soil, mirroring the crown above. Between the two halves, at ground level, the trunk is narrow and scarred. It holds both worlds together without choosing either.",
+    essence: "You are not one or the other. You are the trunk — the narrow place where the buried and the reaching meet.",
+    element: "Spirit",
+    number: 22,
+    color: "Earth-brown below, sky-blue above, bark-grey between",
+    reflection: "If you are both the roots and the branches — what is the ground you stand on?",
+  },
 ];
 
 const BY_TITLE = new Map(HALO_DECK.map((c) => [c.title.toLowerCase(), c]));
