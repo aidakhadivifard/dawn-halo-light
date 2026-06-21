@@ -35,15 +35,15 @@ const FALLBACK: Record<
     {
       title: "The Quiet Compass",
       message:
-        "This card carries an inner direction steadier than the noise around it.\n\nThe heart often leans one way long before the reasons arrive.\n\nNot every question asks for an answer; some only ask for the next small step.\n\nThe truest path is rarely the perfect one — it is the one that feels most like your own.",
-      reflection: "If no one were watching, which way would you quietly lean?",
+        "The direction you need is felt before it is known.\n\nThe compass does not point north. It points toward something only you can feel.\n\nBut inner knowing can be hard to hear when every outside voice sounds urgent.",
+      reflection: "If your compass pointed to a place that does not exist yet, would you follow it?",
       theme: "guidance_decision",
     },
     {
       title: "The Crossing Stones",
       message:
-        "This card speaks of moving across uncertain water one careful stone at a time.\n\nWhat we weigh most carefully is what matters most to us.\n\nEvery road carries its own gift, and its own cost.\n\nThe question was never which stone is perfect, but who you become as you cross.",
-      reflection: "Which choice lets you be more honest with yourself?",
+        "The crossing is made one stone at a time.\n\nEach stone asks for your full weight before it reveals the next.\n\nBut looking too far ahead can make the stone beneath you disappear.",
+      reflection: "What is the next stone, not the whole crossing?",
       theme: "guidance_decision",
     },
   ],
@@ -51,15 +51,15 @@ const FALLBACK: Record<
     {
       title: "The Quiet Harbor",
       message:
-        "This card is a sheltered place to set the weight down for a while.\n\nSome weariness comes not from the day, but from carrying what could not be set down.\n\nA feeling this heavy has earned its place; it need not be explained to be true.\n\nWhat must be mended can wait until the shoulders have rested.",
-      reflection: "What would ease feel like, even just for an hour?",
+        "Rest is not waiting. Rest is a destination.\n\nThe boats are tied. The water is still. No one is leaving.\n\nBut a harbor can protect you from the sea and from your own next voyage.",
+      reflection: "If rest were the destination, what would change?",
       theme: "exhaustion_rest",
     },
     {
       title: "The Watchful Moon",
       message:
-        "This card watches over what moves in the dark; nothing here goes unseen.\n\nBeneath the wish to be noticed is the older wish: simply to matter.\n\nThe one who reaches out is never as unseen as they fear.\n\nYou were seen the moment you turned toward the light.",
-      reflection: "Where in your life do you already feel a little more seen?",
+        "To be seen is sometimes enough.\n\nThe moon illuminates without explaining.\n\nBut being witnessed can feel like judgment when you are used to hiding.",
+      reflection: "What changes when you let something in you be seen without explaining it?",
       theme: "feeling_unseen",
     },
   ],
@@ -67,16 +67,16 @@ const FALLBACK: Record<
     {
       title: "The Morning Field",
       message:
-        "This card is an open field at first light, asking nothing of you yet.\n\nA day does not ask us to be remarkable; it asks only that we are here for it.\n\nTo be present is its own quiet kind of enough.\n\nCarry this into the next small thing, and let it be plenty.",
-      reflection: "What small thing today deserves your full attention?",
+        "The morning arrives and waits to see how you will meet it.\n\nAn empty field at dawn, covered in mist and unmarked dew.\n\nA blank field can feel like freedom or pressure, depending on what you think it demands.",
+      reflection: "If nothing was required of you yet, how would you move?",
       theme: "daily_general",
     },
     {
       title: "The Quiet Return",
       message:
-        "This card speaks of finding your way back to yourself.\n\nThere is an answer in you that has only been waiting for quiet enough to be heard.\n\nThe noise of the world is loud; the knowing is patient.\n\nFollow the small, honest pull you keep setting aside.",
-      reflection: "What have you been quietly knowing but not saying?",
-      theme: "daily_general",
+        "What you left has not necessarily left you.\n\nThe path leads back to a house once left, with smoke rising from its chimney.\n\nBut returning is not the same as becoming who you used to be.",
+      reflection: "What would it mean to return without going backward?",
+      theme: "exhaustion_rest",
     },
   ],
 };
