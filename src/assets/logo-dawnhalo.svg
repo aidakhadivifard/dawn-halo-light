@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5a5a7a"/>
+      <stop offset="35%" stop-color="#9a6e7a"/>
+      <stop offset="65%" stop-color="#b25a6a"/>
+      <stop offset="100%" stop-color="#2a1020"/>
+    </linearGradient>
+
+    <!-- Glow filter for the halo -->
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Stronger glow for the center sun -->
+    <filter id="sunGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="35" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Gradient for the halo ring -->
+    <linearGradient id="haloGrad" x1="0.15" y1="0.15" x2="0.85" y2="0.85">
+      <stop offset="0%" stop-color="#ffe8b0"/>
+      <stop offset="40%" stop-color="#ffb088"/>
+      <stop offset="80%" stop-color="#ff7a5a"/>
+      <stop offset="100%" stop-color="#ff5a6a"/>
+    </linearGradient>
+
+    <!-- Gradient for the center sun -->
+    <radialGradient id="sunGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff5d0"/>
+      <stop offset="40%" stop-color="#ffd080"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+
+    <!-- Mask to create the crescent halo shape -->
+    <mask id="haloMask">
+      <rect width="1024" height="1024" fill="white"/>
+      <!-- Inner cutout to create the ring -->
+      <path d="M 512 215 A 297 297 0 0 1 512 809 A 245 245 0 0 0 512 267 A 245 245 0 0 1 512 757 A 297 297 0 0 0 512 215 Z" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="1024" height="1024" rx="240" ry="240" fill="url(#bgGrad)"/>
+
+  <!-- Center sun glow -->
+  <circle cx="512" cy="500" r="140" fill="url(#sunGrad)" filter="url(#sunGlow)"/>
+
+  <!-- Halo crescent ring -->
+  <!-- Full circle with mask to make the crescent shape, with outer glow -->
+  <g filter="url(#glow)">
+    <path d="M 512 215 A 297 297 0 1 1 512 809 A 297 297 0 0 0 512 215 Z"
+          fill="url(#haloGrad)" mask="url(#haloMask)"/>
+  </g>
+  
+  <!-- Brighter inner ring stroke for crisp edge -->
+  <path d="M 512 215 A 297 297 0 1 1 512 809"
+        fill="none"
+        stroke="url(#haloGrad)"
+        stroke-width="12"
+        stroke-linecap="round"
+        filter="url(#glow)"/>
+
+  <!-- Text -->
+  <text x="512" y="840"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+        font-size="130"
+        font-weight="300"
+        letter-spacing="6"
+        fill="#f0e0d0"
+        text-anchor="middle"
+        style="text-shadow: 0 2px 20px rgba(0,0,0,0.4);">
+    Dawnhalo
+  </text>
+</svg>
