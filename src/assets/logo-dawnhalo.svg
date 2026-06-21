@@ -52,20 +52,19 @@
 
   <!--
     Crescent halo band (filled path between outer and inner arcs).
-    Gap at the top-left (~10:30). Arc sweeps clockwise ~330°.
-    Center (512, 480), outer R=300, inner R=235.
+    Small gap at top (~20°). Center (512, 480), outer R=300, inner R=235.
   -->
   <g filter="url(#haloGlow)">
     <path d="
-      M 724 268
-      A 300 300 0 1 1 580 192
-      L 566 260
-      A 235 235 0 1 0 670 314
+      M 564 185
+      A 300 300 0 1 1 460 185
+      L 471 249
+      A 235 235 0 1 1 553 249
       Z" fill="url(#haloGrad)"/>
   </g>
 
-  <!-- Crisp outer edge stroke for definition -->
-  <path d="M 724 268 A 300 300 0 1 1 580 192" fill="none" stroke="url(#haloGrad)"
+  <!-- Crisp outer-edge stroke for halo definition -->
+  <path d="M 564 185 A 300 300 0 1 1 460 185" fill="none" stroke="url(#haloGrad)"
         stroke-width="10" stroke-linecap="round" filter="url(#haloGlow)"/>
 
   <!-- Wordmark -->
