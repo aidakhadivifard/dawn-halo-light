@@ -32,6 +32,10 @@ export type Card = {
   illustrationId?: string;
   /** Card theme (drives illustration selection). */
   theme?: CardTheme;
+  /** Element of the card (Fire, Water, Earth, Air, Spirit). */
+  element?: string;
+  /** Card number in the deck. */
+  number?: number;
   /** True when the input was classified as a crisis — UI shows support copy. */
   isCrisis?: boolean;
   /** Whether the one allowed follow-up has been used. */
@@ -69,6 +73,8 @@ function apiToCard(c: ApiCard): Card {
     theme: c.theme,
     illustrationId: c.illustrationId,
     illustration: srcForId(c.illustrationId, c.theme) ?? artForCard({ id: c.id, theme: c.theme }),
+    element: c.element,
+    number: c.number,
     isCrisis: c.isCrisis,
     followUpUsed: c.followUpUsed,
     createdAt: c.createdAt,
@@ -83,6 +89,8 @@ function mockToCard(o: OracleCard): Card {
     message: o.message,
     reflection: o.reflection,
     theme: o.theme,
+    element: o.element,
+    number: o.number,
     illustration: artForCard(o),
     createdAt: o.createdAt,
   };

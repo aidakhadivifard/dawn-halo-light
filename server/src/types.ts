@@ -29,6 +29,10 @@ export interface Card {
   theme: CardTheme;
   /** Library image id (e.g. "card-exhaustion_rest-02"); client resolves to a URL. */
   illustrationId: string;
+  /** Element of the card (Fire, Water, Earth, Air, Spirit). */
+  element?: string;
+  /** Card number in the deck. */
+  number?: number;
   isCrisis?: boolean;
   /** Whether a follow-up has already been used on this card. */
   followUpUsed?: boolean;

@@ -11,6 +11,20 @@ type Props = {
   showCanDraw?: boolean;
 };
 
+const ELEMENT_EMOJI: Record<string, string> = {
+  Fire: "\u{1F525}",
+  Water: "\u{1F30A}",
+  Earth: "\u{1F30D}",
+  Air: "\u{1F4A8}",
+  Spirit: "\u{1F319}",
+};
+
+const ROMAN: Record<number, string> = {
+  1:"I",2:"II",3:"III",4:"IV",5:"V",6:"VI",7:"VII",8:"VIII",9:"IX",10:"X",
+  11:"XI",12:"XII",13:"XIII",14:"XIV",15:"XV",16:"XVI",17:"XVII",18:"XVIII",
+  19:"XIX",20:"XX",21:"XXI",22:"XXII",
+};
+
 export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCanDraw = true }: Props) {
   const [saved, setSaved] = useState(false);
   useEffect(() => {
@@ -128,6 +142,12 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
           <img src={card.illustration} alt={card.title} width={768} height={1152} className="h-full w-full object-cover" loading="lazy" />
         </div>
 
+        {(card.element || card.number) && (
+          <div className="flex items-center gap-2 mb-3">
+            {card.element && <span className="text-base">{ELEMENT_EMOJI[card.element] ?? ""}</span>}
+            {card.number && <span className="text-[11px] uppercase tracking-[0.2em] font-medium text-dawn-ink/40">{ROMAN[card.number] ?? card.number}</span>}
+          </div>
+        )}
         <p className="text-sm italic font-serif opacity-60 leading-relaxed text-pretty">{card.opener}</p>
         <h2 className="mt-3 text-3xl font-serif font-light tracking-tight text-balance text-dawn-ink">{card.title}</h2>
 
@@ -213,7 +233,7 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
         <form onSubmit={submitFollowUp} className="mt-6">
           <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">What would you like to know more about?</label>
           <div className="flex flex-wrap gap-2 mb-3">
-            {["My next step", "What I need to hear", "A different perspective"].map((s) => (
+            {["What hides beneath", "The shadow side", "A deeper layer"].map((s) => (
               <button key={s} type="button" onClick={() => setFollowUp(s)}
                 className={
                   "text-[11px] px-4 py-2 rounded-full border transition-colors " +
