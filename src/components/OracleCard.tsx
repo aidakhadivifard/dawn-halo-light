@@ -25,18 +25,12 @@ const ROMAN: Record<number, string> = {
   19:"XIX",20:"XX",21:"XXI",22:"XXII",
 };
 
+type Depth = 0 | 1 | 2; // 0=essence, 1=shadow, 2=hidden
+
 export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCanDraw = true }: Props) {
   const [saved, setSaved] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    getSaved()
-      .then((list) => alive && setSaved(list.some((c) => c.id === card.id)))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [card.id]);
-
+  const [depth, setDepth] = useState<Depth>(0);
+  const [showFollowUpInput, setShowFollowUpInput] = useState(false);
   const [followUp, setFollowUp] = useState("");
   const [followUpUsed, setFollowUpUsed] = useState(!!card.followUpUsed);
   const [followCard, setFollowCard] = useState<Card | null>(null);
@@ -45,6 +39,14 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let alive = true;
+    getSaved()
+      .then((list) => alive && setSaved(list.some((c) => c.id === card.id)))
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [card.id]);
 
   const toggleSave = async () => {
     if (saved) {
@@ -56,6 +58,13 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
     }
   };
 
+  const goDeeper = () => {
+    if (depth === 0 && card.shadow) setDepth(1);
+    else if (depth <= 1 && card.hidden) setDepth(2);
+  };
+
+  const canGoDeeper = (depth === 0 && !!card.shadow) || (depth === 1 && !!card.hidden);
+
   const submitFollowUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!followUp.trim() || followUpUsed || busy) return;
@@ -63,20 +72,13 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
     const started = Date.now();
     try {
       const out = await askFollowUpEx({ previous: card, text: followUp });
-      // A gentle minimum pause so it feels like the card is being read —
-      // never jarringly instant, never an artificial wait on top of real latency.
       const elapsed = Date.now() - started;
       if (elapsed < 1000) await new Promise((r) => setTimeout(r, 1000 - elapsed));
-      if (out.kind === "crisis") {
-        navigate({ to: "/support" });
-        return;
-      }
-      if (out.kind === "paywall") {
-        navigate({ to: "/paywall" });
-        return;
-      }
+      if (out.kind === "crisis") { navigate({ to: "/support" }); return; }
+      if (out.kind === "paywall") { navigate({ to: "/paywall" }); return; }
       setFollowCard(out.card);
       setFollowUpUsed(true);
+      setShowFollowUpInput(false);
     } finally {
       setBusy(false);
     }
@@ -90,15 +92,9 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
       (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }).share
     ) {
       try {
-        await (navigator as Navigator & { share: (d: ShareData) => Promise<void> }).share({
-          title: "Dawnhalo",
-          text,
-          url,
-        });
+        await (navigator as Navigator & { share: (d: ShareData) => Promise<void> }).share({ title: "Dawnhalo", text, url });
         return;
-      } catch {
-        /* fallthrough to copy */
-      }
+      } catch { /* fallthrough to copy */ }
     }
     await navigator.clipboard.writeText(url);
     setCopied(true);
@@ -108,16 +104,19 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
   const ActionButton = ({
     onClick,
     active,
+    disabled,
     children,
   }: {
     onClick: () => void;
     active?: boolean;
+    disabled?: boolean;
     children: React.ReactNode;
   }) => (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={
-        "text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 rounded-full transition-colors " +
+        "text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 rounded-full transition-colors disabled:opacity-30 " +
         (active
           ? "bg-dawn-rose text-dawn-sky font-bold"
           : "border border-dawn-haze/20 text-dawn-ink/80 hover:bg-dawn-haze/10")
@@ -126,6 +125,8 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
       {children}
     </button>
   );
+
+  const depthLabel = depth === 0 ? "Essence" : depth === 1 ? "Shadow" : "Hidden";
 
   return (
     <article className="relative group animate-card-rise">
@@ -151,35 +152,79 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
         <p className="text-sm italic font-serif opacity-60 leading-relaxed text-pretty">{card.opener}</p>
         <h2 className="mt-3 text-3xl font-serif font-light tracking-tight text-balance text-dawn-ink">{card.title}</h2>
 
+        {/* Layer indicator */}
+        {depth > 0 && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className={
+              "text-[9px] uppercase tracking-[0.22em] font-bold px-3 py-1 rounded-full " +
+              (depth === 1 ? "bg-dawn-ink/10 text-dawn-ink/60" : "bg-dawn-rose/15 text-dawn-rose")
+            }>
+              {depthLabel}
+            </span>
+          </div>
+        )}
+
         <div className="animate-message-unfold">
+          {/* Essence layer (always visible) */}
           <div className="mt-4 space-y-3 max-w-[46ch]">
             {card.message.split(/\n{2,}/).map((para, i) => (
               <p key={i} className="text-dawn-ink/75 leading-relaxed text-[15px] text-pretty">{para}</p>
             ))}
           </div>
 
-          {card.reflection && (
+          {card.reflection && depth === 0 && (
             <div className="mt-6 pl-4 border-l-2 border-dawn-rose/40">
               <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-rose/70 mb-1.5">Reflection</p>
               <p className="text-[15px] font-serif italic text-dawn-ink/85 leading-relaxed text-pretty max-w-[44ch]">{card.reflection}</p>
             </div>
           )}
+
+          {/* Shadow layer */}
+          {depth >= 1 && card.shadow && (
+            <div className="mt-6 pt-5 border-t border-dawn-haze/15 animate-message-unfold">
+              <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-ink/40 mb-2">Shadow</p>
+              <div className="space-y-3 max-w-[46ch]">
+                {card.shadow.split(/\n{2,}/).map((para, i) => (
+                  <p key={`s${i}`} className="text-dawn-ink/65 leading-relaxed text-[15px] italic text-pretty">{para}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Hidden layer */}
+          {depth >= 2 && card.hidden && (
+            <div className="mt-6 pt-5 border-t border-dawn-haze/15 animate-message-unfold">
+              <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-rose/60 mb-2">Hidden</p>
+              <div className="space-y-3 max-w-[46ch]">
+                {card.hidden.split(/\n{2,}/).map((para, i) => (
+                  <p key={`h${i}`} className="text-dawn-ink/75 leading-relaxed text-[15px] font-serif text-pretty">{para}</p>
+                ))}
+              </div>
+              {card.reflection && (
+                <div className="mt-5 pl-4 border-l-2 border-dawn-rose/40">
+                  <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-rose/70 mb-1.5">Reflection</p>
+                  <p className="text-[15px] font-serif italic text-dawn-ink/85 leading-relaxed text-pretty max-w-[44ch]">{card.reflection}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Action buttons — single row, wrapping naturally */}
+        {/* Action buttons — 3 main buttons */}
         {!readOnly && (
           <div className="mt-7 pt-6 border-t border-dawn-haze/10 flex flex-wrap gap-2">
-            <ActionButton onClick={toggleSave} active={saved}>
-              {saved ? "Saved" : "Save"}
-            </ActionButton>
             {showCanDraw && onDrawAgain && (
               <ActionButton onClick={onDrawAgain}>Draw another</ActionButton>
             )}
-            {!followUpUsed && (
-              <ActionButton onClick={() => document.getElementById(`fu-${card.id}`)?.focus()}>
-                Ask a follow-up
-              </ActionButton>
+            {canGoDeeper && (
+              <ActionButton onClick={goDeeper}>Go deeper</ActionButton>
             )}
+            {!followUpUsed && !showFollowUpInput && (
+              <ActionButton onClick={() => setShowFollowUpInput(true)}>Ask a follow-up</ActionButton>
+            )}
+            <ActionButton onClick={toggleSave} active={saved}>
+              {saved ? "Saved" : "Save"}
+            </ActionButton>
             <ActionButton onClick={() => setSparkOpen((s) => !s)} active={sparkOpen}>
               Share
             </ActionButton>
@@ -187,6 +232,9 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
         )}
         {readOnly && (
           <div className="mt-7 pt-6 border-t border-dawn-haze/10 flex flex-wrap gap-2">
+            {canGoDeeper && (
+              <ActionButton onClick={goDeeper}>Go deeper</ActionButton>
+            )}
             <ActionButton onClick={toggleSave} active={saved}>
               {saved ? "Saved" : "Save"}
             </ActionButton>
@@ -216,7 +264,8 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
         )}
       </div>
 
-      {!readOnly && !followUpUsed && busy && (
+      {/* Follow-up loading */}
+      {!readOnly && showFollowUpInput && busy && (
         <div className="mt-6 flex flex-col items-center text-center py-8">
           <div className="relative w-20 h-20 mb-4">
             <div
@@ -229,31 +278,23 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
         </div>
       )}
 
-      {!readOnly && !followUpUsed && !busy && (
+      {/* Follow-up input — simple text field, no chips */}
+      {!readOnly && showFollowUpInput && !followUpUsed && !busy && (
         <form onSubmit={submitFollowUp} className="mt-6">
-          <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">What would you like to know more about?</label>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {["What hides beneath", "The shadow side", "A deeper layer"].map((s) => (
-              <button key={s} type="button" onClick={() => setFollowUp(s)}
-                className={
-                  "text-[11px] px-4 py-2 rounded-full border transition-colors " +
-                  (followUp === s
-                    ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
-                    : "border-dawn-haze/20 text-dawn-ink/70 hover:bg-dawn-haze/10")
-                }>
-                {s}
-              </button>
-            ))}
-          </div>
+          <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">Ask a follow-up</label>
           <div className="relative">
-            <input id={`fu-${card.id}`} value={followUp} onChange={(e) => setFollowUp(e.target.value)}
-              placeholder="Something else…"
+            <input id={`fu-${card.id}`} autoFocus value={followUp} onChange={(e) => setFollowUp(e.target.value)}
+              placeholder="What would you like to know more about?"
               className="w-full bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-4 pr-24 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30" />
             <button type="submit"
               className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors">
               Ask
             </button>
           </div>
+          <button type="button" onClick={() => setShowFollowUpInput(false)}
+            className="mt-2 ml-1 text-[10px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors">
+            Cancel
+          </button>
         </form>
       )}
 

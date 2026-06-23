@@ -22,6 +22,8 @@ export type OracleCard = {
   reflection?: string;
   element?: string;
   number?: number;
+  shadow?: string;
+  hidden?: string;
   savedAt?: string;
   createdAt: string;
   prompt?: string;
@@ -53,12 +55,12 @@ const openers = [
 ];
 
 const dailyCards: Omit<OracleCard, "id" | "createdAt">[] = [
-  { art: "dawn",  theme: "daily_general",   title: "The Morning Field", element: "Air", number: 1, opener: openers[0], message: "An empty field at dawn, covered in mist and unmarked dew.\n\nThe morning arrives and waits to see how you will meet it.\n\nA blank field can feel like freedom or pressure, depending on what you think it demands.", reflection: "If nothing was required of you yet, how would you move?" },
-  { art: "silk",  theme: "quiet_strength",  title: "The Still Lake", element: "Water", number: 14, opener: openers[1], message: "A lake so still it reflects the sky, with small ripples near the edge.\n\nCalm is not the absence of depth.\n\nStillness can hide what needs to move.", reflection: "What moves beneath your stillness?" },
-  { art: "flame", theme: "quiet_strength",  title: "The Last Ember", element: "Fire", number: 2, opener: openers[2], message: "One glowing coal in a cold fireplace.\n\nWhat is almost gone is not yet gone.\n\nNot every ember is meant to be revived. Some warmth is only memory.", reflection: "If you blew on this ember, what would you be trying to bring back?" },
-  { art: "bloom", theme: "hope_abundance",  title: "The Sleeping Seed", element: "Earth", number: 8, opener: openers[3], message: "A seed buried in dark soil. Above it, morning light begins without the seed seeing it.\n\nWhat is not visible is not absent.\n\nWaiting can become numbness if you forget the seed still needs tending.", reflection: "If the seed could speak, would it call itself dead or waiting?" },
-  { art: "moon",  theme: "daily_general",   title: "The Watchful Moon", element: "Spirit", number: 18, opener: openers[4], message: "A full moon over a dark field, illuminating without explaining.\n\nTo be seen is sometimes enough.\n\nBeing witnessed can feel like judgment when you are used to hiding.", reflection: "What changes when you let something in you be seen without explaining it?" },
-  { art: "hand",  theme: "exhaustion_rest", title: "The Quiet Harbor", element: "Water", number: 14, opener: openers[5], message: "A harbor at dusk. Boats are tied, the water is still, and no one is leaving.\n\nRest is not waiting. Rest is a destination.\n\nA harbor can protect you from the sea and from your own next voyage.", reflection: "If rest were the destination, what would change?" },
+  { art: "dawn",  theme: "daily_general",   title: "The Morning Field", element: "Air", number: 1, opener: openers[0], message: "An empty field at dawn, covered in mist and unmarked dew.\n\nThe morning arrives and waits to see how you will meet it.", shadow: "A blank field can feel like freedom or pressure, depending on what you think it demands.", hidden: "An empty field at dawn. The Freshness speaks: what you see on the surface is not the full shape. If nothing was required of you yet, how would you move?", reflection: "If nothing was required of you yet, how would you move?" },
+  { art: "silk",  theme: "quiet_strength",  title: "The Still Lake", element: "Water", number: 14, opener: openers[1], message: "A lake so still it reflects the sky, with small ripples near the edge.\n\nCalm is not the absence of depth.", shadow: "Stillness can hide what needs to move.", hidden: "A lake so still it reflects the sky. The Depth speaks: what you see on the surface is not the full shape. What moves beneath your stillness?", reflection: "What moves beneath your stillness?" },
+  { art: "flame", theme: "quiet_strength",  title: "The Last Ember", element: "Fire", number: 2, opener: openers[2], message: "One glowing coal in a cold fireplace.\n\nWhat is almost gone is not yet gone.", shadow: "Not every ember is meant to be revived. Some warmth is only memory.", hidden: "One glowing coal in a cold fireplace. The Revival speaks: what you see on the surface is not the full shape. If you blew on this ember, what would you be trying to bring back?", reflection: "If you blew on this ember, what would you be trying to bring back?" },
+  { art: "bloom", theme: "hope_abundance",  title: "The Sleeping Seed", element: "Earth", number: 8, opener: openers[3], message: "A seed buried in dark soil. Above it, morning light begins without the seed seeing it.\n\nWhat is not visible is not absent.", shadow: "Waiting can become numbness if you forget the seed still needs tending.", hidden: "A seed buried in dark soil. The Potential speaks: what you see on the surface is not the full shape. If the seed could speak, would it call itself dead or waiting?", reflection: "If the seed could speak, would it call itself dead or waiting?" },
+  { art: "moon",  theme: "daily_general",   title: "The Watchful Moon", element: "Spirit", number: 18, opener: openers[4], message: "A full moon over a dark field, illuminating without explaining.\n\nTo be seen is sometimes enough.", shadow: "Being witnessed can feel like judgment when you are used to hiding.", hidden: "A full moon over a dark field. The Witness speaks: what you see on the surface is not the full shape. What changes when you let something in you be seen without explaining it?", reflection: "What changes when you let something in you be seen without explaining it?" },
+  { art: "hand",  theme: "exhaustion_rest", title: "The Quiet Harbor", element: "Water", number: 14, opener: openers[5], message: "A harbor at dusk. Boats are tied, the water is still, and no one is leaving.\n\nRest is not waiting. Rest is a destination.", shadow: "A harbor can protect you from the sea and from your own next voyage.", hidden: "A harbor at dusk. The Rest speaks: what you see on the surface is not the full shape. If rest were the destination, what would change?", reflection: "If rest were the destination, what would change?" },
 ];
 
 export const REMINDERS = [
@@ -88,36 +90,52 @@ export function classifyInput(raw: string): Intent {
 const responses: Record<Exclude<Intent, "crisis">, Omit<OracleCard, "id" | "createdAt" | "prompt">[]> = {
   question: [
     { art: "moon", theme: "guidance_decision", element: "Spirit", number: 5, opener: "This one turned face-up before I reached for it…", title: "The Quiet Compass",
-      message: "A compass that does not point north. It points toward something only you can feel.\n\nThe direction you need is felt before it is known.\n\nInner knowing can be hard to hear when every outside voice sounds urgent.",
+      message: "A compass that does not point north. It points toward something only you can feel.\n\nThe direction you need is felt before it is known.",
+      shadow: "Inner knowing can be hard to hear when every outside voice sounds urgent.",
+      hidden: "A compass that does not point north. The Inner Direction speaks: what you see on the surface is not the full shape. If your compass pointed to a place that does not exist yet, would you follow it?",
       reflection: "If your compass pointed to a place that does not exist yet, would you follow it?" },
     { art: "dawn", theme: "guidance_decision", element: "Water", number: 5, opener: "The deck went still. Then this card slid forward…", title: "The Crossing Stones",
-      message: "Flat stones across a stream, each just wide enough for one foot.\n\nThe crossing is made one stone at a time.\n\nLooking too far ahead can make the stone beneath you disappear.",
+      message: "Flat stones across a stream, each just wide enough for one foot.\n\nThe crossing is made one stone at a time.",
+      shadow: "Looking too far ahead can make the stone beneath you disappear.",
+      hidden: "Flat stones across a stream. The Stepwise Passage speaks: what you see on the surface is not the full shape. What is the next stone, not the whole crossing?",
       reflection: "What is the next stone, not the whole crossing?" },
   ],
   feeling: [
     { art: "hand", theme: "exhaustion_rest", element: "Water", number: 14, opener: "Something in the air shifted. This is what appeared…", title: "The Quiet Harbor",
-      message: "A harbor at dusk. Boats are tied, the water is still, and no one is leaving.\n\nRest is not waiting. Rest is a destination.\n\nA harbor can protect you from the sea and from your own next voyage.",
+      message: "A harbor at dusk. Boats are tied, the water is still, and no one is leaving.\n\nRest is not waiting. Rest is a destination.",
+      shadow: "A harbor can protect you from the sea and from your own next voyage.",
+      hidden: "A harbor at dusk. The Rest speaks: what you see on the surface is not the full shape. If rest were the destination, what would change?",
       reflection: "If rest were the destination, what would change?" },
     { art: "silk", theme: "exhaustion_rest", element: "Air", number: 5, opener: "I did not choose this card. It chose the moment…", title: "The Open Hand",
-      message: "An open hand with nothing in it, the fingers relaxed.\n\nLetting go is not losing. It is making room.\n\nAn open hand can still fear what may never arrive.",
+      message: "An open hand with nothing in it, the fingers relaxed.\n\nLetting go is not losing. It is making room.",
+      shadow: "An open hand can still fear what may never arrive.",
+      hidden: "An open hand with nothing in it. The Release speaks: what you see on the surface is not the full shape. What could come into your hand only if it stayed open?",
       reflection: "What could come into your hand only if it stayed open?" },
   ],
   loneliness: [
     { art: "bloom", theme: "feeling_unseen", element: "Spirit", number: 18, opener: "Three cards fell. Only this one landed face-up…", title: "The Watchful Moon",
-      message: "A full moon over a dark field, illuminating without explaining.\n\nTo be seen is sometimes enough.\n\nBeing witnessed can feel like judgment when you are used to hiding.",
+      message: "A full moon over a dark field, illuminating without explaining.\n\nTo be seen is sometimes enough.",
+      shadow: "Being witnessed can feel like judgment when you are used to hiding.",
+      hidden: "A full moon over a dark field. The Witness speaks: what you see on the surface is not the full shape. What changes when you let something in you be seen without explaining it?",
       reflection: "What changes when you let something in you be seen without explaining it?" },
   ],
   appearance: [
     { art: "flame", theme: "self_image", element: "Air", number: 19, opener: "The deck resisted twice. Then offered this…", title: "The Cracked Mirror",
-      message: "A mirror split by one clean crack. Every piece still reflects the same face differently.\n\nSometimes what breaks is the image, not the self.\n\nYou may be mistaking one distorted reflection for the whole truth.",
+      message: "A mirror split by one clean crack. Every piece still reflects the same face differently.\n\nSometimes what breaks is the image, not the self.",
+      shadow: "You may be mistaking one distorted reflection for the whole truth.",
+      hidden: "A mirror split by one clean crack. The Distorted Seeing speaks: what you see on the surface is not the full shape. Which reflection have you been treating as the only one?",
       reflection: "Which reflection have you been treating as the only one?" },
   ],
   general: [
     { art: "dawn", theme: "daily_general", element: "Air", number: 1, opener: "This one turned face-up before I reached for it…", title: "The Morning Field",
-      message: "An empty field at dawn, covered in mist and unmarked dew.\n\nThe morning arrives and waits to see how you will meet it.\n\nA blank field can feel like freedom or pressure, depending on what you think it demands.",
+      message: "An empty field at dawn, covered in mist and unmarked dew.\n\nThe morning arrives and waits to see how you will meet it.",
+      shadow: "A blank field can feel like freedom or pressure, depending on what you think it demands.",
+      hidden: "An empty field at dawn. The Freshness speaks: what you see on the surface is not the full shape. If nothing was required of you yet, how would you move?",
       reflection: "If nothing was required of you yet, how would you move?" },
     { art: "moon", theme: "daily_general", element: "Spirit", number: 6, opener: "The deck went still. Then this card slid forward…", title: "The Quiet Return",
-      message: "A path leading back to a house once left, with smoke rising from its chimney.\n\nWhat you left has not necessarily left you.\n\nReturning is not the same as becoming who you used to be.",
+      message: "A path leading back to a house once left, with smoke rising from its chimney.\n\nWhat you left has not necessarily left you.",
+      shadow: "Returning is not the same as becoming who you used to be.",
+      hidden: "A path leading back to a house once left. The Homecoming speaks: what you see on the surface is not the full shape. What would it mean to return without going backward?",
       reflection: "What would it mean to return without going backward?" },
   ],
 };

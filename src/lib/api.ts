@@ -19,6 +19,8 @@ export interface ApiCard {
   illustrationId: string;
   element?: string;
   number?: number;
+  shadow?: string;
+  hidden?: string;
   isCrisis?: boolean;
   followUpUsed?: boolean;
   createdAt: string;

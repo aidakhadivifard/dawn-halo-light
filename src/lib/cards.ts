@@ -36,6 +36,10 @@ export type Card = {
   element?: string;
   /** Card number in the deck. */
   number?: number;
+  /** Shadow layer text. */
+  shadow?: string;
+  /** Hidden layer text (deepest reading). */
+  hidden?: string;
   /** True when the input was classified as a crisis — UI shows support copy. */
   isCrisis?: boolean;
   /** Whether the one allowed follow-up has been used. */
@@ -75,6 +79,8 @@ function apiToCard(c: ApiCard): Card {
     illustration: srcForId(c.illustrationId, c.theme) ?? artForCard({ id: c.id, theme: c.theme }),
     element: c.element,
     number: c.number,
+    shadow: c.shadow,
+    hidden: c.hidden,
     isCrisis: c.isCrisis,
     followUpUsed: c.followUpUsed,
     createdAt: c.createdAt,
@@ -91,6 +97,8 @@ function mockToCard(o: OracleCard): Card {
     theme: o.theme,
     element: o.element,
     number: o.number,
+    shadow: o.shadow,
+    hidden: o.hidden,
     illustration: artForCard(o),
     createdAt: o.createdAt,
   };

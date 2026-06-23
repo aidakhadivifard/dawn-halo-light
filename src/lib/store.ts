@@ -24,7 +24,12 @@ function oracleToCard(o: OracleCard): Card {
     opener: o.opener,
     title: o.title,
     message: o.message,
+    reflection: o.reflection,
     theme: o.theme,
+    element: o.element,
+    number: o.number,
+    shadow: o.shadow,
+    hidden: o.hidden,
     illustration: artForCard(o),
     createdAt: o.savedAt ?? o.createdAt,
   };

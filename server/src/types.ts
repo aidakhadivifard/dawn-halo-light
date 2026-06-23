@@ -33,6 +33,10 @@ export interface Card {
   element?: string;
   /** Card number in the deck. */
   number?: number;
+  /** Shadow layer — the counter-truth, revealed on GO DEEPER. */
+  shadow?: string;
+  /** Hidden layer — the deepest reading, revealed on second GO DEEPER. */
+  hidden?: string;
   isCrisis?: boolean;
   /** Whether a follow-up has already been used on this card. */
   followUpUsed?: boolean;
