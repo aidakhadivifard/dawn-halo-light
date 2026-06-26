@@ -57,6 +57,7 @@ function TodayPage() {
       setActiveCard(card);
       if (entitlement) setEntitlement(entitlement);
       setHasDrawnToday(true);
+      setReminder(todayReminder({ title: card.title, theme: card.theme }));
     });
     getCalendar().then(({ streak }) => alive && setStreak(streak));
     setDateLabel(formatDate(today));
@@ -80,6 +81,7 @@ function TodayPage() {
     }
     setActiveCard(out.card);
     if (out.entitlement) setEntitlement(out.entitlement);
+    setReminder(todayReminder({ title: out.card.title, theme: out.card.theme }));
     return true;
   };
 
