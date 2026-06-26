@@ -3,7 +3,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 const items = [
   { to: "/", label: "Today" },
   { to: "/saved", label: "Saved" },
-  { to: "/calendar", label: "Calendar" },
+  { to: "/calendar", label: "History" },
   { to: "/settings", label: "Settings" },
 ] as const;
 

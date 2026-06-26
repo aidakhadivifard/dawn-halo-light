@@ -8,7 +8,7 @@ import {
   type Entitlement,
 } from "@/lib/cards";
 import { getCalendar } from "@/lib/store";
-import { REMINDERS } from "@/lib/dawnhalo";
+import { todayReminder } from "@/lib/dawnhalo";
 import { OracleCardView } from "@/components/OracleCard";
 import { BottomNav } from "@/components/BottomNav";
 
@@ -38,7 +38,7 @@ function TodayPage() {
   const [today] = useState(() => new Date());
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [streak, setStreak] = useState(0);
-  const [reminders, setReminders] = useState<[string, string]>([REMINDERS[0], REMINDERS[1]]);
+  const [reminder, setReminder] = useState("");
   const [input, setInput] = useState("");
   const [entitlement, setEntitlement] = useState<Entitlement | null>(null);
   const [dateLabel, setDateLabel] = useState("");
@@ -60,10 +60,7 @@ function TodayPage() {
     });
     getCalendar().then(({ streak }) => alive && setStreak(streak));
     setDateLabel(formatDate(today));
-    const a = Math.floor(Math.random() * REMINDERS.length);
-    let b = Math.floor(Math.random() * REMINDERS.length);
-    if (b === a) b = (b + 1) % REMINDERS.length;
-    setReminders([REMINDERS[a], REMINDERS[b]]);
+    setReminder(todayReminder());
     return () => {
       alive = false;
     };
@@ -348,16 +345,14 @@ function TodayPage() {
           </section>
         )}
 
-        {/* Reminders — only when card is fully open */}
-        {ritual === "open" && (
-          <section className="mt-10 space-y-3">
-            <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 ml-1">Reminders for today</p>
-            {reminders.map((r, i) => (
-              <div key={i} className="flex items-start gap-4 p-5 bg-dawn-surface/60 backdrop-blur-md border border-dawn-haze/15 rounded-xl">
-                <div className="mt-1.5 size-1.5 rounded-full bg-dawn-rose shrink-0" />
-                <p className="text-sm leading-relaxed italic font-serif text-dawn-ink/85">{r}</p>
-              </div>
-            ))}
+        {/* Reminder — one simple daily action */}
+        {ritual === "open" && reminder && (
+          <section className="mt-10">
+            <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 ml-1 mb-3">Reminder for today</p>
+            <div className="flex items-start gap-4 p-5 bg-dawn-surface/60 backdrop-blur-md border border-dawn-haze/15 rounded-xl">
+              <div className="mt-1.5 size-1.5 rounded-full bg-dawn-rose shrink-0" />
+              <p className="text-sm leading-relaxed text-dawn-ink/85">{reminder}</p>
+            </div>
           </section>
         )}
 

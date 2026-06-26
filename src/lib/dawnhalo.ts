@@ -64,12 +64,47 @@ const dailyCards: Omit<OracleCard, "id" | "createdAt">[] = [
 ];
 
 export const REMINDERS = [
-  "The river does not push. It carries.",
-  "What is not visible is not absent.",
-  "Some passages are narrow. That does not mean they are closed.",
-  "The flame does not ask the storm to stop. It asks to be tended.",
-  "Steadiness is the point from which movement is measured.",
+  "Drink water.",
+  "Take a short walk.",
+  "Finish one small task today.",
+  "Sit without your phone for 5 minutes.",
+  "Message someone you care about.",
+  "Have a quiet cup of tea or coffee.",
+  "Take one deep breath.",
+  "Learn one new thing today.",
+  "Start something you’ve been putting off.",
+  "Tell yourself “I am okay.”",
+  "Look at the sky.",
+  "Write down one good thing that happened today.",
+  "Stretch your body.",
+  "Write a short list of what you did today.",
+  "Help someone with something small.",
+  "Listen to a calm song.",
+  "Open a window and breathe fresh air.",
+  "Tell yourself “I am enough.”",
+  "Eat something nice — slowly.",
+  "End the day with one deep breath.",
 ];
+
+const REMINDER_HISTORY_KEY = "dawnhalo:reminderHistory";
+
+export function todayReminder(): string {
+  const today = new Date().toDateString();
+  let history: { date: string; index: number }[] = [];
+  if (isBrowser()) {
+    try { history = JSON.parse(localStorage.getItem(REMINDER_HISTORY_KEY) || "[]"); } catch { history = []; }
+  }
+  const existing = history.find(h => h.date === today);
+  if (existing) return REMINDERS[existing.index];
+  const recentIndices = new Set(history.slice(-5).map(h => h.index));
+  const available = REMINDERS.map((_, i) => i).filter(i => !recentIndices.has(i));
+  const pool = available.length > 0 ? available : REMINDERS.map((_, i) => i);
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  history.push({ date: today, index: pick });
+  if (history.length > 30) history = history.slice(-30);
+  if (isBrowser()) localStorage.setItem(REMINDER_HISTORY_KEY, JSON.stringify(history));
+  return REMINDERS[pick];
+}
 
 export type Intent = "crisis" | "question" | "feeling" | "loneliness" | "appearance" | "general";
 
