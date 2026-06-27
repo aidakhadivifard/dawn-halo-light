@@ -77,7 +77,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       element: halo?.element,
       number: halo?.number,
       shadow: halo?.shadow,
-      hidden: halo ? `${halo.symbol} The ${halo.archetype.toLowerCase()} speaks: what you see on the surface is not the full shape. ${halo.reflection}` : undefined,
+      hidden: halo?.reflection,
       createdAt: row.created_at,
       fallback: !!row.fallback,
       followUpUsed: !!row.follow_up_used,
