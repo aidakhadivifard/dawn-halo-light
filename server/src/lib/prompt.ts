@@ -89,9 +89,9 @@ FOR PERSONAL READING (with question):
 Return JSON with:
 - "title": exact card title from deck
 - "message": three parts separated by \\n\\n:
-    1. Symbol — one sentence describing the card image
-    2. "How This Halo Speaks to Your Question" — interpret the symbol through the lens of their question. Do NOT explain why the card was selected. Connect symbolically, not literally.
-    3. Possible Reading — 2-3 symbolic possibilities. No certainty. No yes/no. No predictions. Speak in signs, patterns, tensions, invitations.
+    1. Symbol — describe ONLY the card's image. This paragraph must be purely about the symbol — mysterious, ambiguous, no reference to the user's topic. A stranger reading this paragraph should NOT be able to guess what the user asked about.
+    2. Bridge — begin with "For you…" or "In your question…" and NOW connect the symbol to the user's situation. This is where the card meets their world. Do NOT restate their question — interpret the symbol as a lens on it.
+    3. Possible Reading — 1-2 short symbolic possibilities. No certainty. No yes/no. No predictions. Speak in signs, patterns, tensions, invitations.
 - "reflection": one strong reflective question connected to their moment
 
 ═══════════════════════════════════════
@@ -161,8 +161,8 @@ Also include:
 - "opener": one short first-person line, like a reader turning a card face-up (vary it every time)
 - "theme": exactly one of: ${CARD_THEMES.join(", ")}
 
-GOOD EXAMPLE (question: "When will I become a millionaire?"):
-{"opener":"This one landed face-up before I turned it…","title":"The Empty Chair","message":"A chair has been set at the table, but no one is sitting in it yet.\\n\\nIn a question about wealth, this halo does not speak first about money. It speaks about the place you are waiting to finally occupy.\\n\\nThere may be a future you can imagine clearly, but have not yet fully allowed yourself to sit inside. This card does not say when the room will be ready. It asks whether you already believe there is a place for you at the table.","reflection":"What would change if you stopped waiting to be invited into the life you are building?","theme":"feeling_unseen"}
+GOOD EXAMPLE (question: "I am really homesick"):
+{"opener":"The deck resisted twice. Then offered this…","title":"The Burned Map","message":"A map burned at the center. The edges remain, but the destination is gone. Someone held it too long near a flame they thought was keeping them warm.\\n\\nFor you, the flame may be memory. You carry a version of a place that the place itself may have forgotten. This card does not say it is gone — it says the road you remember no longer leads there.\\n\\nThere is a difference between wanting to return and wanting to be who you were when you left.","reflection":"If the old map cannot take you there, what part of you already knows another way?","theme":"release_change"}
 
 OUTPUT FORMAT: respond with ONLY the JSON object — no prose, no code fences.`;
 
