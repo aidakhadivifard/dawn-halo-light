@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Share } from "@capacitor/share";
 import { saveCard, removeSaved, getSaved } from "@/lib/store";
 import type { Card } from "@/lib/cards";
 
@@ -60,10 +61,12 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
     const essenceLines = card.message.split(/\n{2,}/).join("\n\n");
     const text = `${card.title}\n\n"${essenceLines}"\n\n— DawnHalo`;
     try {
-      await navigator.clipboard.writeText(text);
-    } catch { /* ignore */ }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
+      await Share.share({ title: card.title, text, dialogTitle: "Share your card" });
+    } catch {
+      try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    }
   };
 
   const ActionButton = ({
