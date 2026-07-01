@@ -20,6 +20,10 @@ export type OracleCard = {
   title: string;
   message: string;
   reflection?: string;
+  element?: string;
+  number?: number;
+  shadow?: string;
+  hidden?: string;
   savedAt?: string;
   createdAt: string;
   prompt?: string;
@@ -42,30 +46,178 @@ export function artForCard(card: { id: string; theme?: CardTheme; art?: CardArt 
 }
 
 const openers = [
-  "Let me read what this card is saying about your morning…",
-  "Sit with me a moment — the energy is settling in…",
-  "Mm. This one stepped forward before I even shuffled…",
-  "I'm catching something quiet around your question…",
-  "Here — this is the card that wanted to be seen today…",
-  "Let me lean in and listen to what's underneath this…",
+  "This one turned face-up before I reached for it…",
+  "The deck went still. Then this card slid forward…",
+  "Something in the air shifted. This is what appeared…",
+  "I did not choose this card. It chose the moment…",
+  "Three cards fell. Only this one landed face-up…",
+  "The deck resisted twice. Then offered this…",
 ];
 
 const dailyCards: Omit<OracleCard, "id" | "createdAt">[] = [
-  { art: "dawn",  theme: "daily_general",   title: "The Morning Field", opener: openers[0], message: "The morning asks for your presence, not your hurry.\n\nThe noise will keep; it always does.\n\nLet the day be slow, if slow is what it wants to be.", reflection: "What would it feel like to begin today without hurrying?" },
-  { art: "silk",  theme: "quiet_strength",  title: "The Still Lake",    opener: openers[1], message: "Much of our weariness is spent bracing for a day that has not yet arrived.\n\nThere is a quiet strength in moving at the pace of one's own breath.\n\nLet the day come to meet you.", reflection: "Where could you let yourself move a little more slowly?" },
-  { art: "flame", theme: "quiet_strength",  title: "The Last Ember", opener: openers[2], message: "A flame need not burn brighter to be worthy; it need only keep burning.\n\nWhat is steady outlasts what is sudden.\n\nToday, that is more than enough.", reflection: "What's one expectation you could gently lower today?" },
-  { art: "bloom", theme: "hope_abundance",  title: "The Sleeping Seed", opener: openers[3], message: "Something tender in you is turning toward the light.\n\nWhat is meant to bloom cannot be hurried into it.\n\nNotice it is there, and give it room.", reflection: "What in your life is quietly asking for a little more room?" },
-  { art: "moon",  theme: "daily_general",   title: "The Quiet Compass", opener: openers[4], message: "There is an answer in you that only the quiet can reach.\n\nThe world is loud; the knowing is patient.\n\nTrust the part of you that has been paying attention all along.", reflection: "What have you been quietly knowing but not saying out loud?" },
-  { art: "hand",  theme: "exhaustion_rest", title: "The Quiet Harbor",  opener: openers[5], message: "No one was meant to carry everything alone, though many have tried.\n\nWhat you set down for an hour will still be there, and so will you.\n\nLet your hands rest a while.", reflection: "What's one thing you could let yourself put down today?" },
+  { art: "dawn",  theme: "daily_general",   title: "The Morning Field", element: "Air", number: 1, opener: openers[0],
+    message: "An empty field at dawn, covered in mist and unmarked dew.\n\nThe morning arrives and waits to see how you will meet it.",
+    shadow: "The field is not empty. It is full of what you have not yet named. Not everything needs to be seen all at once.",
+    hidden: "What are you already carrying into this day that you have not set down yet?",
+    reflection: "What would you set down before stepping into the field?" },
+  { art: "silk",  theme: "quiet_strength",  title: "The Still Lake", element: "Water", number: 14, opener: openers[1],
+    message: "A lake so still it reflects the sky, with small ripples near the edge.\n\nCalm is not the absence of depth.",
+    shadow: "Something in you has been holding still — not because it is at peace, but because it is waiting for permission. That ripple at the edge is yours.",
+    hidden: "The lake does not need to be disturbed to be deep. But it does need to be entered.",
+    reflection: "What have you kept beneath the surface that is ready to rise?" },
+  { art: "flame", theme: "quiet_strength",  title: "The Last Ember", element: "Fire", number: 2, opener: openers[2],
+    message: "One glowing coal in a cold fireplace.\n\nWhat is almost gone is not yet gone.",
+    shadow: "This ember survived not by burning bright but by knowing when to glow quietly. Not everything that endures does so by fighting.",
+    hidden: "Something you thought had gone out — it hasn't. It is not asking you to build a bonfire. It is asking: do you still want warmth, or have you gotten used to the cold?",
+    reflection: "Do you still want warmth, or have you gotten used to the cold?" },
+  { art: "bloom", theme: "hope_abundance",  title: "The Sleeping Seed", element: "Earth", number: 8, opener: openers[3],
+    message: "A seed buried in dark soil. Above it, morning light begins without the seed seeing it.\n\nWhat is not visible is not absent.",
+    shadow: "The seed does not know the sun has risen. It only knows the soil is warmer. Sometimes you are the last to know something has already begun to change.",
+    hidden: "Something is growing in you. You cannot see it because you keep looking in the wrong place. The seed does not check the sky — it trusts the warmth beneath it.",
+    reflection: "What has already begun to change that you haven't noticed yet?" },
+  { art: "moon",  theme: "daily_general",   title: "The Watchful Moon", element: "Spirit", number: 18, opener: openers[4],
+    message: "A full moon over a dark field, illuminating without explaining.\n\nTo be seen is sometimes enough.",
+    shadow: "You have been performing for an audience that is not there. The moon shines on an empty field and does not call it a waste.",
+    hidden: "Stop explaining yourself to people who are not in the room.",
+    reflection: "Who are you still explaining yourself to?" },
+  { art: "hand",  theme: "exhaustion_rest", title: "The Quiet Harbor", element: "Water", number: 14, opener: openers[5],
+    message: "A harbor at dusk. Boats are tied, the water is still, and no one is leaving.\n\nRest is not waiting. Rest is a destination.",
+    shadow: "A harbor is not a pause — it is a place. The ropes are not holding you back. They are holding you steady.",
+    hidden: "You are more tired than you have admitted — the kind that comes from carrying something you forgot you picked up. Put it down. Not forever. Just here.",
+    reflection: "What have you been carrying that you forgot you picked up?" },
 ];
 
-export const REMINDERS = [
-  "Your worth is not a production metric. You're allowed to simply exist.",
-  "Drink some water. The body carries the mind's weight.",
-  "One slow breath before you reply to that message.",
-  "You don't owe anyone a polished version of today.",
-  "Notice one warm thing on your way somewhere.",
+const ACTIONS: string[] = [
+  "Drink water.",
+  "Take a short walk.",
+  "Finish one small task today.",
+  "Sit without your phone for 5 minutes.",
+  "Message someone you care about.",
+  "Have a quiet cup of tea or coffee.",
+  "Take one deep breath.",
+  "Learn one new thing today.",
+  "Start something you've been putting off.",
+  "Tell yourself: I am okay.",
+  "Look at the sky.",
+  "Write down one good thing that happened today.",
+  "Stretch your body.",
+  "Write a short list of what you did today.",
+  "Help someone with something small.",
+  "Listen to a calm song.",
+  "Open a window and breathe fresh air.",
+  "Tell yourself: I am enough.",
+  "Eat something nice, slowly.",
+  "End the day with one deep breath.",
 ];
+
+export const REMINDERS = ACTIONS;
+
+const CARD_BRIDGES: Record<string, string[]> = {
+  "The Morning Field": [
+    "The field is still fresh — let something good in.",
+    "Step into the day gently, like the mist does.",
+    "The morning is not asking much. Neither should you.",
+  ],
+  "The Still Lake": [
+    "Let the stillness do its work.",
+    "Depth does not require motion.",
+    "The surface is calm — trust what is beneath.",
+  ],
+  "The Last Ember": [
+    "Something in you is still glowing. Feed it gently.",
+    "Not everything needs to burn bright to be alive.",
+    "Warmth does not need to be loud.",
+  ],
+  "The Sleeping Seed": [
+    "Something is growing that you cannot see yet.",
+    "Trust the warmth beneath the surface.",
+    "Not everything announces its arrival.",
+  ],
+  "The Watchful Moon": [
+    "You are already seen.",
+    "You do not need to explain yourself today.",
+    "The light is already here — you just need to stand in it.",
+  ],
+  "The Quiet Harbor": [
+    "Rest is not waiting — it is a destination.",
+    "You are allowed to stop here.",
+    "The ropes are not holding you back. They are holding you steady.",
+  ],
+  "The Quiet Compass": [
+    "You already know the direction.",
+    "Trust the pull, not the map.",
+    "The compass is not broken — you are just afraid of where it points.",
+  ],
+  "The Crossing Stones": [
+    "One step is enough for today.",
+    "The path is made by the feet that trust it.",
+    "You do not need to see the last stone to step on the first.",
+  ],
+  "The Open Hand": [
+    "Your hand is open — let something good in today.",
+    "Letting go is not losing. It is making room.",
+    "What comes next needs a different shape.",
+  ],
+  "The Cracked Mirror": [
+    "You are more than what the glass shows.",
+    "Turn away from the mirror for a moment — just breathe.",
+    "The crack was never yours.",
+  ],
+  "The Quiet Return": [
+    "What you left has not necessarily left you.",
+    "Home is something you carry.",
+    "You do not need to go back to bring something forward.",
+  ],
+};
+
+const THEME_BRIDGES: Record<string, string[]> = {
+  daily_general: ["The day is open. So are you.", "Today does not need to be perfect."],
+  guidance_decision: ["Trust what you already know.", "The next step is closer than you think."],
+  exhaustion_rest: ["Rest is not giving up.", "You have done enough for now."],
+  quiet_strength: ["Strength does not always look like motion.", "Stillness is its own kind of power."],
+  hope_abundance: ["Something good is on its way.", "Not everything announces its arrival."],
+  feeling_unseen: ["You are visible — even now.", "You do not need to be noticed to matter."],
+  self_image: ["You are more than what you see.", "Be gentle with yourself today."],
+  release_change: ["Let it go gently.", "Change does not always mean loss."],
+  relationship_tension: ["Give it space. Space is not distance.", "Some knots loosen on their own."],
+};
+
+const REMINDER_HISTORY_KEY = "dawnhalo:reminderHistory";
+
+export function todayReminder(card?: { title?: string; theme?: string }): string {
+  const today = new Date().toDateString();
+  let history: { date: string; index: number }[] = [];
+  if (isBrowser()) {
+    try { history = JSON.parse(localStorage.getItem(REMINDER_HISTORY_KEY) || "[]"); } catch { history = []; }
+  }
+
+  let actionIdx: number;
+  const existing = history.find(h => h.date === today);
+  if (existing) {
+    actionIdx = existing.index;
+  } else {
+    const recentIndices = new Set(history.slice(-5).map(h => h.index));
+    const available = ACTIONS.map((_, i) => i).filter(i => !recentIndices.has(i));
+    const pool = available.length > 0 ? available : ACTIONS.map((_, i) => i);
+    actionIdx = pool[Math.floor(Math.random() * pool.length)];
+    history.push({ date: today, index: actionIdx });
+    if (history.length > 30) history = history.slice(-30);
+    if (isBrowser()) localStorage.setItem(REMINDER_HISTORY_KEY, JSON.stringify(history));
+  }
+
+  const action = ACTIONS[actionIdx];
+
+  if (!card) return action;
+
+  const bridges = (card.title && CARD_BRIDGES[card.title]) ||
+    (card.theme && THEME_BRIDGES[card.theme]) ||
+    null;
+
+  if (!bridges) return action;
+
+  const bridge = bridges[hashStr(today + action) % bridges.length];
+  return `${action} ${bridge}`;
+}
 
 export type Intent = "crisis" | "question" | "feeling" | "loneliness" | "appearance" | "general";
 
@@ -85,38 +237,54 @@ export function classifyInput(raw: string): Intent {
 
 const responses: Record<Exclude<Intent, "crisis">, Omit<OracleCard, "id" | "createdAt" | "prompt">[]> = {
   question: [
-    { art: "moon", theme: "guidance_decision", opener: "Let me lean in — your question has weight to it…", title: "The Quiet Compass",
-      message: "There's a part of you already leaning one way, even before the reasons line up.\n\nThis isn't a yes-or-no answer; it's a next step.\n\nYou could take the smallest version of that today and see how it sits.",
-      reflection: "If no one were watching, which way would you quietly lean?" },
-    { art: "dawn", theme: "guidance_decision", opener: "Mm. This card stepped forward the moment you asked…", title: "The Crossing Stones",
-      message: "You're weighing this carefully, which means it matters more than you're letting on.\n\nEither path holds something for you. The real question is which version of yourself you want to practice being.\n\nStart there, in one small way.",
-      reflection: "Which choice lets you be more honest with yourself?" },
+    { art: "moon", theme: "guidance_decision", element: "Spirit", number: 5, opener: "This one turned face-up before I reached for it…", title: "The Quiet Compass",
+      message: "A compass that does not point north. It points toward something only you can feel.\n\nThe direction you need is felt before it is known.",
+      shadow: "You already know which way to go. The reason you are asking is not that you are lost — it is that the direction frightens you.",
+      hidden: "The compass does not give you a new direction. It shows you the one you have been avoiding.",
+      reflection: "What are you afraid will happen if you follow where you already know to go?" },
+    { art: "dawn", theme: "guidance_decision", element: "Water", number: 5, opener: "The deck went still. Then this card slid forward…", title: "The Crossing Stones",
+      message: "Flat stones across a stream, each just wide enough for one foot.\n\nThe crossing is made one stone at a time.",
+      shadow: "You are trying to see the last stone before stepping on the first. The danger is not falling in — it is standing on the bank so long you convince yourself the water is an ocean.",
+      hidden: "You already know the next step. Not the whole path — just the next stone. Step. Then look again.",
+      reflection: "What is the one next step you already know but keep postponing?" },
   ],
   feeling: [
-    { art: "hand", theme: "exhaustion_rest", opener: "Let me sit with what you just said for a moment…", title: "The Quiet Harbor",
-      message: "There's a heaviness here you've likely been carrying a while.\n\nOf course you feel this way — anyone would, in your shoes. Let it be true first.\n\nReframing can wait until your shoulders drop.",
-      reflection: "What would ease feel like, even just for an hour?" },
-    { art: "silk", theme: "exhaustion_rest", opener: "I'm catching something tender underneath this…", title: "The Open Hand",
-      message: "You're reaching for a fix, but this moment may not need one yet.\n\nNothing here has to be solved in the next ten minutes.\n\nPut a hand on your chest and breathe — the next step shows up when you're warmer.",
-      reflection: "What might soften if you stopped trying to fix it for a moment?" },
+    { art: "hand", theme: "exhaustion_rest", element: "Water", number: 14, opener: "Something in the air shifted. This is what appeared…", title: "The Quiet Harbor",
+      message: "A harbor at dusk. Boats are tied, the water is still, and no one is leaving.\n\nRest is not waiting. Rest is a destination.",
+      shadow: "A harbor is not a pause — it is a place. The ropes are not holding you back. They are holding you steady.",
+      hidden: "You are more tired than you have admitted — the kind that comes from carrying something you forgot you picked up. Put it down. Not forever. Just here.",
+      reflection: "What have you been carrying that you forgot you picked up?" },
+    { art: "silk", theme: "exhaustion_rest", element: "Air", number: 5, opener: "I did not choose this card. It chose the moment…", title: "The Open Hand",
+      message: "An open hand with nothing in it, the fingers relaxed.\n\nLetting go is not losing. It is making room.",
+      shadow: "Your hand has been open a long time, but you keep checking whether something has arrived. The hand is not empty because you lost something. It is empty because you are ready.",
+      hidden: "You are not grieving the thing — you are grieving the grip. Let the hand soften. What comes next needs a different shape.",
+      reflection: "What shape has your grip left behind?" },
   ],
   loneliness: [
-    { art: "bloom", theme: "feeling_unseen", opener: "I want to read this one slowly with you…", title: "The Watchful Moon",
-      message: "There's a quiet wish underneath this — to be noticed, to matter.\n\nRight now, in this small moment, you are seen: by this card, and by the part of you that reached for it.\n\nYou are not as invisible as today made you feel.",
-      reflection: "Where in your life do you already feel a little more seen?" },
+    { art: "bloom", theme: "feeling_unseen", element: "Spirit", number: 18, opener: "Three cards fell. Only this one landed face-up…", title: "The Watchful Moon",
+      message: "A full moon over a dark field, illuminating without explaining.\n\nTo be seen is sometimes enough.",
+      shadow: "You have been waiting for someone specific to see you. But the light is already here. The question is not who will notice you — it is what you do when no one is watching.",
+      hidden: "You are visible. Right now. The field is not empty because no one came — it is empty because you are the only one who needs to be here.",
+      reflection: "What part of you are you waiting for someone else to see first?" },
   ],
   appearance: [
-    { art: "flame", theme: "self_image", opener: "Let me move past the surface of what you said…", title: "The Tended Flame",
-      message: "What you said about the surface is really about something underneath.\n\nWhat does today actually ask of you — rest, courage, softness?\n\nThat tender part is what the world is really meeting.",
-      reflection: "What does the feeling underneath actually need from you today?" },
+    { art: "flame", theme: "self_image", element: "Air", number: 19, opener: "The deck resisted twice. Then offered this…", title: "The Cracked Mirror",
+      message: "A mirror split by one clean crack. Every piece still reflects the same face differently.\n\nSometimes what breaks is the image, not the self.",
+      shadow: "You have been looking in a mirror someone else cracked. The distortion is not yours — it was placed there.",
+      hidden: "Turn away from the glass. How do you feel when no mirror is present — when there is only you, in a room, breathing? That feeling is closer to real.",
+      reflection: "How do you feel about yourself when no mirror is present?" },
   ],
   general: [
-    { art: "dawn", theme: "daily_general", opener: "Here — this is the card that wanted to be seen today…", title: "The Morning Field",
-      message: "You're moving through more than you give yourself credit for.\n\nYou don't have to be extraordinary today — presence is enough.\n\nTake this into the next small thing.",
-      reflection: "What small thing today deserves your full attention?" },
-    { art: "moon", theme: "daily_general", opener: "Mm. The deck settled on this one quickly…", title: "The Quiet Return",
-      message: "There's an impulse you keep brushing aside.\n\nIt's quieter than the worry, but it's the most honest thing in the room.\n\nFollow it one small step.",
-      reflection: "What honest impulse have you been talking yourself out of?" },
+    { art: "dawn", theme: "daily_general", element: "Air", number: 1, opener: "This one turned face-up before I reached for it…", title: "The Morning Field",
+      message: "An empty field at dawn, covered in mist and unmarked dew.\n\nThe morning arrives and waits to see how you will meet it.",
+      shadow: "The field is not empty. It is full of what you have not yet named. Not everything needs to be seen all at once.",
+      hidden: "What are you already carrying into this day that you have not set down yet?",
+      reflection: "What would you set down before stepping into the field?" },
+    { art: "moon", theme: "daily_general", element: "Spirit", number: 6, opener: "The deck went still. Then this card slid forward…", title: "The Quiet Return",
+      message: "A path leading back to a house once left, with smoke rising from its chimney.\n\nWhat you left has not necessarily left you.",
+      shadow: "The smoke means someone kept the fire going while you were away. Not everything you walked away from was a mistake.",
+      hidden: "Home is not a place you return to — it is something you carry. You have been homesick for a version of yourself, not a place.",
+      reflection: "What part of who you used to be do you miss the most?" },
   ],
 };
 

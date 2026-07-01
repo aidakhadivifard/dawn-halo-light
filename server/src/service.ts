@@ -9,6 +9,7 @@ import { classifyInput } from "./lib/classify";
 import { canDraw, snapshot, withinTrial, type QuotaState } from "./lib/entitlement";
 import { selectIllustration, NO_REPEAT_WINDOW_DAYS } from "./lib/illustrations";
 import { generateCardText, type MessagesClient } from "./lib/anthropic";
+import { findHalo } from "./lib/deck";
 
 export interface ServiceDeps {
   client?: MessagesClient | null;
@@ -64,6 +65,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     fallback?: number;
     follow_up_used?: number;
   }): Card {
+    const halo = findHalo(row.title);
     return {
       id: row.id,
       opener: row.opener,
@@ -72,6 +74,10 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       reflection: row.reflection ?? undefined,
       theme: row.theme as CardTheme,
       illustrationId: row.illustration_id,
+      element: halo?.element,
+      number: halo?.number,
+      shadow: halo?.shadow,
+      hidden: halo?.reflection,
       createdAt: row.created_at,
       fallback: !!row.fallback,
       followUpUsed: !!row.follow_up_used,

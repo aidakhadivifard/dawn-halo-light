@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { askFollowUpEx, type Card } from "@/lib/cards";
-import { saveCard, removeSaved, getSaved, createSpark } from "@/lib/store";
+import { Share } from "@capacitor/share";
+import { saveCard, removeSaved, getSaved } from "@/lib/store";
+import type { Card } from "@/lib/cards";
 
 type Props = {
   card: Card;
@@ -11,26 +11,34 @@ type Props = {
   showCanDraw?: boolean;
 };
 
+const ELEMENT_EMOJI: Record<string, string> = {
+  Fire: "\u{1F525}",
+  Water: "\u{1F30A}",
+  Earth: "\u{1F30D}",
+  Air: "\u{1F4A8}",
+  Spirit: "\u{1F319}",
+};
+
+const ROMAN: Record<number, string> = {
+  1:"I",2:"II",3:"III",4:"IV",5:"V",6:"VI",7:"VII",8:"VIII",9:"IX",10:"X",
+  11:"XI",12:"XII",13:"XIII",14:"XIV",15:"XV",16:"XVI",17:"XVII",18:"XVIII",
+  19:"XIX",20:"XX",21:"XXI",22:"XXII",
+};
+
+type Depth = 0 | 1 | 2;
+
 export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCanDraw = true }: Props) {
   const [saved, setSaved] = useState(false);
+  const [depth, setDepth] = useState<Depth>(0);
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     let alive = true;
     getSaved()
       .then((list) => alive && setSaved(list.some((c) => c.id === card.id)))
       .catch(() => {});
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [card.id]);
-
-  const [followUp, setFollowUp] = useState("");
-  const [followUpUsed, setFollowUpUsed] = useState(!!card.followUpUsed);
-  const [followCard, setFollowCard] = useState<Card | null>(null);
-  const [sparkOpen, setSparkOpen] = useState(false);
-  const [note, setNote] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const navigate = useNavigate();
 
   const toggleSave = async () => {
     if (saved) {
@@ -42,68 +50,41 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
     }
   };
 
-  const submitFollowUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!followUp.trim() || followUpUsed || busy) return;
-    setBusy(true);
-    const started = Date.now();
-    try {
-      const out = await askFollowUpEx({ previous: card, text: followUp });
-      // A gentle minimum pause so it feels like the card is being read —
-      // never jarringly instant, never an artificial wait on top of real latency.
-      const elapsed = Date.now() - started;
-      if (elapsed < 1000) await new Promise((r) => setTimeout(r, 1000 - elapsed));
-      if (out.kind === "crisis") {
-        navigate({ to: "/support" });
-        return;
-      }
-      if (out.kind === "paywall") {
-        navigate({ to: "/paywall" });
-        return;
-      }
-      setFollowCard(out.card);
-      setFollowUpUsed(true);
-    } finally {
-      setBusy(false);
-    }
+  const goDeeper = () => {
+    if (depth === 0 && card.shadow) setDepth(1);
+    else if (depth <= 1 && card.hidden) setDepth(2);
   };
 
+  const canGoDeeper = (depth === 0 && !!card.shadow) || (depth === 1 && !!card.hidden);
+
   const doShare = async () => {
-    const url = await createSpark(card, note);
-    const text = `${card.title} — ${card.message}`;
-    if (
-      typeof navigator !== "undefined" &&
-      (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }).share
-    ) {
-      try {
-        await (navigator as Navigator & { share: (d: ShareData) => Promise<void> }).share({
-          title: "Dawnhalo",
-          text,
-          url,
-        });
-        return;
-      } catch {
-        /* fallthrough to copy */
-      }
+    const essenceLines = card.message.split(/\n{2,}/).join("\n\n");
+    const text = `${card.title}\n\n"${essenceLines}"\n\n— DawnHalo`;
+    try {
+      await Share.share({ title: card.title, text, dialogTitle: "Share your card" });
+    } catch {
+      try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
     }
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
   };
 
   const ActionButton = ({
     onClick,
     active,
+    disabled,
     children,
   }: {
     onClick: () => void;
     active?: boolean;
+    disabled?: boolean;
     children: React.ReactNode;
   }) => (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={
-        "text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 rounded-full transition-colors " +
+        "text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 rounded-full transition-colors disabled:opacity-30 " +
         (active
           ? "bg-dawn-rose text-dawn-sky font-bold"
           : "border border-dawn-haze/20 text-dawn-ink/80 hover:bg-dawn-haze/10")
@@ -128,6 +109,12 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
           <img src={card.illustration} alt={card.title} width={768} height={1152} className="h-full w-full object-cover" loading="lazy" />
         </div>
 
+        {(card.element || card.number) && (
+          <div className="flex items-center gap-2.5 mb-3">
+            {card.element && <span className="text-2xl leading-none">{ELEMENT_EMOJI[card.element] ?? ""}</span>}
+            {card.number && <span className="text-sm uppercase tracking-[0.2em] font-semibold text-dawn-ink/50">{ROMAN[card.number] ?? card.number}</span>}
+          </div>
+        )}
         <p className="text-sm italic font-serif opacity-60 leading-relaxed text-pretty">{card.opener}</p>
         <h2 className="mt-3 text-3xl font-serif font-light tracking-tight text-balance text-dawn-ink">{card.title}</h2>
 
@@ -138,15 +125,43 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
             ))}
           </div>
 
-          {card.reflection && (
+          {card.reflection && depth === 0 && (
             <div className="mt-6 pl-4 border-l-2 border-dawn-rose/40">
               <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-rose/70 mb-1.5">Reflection</p>
               <p className="text-[15px] font-serif italic text-dawn-ink/85 leading-relaxed text-pretty max-w-[44ch]">{card.reflection}</p>
             </div>
           )}
+
+          {depth >= 1 && card.shadow && (
+            <div className="mt-6 pt-5 border-t border-dawn-haze/15 animate-message-unfold">
+              <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-ink/40 mb-2">Shadow:</p>
+              <div className="space-y-3 max-w-[46ch]">
+                {card.shadow.split(/\n{2,}/).map((para, i) => (
+                  <p key={`s${i}`} className="text-dawn-ink/65 leading-relaxed text-[15px] italic text-pretty">{para}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {depth >= 2 && card.hidden && (
+            <div className="mt-6 pt-5 border-t border-dawn-haze/15 animate-message-unfold">
+              <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-rose/60 mb-2">Hidden</p>
+              <div className="space-y-3 max-w-[46ch]">
+                {card.hidden.split(/\n{2,}/).map((para, i) => (
+                  <p key={`h${i}`} className="text-dawn-ink/75 leading-relaxed text-[15px] font-serif text-pretty">{para}</p>
+                ))}
+              </div>
+              {card.reflection && (
+                <div className="mt-5 pl-4 border-l-2 border-dawn-rose/40">
+                  <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-rose/70 mb-1.5">Reflection</p>
+                  <p className="text-[15px] font-serif italic text-dawn-ink/85 leading-relaxed text-pretty max-w-[44ch]">{card.reflection}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Action buttons — single row, wrapping naturally */}
+        {/* 4 buttons: Save, Draw Another, Go Deeper, Share */}
         {!readOnly && (
           <div className="mt-7 pt-6 border-t border-dawn-haze/10 flex flex-wrap gap-2">
             <ActionButton onClick={toggleSave} active={saved}>
@@ -155,13 +170,11 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
             {showCanDraw && onDrawAgain && (
               <ActionButton onClick={onDrawAgain}>Draw another</ActionButton>
             )}
-            {!followUpUsed && (
-              <ActionButton onClick={() => document.getElementById(`fu-${card.id}`)?.focus()}>
-                Ask a follow-up
-              </ActionButton>
+            {canGoDeeper && (
+              <ActionButton onClick={goDeeper}>Go deeper</ActionButton>
             )}
-            <ActionButton onClick={() => setSparkOpen((s) => !s)} active={sparkOpen}>
-              Share
+            <ActionButton onClick={doShare} active={copied}>
+              {copied ? "Copied" : "Share"}
             </ActionButton>
           </div>
         )}
@@ -173,76 +186,15 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
             {onDrawNew && (
               <ActionButton onClick={onDrawNew}>Draw a new card</ActionButton>
             )}
-            <ActionButton onClick={() => setSparkOpen((s) => !s)} active={sparkOpen}>
-              Share
+            {canGoDeeper && (
+              <ActionButton onClick={goDeeper}>Go deeper</ActionButton>
+            )}
+            <ActionButton onClick={doShare} active={copied}>
+              {copied ? "Copied" : "Share"}
             </ActionButton>
           </div>
         )}
-
-        {sparkOpen && (
-          <div className="mt-5 p-5 bg-dawn-sky/60 border border-dawn-haze/15 rounded-2xl space-y-4">
-            <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-60">Add a note (optional)</label>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={140} rows={2}
-              placeholder="Saw this and thought of you. Take a breath. xx"
-              className="w-full bg-dawn-night/60 text-dawn-ink placeholder:text-dawn-ink/25 border border-dawn-haze/15 rounded-xl p-4 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30 resize-none" />
-            <div className="flex items-center gap-4">
-              <button onClick={doShare}
-                className="text-[10px] uppercase tracking-[0.18em] font-bold px-6 py-2.5 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors">
-                {copied ? "Link copied" : "Share"}
-              </button>
-              <button onClick={() => setSparkOpen(false)} className="text-[10px] uppercase tracking-[0.18em] opacity-50 hover:opacity-80 transition-opacity">Cancel</button>
-            </div>
-          </div>
-        )}
       </div>
-
-      {!readOnly && !followUpUsed && busy && (
-        <div className="mt-6 flex flex-col items-center text-center py-8">
-          <div className="relative w-20 h-20 mb-4">
-            <div
-              aria-hidden
-              className="absolute inset-0 rounded-full blur-2xl animate-halo-breathe"
-              style={{ background: "radial-gradient(circle, rgba(245,207,138,0.6) 0%, rgba(244,163,122,0.3) 45%, transparent 70%)" }}
-            />
-          </div>
-          <p className="font-serif italic text-dawn-haze/80 text-sm animate-card-rise">Reading your card…</p>
-        </div>
-      )}
-
-      {!readOnly && !followUpUsed && !busy && (
-        <form onSubmit={submitFollowUp} className="mt-6">
-          <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">What would you like to know more about?</label>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {["My next step", "What I need to hear", "A different perspective"].map((s) => (
-              <button key={s} type="button" onClick={() => setFollowUp(s)}
-                className={
-                  "text-[11px] px-4 py-2 rounded-full border transition-colors " +
-                  (followUp === s
-                    ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
-                    : "border-dawn-haze/20 text-dawn-ink/70 hover:bg-dawn-haze/10")
-                }>
-                {s}
-              </button>
-            ))}
-          </div>
-          <div className="relative">
-            <input id={`fu-${card.id}`} value={followUp} onChange={(e) => setFollowUp(e.target.value)}
-              placeholder="Something else…"
-              className="w-full bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-4 pr-24 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30" />
-            <button type="submit"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors">
-              Ask
-            </button>
-          </div>
-        </form>
-      )}
-
-      {followCard && (
-        <div className="mt-8">
-          <p className="text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">The card answered</p>
-          <OracleCardView card={followCard} readOnly showCanDraw={false} onDrawNew={onDrawAgain} />
-        </div>
-      )}
     </article>
   );
 }
