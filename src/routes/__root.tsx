@@ -144,6 +144,19 @@ function RootComponent() {
     return router.subscribe("onResolved", ({ toLocation }) => send(toLocation.pathname));
   }, [router]);
 
+  useEffect(() => {
+    // Keep the native daily-reminder schedule aligned with saved settings
+    // (covers reinstalls, OS alarm cleanups, and settings changed elsewhere).
+    void (async () => {
+      const [{ reminderSupported, syncDailyReminder }, { getSettings }] = await Promise.all([
+        import("../lib/notifications"),
+        import("../lib/store"),
+      ]);
+      if (!reminderSupported()) return;
+      await syncDailyReminder(await getSettings());
+    })();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}

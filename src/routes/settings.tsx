@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getSettings, saveSettings } from "@/lib/store";
 import type { Settings } from "@/lib/dawnhalo";
 import { BottomNav } from "@/components/BottomNav";
+import { syncDailyReminder, reminderSupported } from "@/lib/notifications";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Dawnhalo" }, { name: "description", content: "Reminders and preferences." }] }),
@@ -12,10 +13,13 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const [s, setS] = useState<Settings>({ reminderTime: "07:30", notificationsOn: true });
   const [savedMsg, setSavedMsg] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [isNative, setIsNative] = useState(false);
 
   useEffect(() => {
     let alive = true;
     getSettings().then((loaded) => alive && setS(loaded));
+    setIsNative(reminderSupported());
     return () => {
       alive = false;
     };
@@ -24,6 +28,7 @@ function SettingsPage() {
   const update = (next: Settings) => {
     setS(next);
     void saveSettings(next);
+    void syncDailyReminder(next, { prompt: true }).then((r) => setPermissionDenied(r === "denied"));
     setSavedMsg(true);
     setTimeout(() => setSavedMsg(false), 1200);
   };
@@ -58,6 +63,17 @@ function SettingsPage() {
         </div>
 
         {savedMsg && <p className="mt-6 text-center text-xs italic opacity-60">Saved.</p>}
+        {permissionDenied && (
+          <p className="mt-4 text-center text-xs text-dawn-rose/90 leading-relaxed">
+            Notifications are blocked for Dawnhalo — allow them in your phone's settings to get
+            your daily reminder.
+          </p>
+        )}
+        {!isNative && s.notificationsOn && (
+          <p className="mt-4 text-center text-xs opacity-50 leading-relaxed">
+            Reminders arrive through the Dawnhalo mobile app.
+          </p>
+        )}
 
         <div className="mt-10 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl divide-y divide-dawn-haze/10 backdrop-blur-md">
           <Link to="/privacy" className="block p-5">
