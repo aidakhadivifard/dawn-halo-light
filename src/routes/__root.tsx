@@ -11,6 +11,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { trackPageview } from "../lib/analytics";
+import { absoluteUrl } from "../lib/publicUrl";
 
 function NotFoundComponent() {
   return (
@@ -90,8 +92,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Dawnhalo — a little light for your next step" },
       { name: "twitter:description", content: "A daily affirmation and oracle-card companion. A quiet moment of clarity, every morning." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/70418065-d86a-43a3-9c1a-a60b4b542ae5/id-preview-4c5f6b9c--563fcdc3-2058-4de6-ae5d-9f620b461e2e.lovable.app-1781821279180.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/70418065-d86a-43a3-9c1a-a60b4b542ae5/id-preview-4c5f6b9c--563fcdc3-2058-4de6-ae5d-9f620b461e2e.lovable.app-1781821279180.png" },
+      { property: "og:image", content: absoluteUrl("/og.jpg") },
+      { name: "twitter:image", content: absoluteUrl("/og.jpg") },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -128,6 +130,19 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
+
+  useEffect(() => {
+    // onResolved also fires for the initial load, so dedupe consecutive paths.
+    let last = "";
+    const send = (path: string) => {
+      if (path === last) return;
+      last = path;
+      trackPageview(path);
+    };
+    send(window.location.pathname);
+    return router.subscribe("onResolved", ({ toLocation }) => send(toLocation.pathname));
+  }, [router]);
 
   return (
     <QueryClientProvider client={queryClient}>

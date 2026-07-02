@@ -93,6 +93,26 @@ Frontend typecheck + build from the repo root: `npx tsc --noEmit && bun run buil
 
 ---
 
+## Growth instrumentation & sharing
+
+- **Analytics** — `src/lib/analytics.ts` sends funnel events (pageviews,
+  `card_drawn`, `card_revealed`, `follow_up_asked`, `card_saved`,
+  `spark_shared`, `card_image_shared`, `paywall_viewed`, `checkout_started`,
+  `checkout_completed`, …) to PostHog via its HTTP capture API — no SDK, no
+  bundle weight. It no-ops unless `VITE_POSTHOG_KEY` is set and **never sends
+  user text or card content**, only event names and coarse properties keyed to
+  the anonymous device id.
+- **Share as image** — `src/lib/shareImage.ts` renders any card to a branded
+  1080×1920 PNG on-device (canvas) and hands it to the native share sheet
+  (falls back to a download). Wired into the card's Share panel.
+- **Dynamic link previews** — the `/spark/:token` route loads the spark in a
+  server-side loader, so shared links preview with the actual card art, title,
+  and message (WhatsApp/Telegram/iMessage/Twitter). Set `VITE_APP_URL` to the
+  deployed frontend origin so `og:image` URLs are absolute. The site-wide
+  fallback preview is `public/og.jpg`.
+
+---
+
 ## API surface (backend)
 
 All endpoints require an `x-device-id` header (anonymous UUID) except the

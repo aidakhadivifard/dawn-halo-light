@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { askFollowUpEx, type Card } from "@/lib/cards";
 import { saveCard, removeSaved, getSaved, createSpark } from "@/lib/store";
+import { shareCardAsImage } from "@/lib/shareImage";
+import { track } from "@/lib/analytics";
 
 type Props = {
   card: Card;
@@ -36,9 +38,11 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
     if (saved) {
       await removeSaved(card.id);
       setSaved(false);
+      track("card_unsaved");
     } else {
       await saveCard(card);
       setSaved(true);
+      track("card_saved");
     }
   };
 
@@ -54,13 +58,16 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
       const elapsed = Date.now() - started;
       if (elapsed < 1000) await new Promise((r) => setTimeout(r, 1000 - elapsed));
       if (out.kind === "crisis") {
+        track("support_redirect", { source: "follow_up" });
         navigate({ to: "/support" });
         return;
       }
       if (out.kind === "paywall") {
+        track("paywall_hit", { source: "follow_up" });
         navigate({ to: "/paywall" });
         return;
       }
+      track("follow_up_asked");
       setFollowCard(out.card);
       setFollowUpUsed(true);
     } finally {
@@ -81,14 +88,30 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
           text,
           url,
         });
+        track("spark_shared", { method: "web_share" });
         return;
       } catch {
         /* fallthrough to copy */
       }
     }
     await navigator.clipboard.writeText(url);
+    track("spark_shared", { method: "copy_link" });
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
+  };
+
+  const [imageBusy, setImageBusy] = useState(false);
+  const doShareImage = async () => {
+    if (imageBusy) return;
+    setImageBusy(true);
+    try {
+      const outcome = await shareCardAsImage(card);
+      track("card_image_shared", { method: outcome });
+    } catch {
+      /* canvas/share unavailable — quietly do nothing */
+    } finally {
+      setImageBusy(false);
+    }
   };
 
   const ActionButton = ({
@@ -185,10 +208,14 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
             <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={140} rows={2}
               placeholder="Saw this and thought of you. Take a breath. xx"
               className="w-full bg-dawn-night/60 text-dawn-ink placeholder:text-dawn-ink/25 border border-dawn-haze/15 rounded-xl p-4 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30 resize-none" />
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3">
               <button onClick={doShare}
                 className="text-[10px] uppercase tracking-[0.18em] font-bold px-6 py-2.5 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors">
-                {copied ? "Link copied" : "Share"}
+                {copied ? "Link copied" : "Share link"}
+              </button>
+              <button onClick={doShareImage} disabled={imageBusy}
+                className="text-[10px] uppercase tracking-[0.18em] font-bold px-6 py-2.5 border border-dawn-rose/40 text-dawn-rose rounded-full hover:bg-dawn-rose/10 transition-colors disabled:opacity-50">
+                {imageBusy ? "Preparing…" : "Save as image"}
               </button>
               <button onClick={() => setSparkOpen(false)} className="text-[10px] uppercase tracking-[0.18em] opacity-50 hover:opacity-80 transition-opacity">Cancel</button>
             </div>

@@ -11,6 +11,7 @@ import { getCalendar } from "@/lib/store";
 import { REMINDERS } from "@/lib/dawnhalo";
 import { OracleCardView } from "@/components/OracleCard";
 import { BottomNav } from "@/components/BottomNav";
+import { track } from "@/lib/analytics";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -60,6 +61,11 @@ function TodayPage() {
     });
     getCalendar().then(({ streak }) => alive && setStreak(streak));
     setDateLabel(formatDate(today));
+    // Stripe redirects back here with ?checkout=success after payment.
+    if (new URLSearchParams(window.location.search).get("checkout") === "success") {
+      track("checkout_completed");
+      window.history.replaceState(null, "", window.location.pathname);
+    }
     const a = Math.floor(Math.random() * REMINDERS.length);
     let b = Math.floor(Math.random() * REMINDERS.length);
     if (b === a) b = (b + 1) % REMINDERS.length;
@@ -72,15 +78,18 @@ function TodayPage() {
   const remaining = entitlement?.freeDrawsRemaining ?? null;
   const unlimited = entitlement?.subscribed || remaining === -1;
 
-  const handleOutcome = (out: Awaited<ReturnType<typeof drawCardEx>>) => {
+  const handleOutcome = (out: Awaited<ReturnType<typeof drawCardEx>>, mode: string) => {
     if (out.kind === "crisis") {
+      track("support_redirect", { source: mode });
       navigate({ to: "/support" });
       return false;
     }
     if (out.kind === "paywall") {
+      track("paywall_hit", { source: mode });
       navigate({ to: "/paywall" });
       return false;
     }
+    track("card_drawn", { mode });
     setActiveCard(out.card);
     if (out.entitlement) setEntitlement(out.entitlement);
     return true;
@@ -96,11 +105,12 @@ function TodayPage() {
       try {
         if (withIntention.trim()) {
           const out = await drawCardEx({ intent: "ask", text: withIntention });
-          if (!handleOutcome(out)) return;
+          if (!handleOutcome(out, "intention")) return;
         } else {
           const { card, entitlement } = await getDailyWithEntitlement();
           setActiveCard(card);
           if (entitlement) setEntitlement(entitlement);
+          track("card_drawn", { mode: "daily" });
         }
         setHasDrawnToday(true);
         await sleep(Math.max(0, RITUAL_FLOOR_MS - (Date.now() - started)));
@@ -125,7 +135,7 @@ function TodayPage() {
     const started = Date.now();
     try {
       const out = await drawCardEx({ intent: "ask", text: input });
-      if (handleOutcome(out)) {
+      if (handleOutcome(out, "ask")) {
         setInput("");
         await sleep(Math.max(0, RITUAL_FLOOR_MS - (Date.now() - started)));
         setRitual("reveal");
@@ -142,7 +152,7 @@ function TodayPage() {
     const started = Date.now();
     try {
       const out = await drawCardEx({ intent: "ask", text: "" });
-      if (handleOutcome(out)) {
+      if (handleOutcome(out, "again")) {
         await sleep(Math.max(0, RITUAL_FLOOR_MS - (Date.now() - started)));
         setRitual("reveal");
       }
@@ -151,7 +161,10 @@ function TodayPage() {
     }
   };
 
-  const revealMessage = () => setRitual("open");
+  const revealMessage = () => {
+    track("card_revealed");
+    setRitual("open");
+  };
 
   const greetingHour = today.getHours();
   const greeting =

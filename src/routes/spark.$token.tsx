@@ -1,68 +1,78 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { api } from "@/lib/api";
 import { fromApiCard, type Card } from "@/lib/cards";
 import { decodeShare, artForCard } from "@/lib/dawnhalo";
+import { absoluteUrl } from "@/lib/publicUrl";
+import { track } from "@/lib/analytics";
+
+type SparkData = { card: Card; note: string } | null;
+
+// The spark is loaded in the route loader (it runs during SSR too) so the
+// social-preview meta tags below can show the ACTUAL card — the shared link's
+// preview is the app's single best organic-growth surface.
+async function loadSpark(token: string): Promise<SparkData> {
+  // Prefer the backend-stored spark; fall back to a legacy encoded token.
+  try {
+    const { card, note } = await api.getSpark(token);
+    return { card: fromApiCard(card), note };
+  } catch {
+    /* try legacy decode below */
+  }
+  const data = decodeShare(token);
+  if (!data) return null;
+  return {
+    card: {
+      id: token,
+      opener: data.opener,
+      title: data.title,
+      message: data.message,
+      theme: data.theme,
+      illustration: artForCard({ id: token, art: data.art, theme: data.theme }),
+    },
+    note: data.note,
+  };
+}
 
 export const Route = createFileRoute("/spark/$token")({
-  head: () => ({
-    meta: [
-      { title: "A Spark from Dawnhalo" },
-      { name: "description", content: "Someone sent you a little light." },
-      { property: "og:title", content: "A Spark from Dawnhalo" },
-      { property: "og:description", content: "Someone sent you a little light for your next step." },
-    ],
-  }),
+  loader: ({ params }) => loadSpark(params.token),
+  head: ({ loaderData }) => {
+    const card = loaderData?.card;
+    const title = card ? `${card.title} — a Spark from Dawnhalo` : "A Spark from Dawnhalo";
+    const description = card
+      ? card.message.replace(/\s+/g, " ").trim().slice(0, 200)
+      : "Someone sent you a little light.";
+    const image = card ? absoluteUrl(card.illustration) : undefined;
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "article" },
+        ...(image
+          ? [
+              { property: "og:image", content: image },
+              { name: "twitter:card", content: "summary_large_image" },
+              { name: "twitter:title", content: title },
+              { name: "twitter:description", content: description },
+              { name: "twitter:image", content: image },
+            ]
+          : []),
+      ],
+    };
+  },
   component: SparkPage,
 });
 
 function SparkPage() {
-  const { token } = Route.useParams();
-  const [state, setState] = useState<{ card: Card; note: string } | null | "error">(null);
+  const state = Route.useLoaderData();
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      // Prefer the backend-stored spark; fall back to a legacy encoded token.
-      try {
-        const { card, note } = await api.getSpark(token);
-        if (alive) setState({ card: fromApiCard(card), note });
-        return;
-      } catch {
-        /* try legacy decode below */
-      }
-      const data = decodeShare(token);
-      if (!data) {
-        if (alive) setState("error");
-        return;
-      }
-      if (alive)
-        setState({
-          card: {
-            id: token,
-            opener: data.opener,
-            title: data.title,
-            message: data.message,
-            theme: data.theme,
-            illustration: artForCard({ id: token, art: data.art, theme: data.theme }),
-          },
-          note: data.note,
-        });
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [token]);
+    track(state ? "spark_viewed" : "spark_link_broken");
+  }, [state]);
 
-  if (state === null) {
-    return (
-      <div className="min-h-screen bg-dawn-sky flex items-center justify-center px-6">
-        <p className="text-sm italic opacity-60 font-serif">Opening your spark…</p>
-      </div>
-    );
-  }
-
-  if (state === "error") {
+  if (!state) {
     return (
       <div className="min-h-screen bg-dawn-sky flex items-center justify-center px-6">
         <div className="text-center max-w-sm">
@@ -104,7 +114,7 @@ function SparkPage() {
         </article>
 
         <div className="mt-10 text-center">
-          <Link to="/"
+          <Link to="/" onClick={() => track("spark_cta_clicked")}
             className="inline-block px-6 py-3 bg-dawn-ink text-white text-[11px] uppercase tracking-[0.2em] font-bold rounded-full hover:bg-dawn-ink/90">
             Draw your own card
           </Link>

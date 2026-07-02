@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { track } from "@/lib/analytics";
 
 export const Route = createFileRoute("/paywall")({
   head: () => ({ meta: [{ title: "Plans — Dawnhalo" }, { name: "description", content: "Unlimited cards, from $4.99/mo." }] }),
@@ -12,17 +13,27 @@ function PaywallPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    // Stripe sends the user back here with ?checkout=cancelled on abandon.
+    const cancelled = new URLSearchParams(window.location.search).get("checkout") === "cancelled";
+    track(cancelled ? "checkout_cancelled" : "paywall_viewed");
+    if (cancelled) window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
   const beginCheckout = async () => {
     setLoading(true);
     setError("");
+    track("checkout_started", { plan });
     try {
       const { url } = await api.checkout(plan);
       if (url) {
         window.location.href = url;
       } else {
+        track("checkout_unavailable", { plan });
         setError("Checkout isn't available right now. Please try again later.");
       }
     } catch {
+      track("checkout_unavailable", { plan });
       setError("Checkout isn't available right now. Please try again later.");
     } finally {
       setLoading(false);
