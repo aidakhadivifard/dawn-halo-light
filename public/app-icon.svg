@@ -1,18 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Dawnhalo">
+  <!-- Dawnhalo mark: sun cradled by a crescent halo, on warm cream.
+       Mirrors assets/icon-only.png (design B). -->
   <defs>
-    <radialGradient id="halo" cx="50%" cy="58%" r="60%">
-      <stop offset="0%" stop-color="#f7d79a"/>
-      <stop offset="38%" stop-color="#f4a37a"/>
-      <stop offset="68%" stop-color="#bd5c78"/>
-      <stop offset="100%" stop-color="#3a2740"/>
-    </radialGradient>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#2b2333"/>
-      <stop offset="100%" stop-color="#1a1622"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fdfcfb"/>
+      <stop offset="60%" stop-color="#fcf4eb"/>
+      <stop offset="100%" stop-color="#fae9dd"/>
     </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffb347"/>
+      <stop offset="50%" stop-color="#fa7454"/>
+      <stop offset="100%" stop-color="#d84264"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffe29e"/>
+      <stop offset="50%" stop-color="#ffa454"/>
+      <stop offset="100%" stop-color="#f36a5c"/>
+    </radialGradient>
   </defs>
-  <rect width="1024" height="1024" rx="224" fill="url(#sky)"/>
-  <circle cx="512" cy="560" r="300" fill="url(#halo)"/>
-  <circle cx="512" cy="560" r="150" fill="#fff3df" opacity="0.95"/>
-  <rect x="0" y="708" width="1024" height="316" rx="0" fill="#1a1622" opacity="0.55"/>
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <!-- Crescent: outer circle c(512,500) r310 minus inner circle c(512,448) r238 -->
+  <path fill="url(#ring)" fill-rule="evenodd"
+        d="M512 190a310 310 0 1 0 .1 0Z M512 210a238 238 0 1 1-.1 0Z"/>
+  <circle cx="512" cy="615" r="150" fill="url(#sun)"/>
 </svg>

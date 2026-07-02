@@ -62,7 +62,7 @@ jobs:
         run: bun run cap:add:android
 
       - name: Generate app icons & splash from the DawnHalo logo
-        run: bunx @capacitor/assets generate --android --assetPath assets --iconBackgroundColor '#0e0a14' --iconBackgroundColorDark '#0e0a14' --splashBackgroundColor '#0e0a14' --splashBackgroundColorDark '#0e0a14'
+        run: bunx @capacitor/assets generate --android --assetPath assets --iconBackgroundColor '#fdfcfb' --iconBackgroundColorDark '#fdfcfb' --splashBackgroundColor '#fdfcfb' --splashBackgroundColorDark '#180a14'
 
       - name: Sync web assets into Android project
         run: bun run cap:sync
