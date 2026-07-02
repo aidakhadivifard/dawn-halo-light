@@ -86,10 +86,10 @@ export function classifyInput(raw: string): Intent {
 const responses: Record<Exclude<Intent, "crisis">, Omit<OracleCard, "id" | "createdAt" | "prompt">[]> = {
   question: [
     { art: "moon", theme: "guidance_decision", opener: "Let me lean in — your question has weight to it…", title: "The Quiet Compass",
-      message: "There's a part of you already leaning one way, even before the reasons line up.\n\nThis isn't a yes-or-no answer; it's a next step.\n\nYou could take the smallest version of that today and see how it sits.",
+      message: "This card carries an inner direction steadier than the noise around it.\n\nThe card leans toward the way you were already facing — the heart often leans long before the reasons arrive.\n\nThe truest path is rarely the perfect one; it is the one that feels most like your own.",
       reflection: "If no one were watching, which way would you quietly lean?" },
     { art: "dawn", theme: "guidance_decision", opener: "Mm. This card stepped forward the moment you asked…", title: "The Crossing Stones",
-      message: "You're weighing this carefully, which means it matters more than you're letting on.\n\nEither path holds something for you. The real question is which version of yourself you want to practice being.\n\nStart there, in one small way.",
+      message: "This card speaks of crossing uncertain water one stone at a time.\n\nThe card leans yes — but only stone by stone. Every road carries its own gift and its own cost.\n\nThe question was never which stone is perfect, but who you become as you cross.",
       reflection: "Which choice lets you be more honest with yourself?" },
   ],
   feeling: [

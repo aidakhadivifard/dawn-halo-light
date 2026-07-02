@@ -25,24 +25,96 @@ export interface GenResult {
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 
+type FallbackEntry = { title: string; message: string; reflection: string; theme: CardTheme };
+
+// Domain-aware fallbacks for questions, so "will I get rich" and "when will my
+// baby come" never receive the same card. Matched in order; first hit wins.
+const QUESTION_DOMAINS: { pattern: RegExp; cards: FallbackEntry[] }[] = [
+  {
+    // money / wealth / debt
+    pattern: /\b(rich|money|wealth|salary|income|debt|broke|financ|lottery|invest|business|afford)\b/i,
+    cards: [
+      {
+        title: "The Gathering Harvest",
+        message:
+          "This card is reward that arrives slowly, through staying.\n\nThe card leans yes — the kind of wealth that gathers, not the kind that strikes. What fills the barn is the years you do not walk away.\n\nIt asks one thing: do not scatter what you have started.",
+        reflection: "Which seed you already hold would grow if you fed it?",
+        theme: "hope_abundance",
+      },
+    ],
+  },
+  {
+    // children / pregnancy / family growth
+    pattern: /\b(baby|babies|child|children|pregnan|conceive|kid|son|daughter|family grow)\b/i,
+    cards: [
+      {
+        title: "The Sleeping Seed",
+        message:
+          "This card is life not yet visible, already alive.\n\nNot this season — the card speaks of ground still being made ready. It does not say no. It says the door has not closed.\n\nWhat is meant to grow gathers itself in the dark first.",
+        reflection: "What would you want ready, the day the waiting ends?",
+        theme: "hope_abundance",
+      },
+    ],
+  },
+  {
+    // another person's heart / love / return
+    pattern: /\b(love|marry|marriage|wedding|boyfriend|girlfriend|husband|wife|crush|soulmate|think(s)? (about|of) me|come back|miss(es)? me|text me|ex\b)\b/i,
+    cards: [
+      {
+        title: "The Distant Bell",
+        message:
+          "This card is a call that carries farther than we know.\n\nThe card leans yes — a bell rung once keeps humming, and something of you lingers where you were. What no card can see is whether that thread should be pulled or released.\n\nThat part was always yours to decide.",
+        reflection: "If the answer were yes, what would you do with it?",
+        theme: "feeling_unseen",
+      },
+    ],
+  },
+  {
+    // work / career / study
+    pattern: /\b(job|work|career|promotion|boss|interview|exam|study|degree|college|hired|fired|quit)\b/i,
+    cards: [
+      {
+        title: "The Climbing Path",
+        message:
+          "This card is effort that gains ground, step over step.\n\nThe card leans yes — but by the climb, not the leap. What you are building holds more weight than it shows from where you stand.\n\nThe pass opens to the one still walking.",
+        reflection: "What is one stretch of this climb you can finish this week?",
+        theme: "guidance_decision",
+      },
+    ],
+  },
+  {
+    // bare timing questions that matched no other domain
+    pattern: /\b(when will|how long|how soon|what year|which month)\b/i,
+    cards: [
+      {
+        title: "The Waiting Dawn",
+        message:
+          "This card is the light that always returns after a long night.\n\nSooner than fear says, later than longing wants. The card gives seasons, not dates — and this season is for what must fill first.\n\nDawn has never once forgotten a horizon.",
+        reflection: "What would you begin now, if you knew it was coming?",
+        theme: "hope_abundance",
+      },
+    ],
+  },
+];
+
 // A small, tasteful offline library used when Claude is slow/unavailable, or
 // for any parse failure. Keeps the app working end-to-end without a key.
 const FALLBACK: Record<
   GenInput["intent"],
-  { title: string; message: string; reflection: string; theme: CardTheme }[]
+  FallbackEntry[]
 > = {
   question: [
     {
       title: "The Quiet Compass",
       message:
-        "This card carries an inner direction steadier than the noise around it.\n\nThe heart often leans one way long before the reasons arrive.\n\nNot every question asks for an answer; some only ask for the next small step.\n\nThe truest path is rarely the perfect one — it is the one that feels most like your own.",
+        "This card carries an inner direction steadier than the noise around it.\n\nThe card leans toward the way you were already facing — the heart often leans long before the reasons arrive.\n\nThe truest path is rarely the perfect one; it is the one that feels most like your own.",
       reflection: "If no one were watching, which way would you quietly lean?",
       theme: "guidance_decision",
     },
     {
       title: "The Crossing Stones",
       message:
-        "This card speaks of moving across uncertain water one careful stone at a time.\n\nWhat we weigh most carefully is what matters most to us.\n\nEvery road carries its own gift, and its own cost.\n\nThe question was never which stone is perfect, but who you become as you cross.",
+        "This card speaks of crossing uncertain water one stone at a time.\n\nThe card leans yes — but only stone by stone. Every road carries its own gift and its own cost.\n\nThe question was never which stone is perfect, but who you become as you cross.",
       reflection: "Which choice lets you be more honest with yourself?",
       theme: "guidance_decision",
     },
@@ -82,7 +154,11 @@ const FALLBACK: Record<
 };
 
 function fallbackCard(input: GenInput, rand = Math.random): GenResult {
-  const pool = FALLBACK[input.intent] ?? FALLBACK.general;
+  let pool = FALLBACK[input.intent] ?? FALLBACK.general;
+  if (input.intent === "question" && input.text) {
+    const domain = QUESTION_DOMAINS.find((d) => d.pattern.test(input.text!));
+    if (domain) pool = domain.cards;
+  }
   const pick = pool[Math.floor(rand() * pool.length) % pool.length];
   return {
     opener: pickOpener(undefined, rand),
