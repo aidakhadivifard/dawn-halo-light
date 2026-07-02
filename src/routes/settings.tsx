@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getSettings, saveSettings } from "@/lib/store";
 import type { Settings } from "@/lib/dawnhalo";
@@ -58,6 +58,17 @@ function SettingsPage() {
         </div>
 
         {savedMsg && <p className="mt-6 text-center text-xs italic opacity-60">Saved.</p>}
+
+        <div className="mt-10 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl divide-y divide-dawn-haze/10 backdrop-blur-md">
+          <Link to="/privacy" className="block p-5">
+            <p className="font-serif text-lg text-dawn-ink">Privacy</p>
+            <p className="text-xs text-dawn-ink/50">What we store, and what we never collect.</p>
+          </Link>
+          <Link to="/support" className="block p-5">
+            <p className="font-serif text-lg text-dawn-ink">Support</p>
+            <p className="text-xs text-dawn-ink/50">If today feels heavy, help is here.</p>
+          </Link>
+        </div>
 
         <p className="mt-12 text-center text-[10px] uppercase tracking-[0.2em] opacity-30">Dawnhalo · a little light for your next step</p>
       </main>

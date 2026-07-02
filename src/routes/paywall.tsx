@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { track } from "@/lib/analytics";
+import { isIosNative } from "@/lib/platform";
 
 export const Route = createFileRoute("/paywall")({
   head: () => ({ meta: [{ title: "Plans — Dawnhalo" }, { name: "description", content: "Unlimited cards, from $4.99/mo." }] }),
@@ -12,6 +13,9 @@ function PaywallPage() {
   const [plan, setPlan] = useState<"yearly" | "monthly">("yearly");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // App Store 3.1.1: no Stripe purchase UI inside the iOS shell (until IAP).
+  const [purchasable, setPurchasable] = useState(true);
+  useEffect(() => setPurchasable(!isIosNative()), []);
 
   useEffect(() => {
     // Stripe sends the user back here with ?checkout=cancelled on abandon.
@@ -52,6 +56,24 @@ function PaywallPage() {
           </p>
         </header>
 
+        {!purchasable && (
+          <div className="mt-10 p-6 bg-white border border-dawn-ink/10 rounded-2xl text-center">
+            <p className="font-serif text-xl font-light">Your daily card stays free.</p>
+            <p className="mt-3 text-sm opacity-70 leading-relaxed">
+              Subscriptions aren't available in this app yet. Come back tomorrow — a new card will
+              be waiting for you, free as always.
+            </p>
+            <Link
+              to="/"
+              className="mt-6 inline-block px-6 py-3 bg-dawn-ink text-white text-[11px] uppercase tracking-[0.2em] font-bold rounded-full"
+            >
+              Back to today's card
+            </Link>
+          </div>
+        )}
+
+        {purchasable && (
+        <>
         <div className="mt-10 space-y-3">
           <button onClick={() => setPlan("yearly")}
             className={"w-full text-left p-5 rounded-2xl border transition-all " +
@@ -86,10 +108,10 @@ function PaywallPage() {
 
         <ul className="mt-8 space-y-3 text-sm opacity-80">
           {[
-            "Unlimited card draws and follow-ups",
-            "Full history and saved cards",
-            "Gentle daily reminders",
-            "Share cards with people you love",
+            "Unlimited card draws, any time of day",
+            "Ask the oracle anything — and one follow-up per card",
+            "Support a small, quiet, ad-free app",
+            "Your daily card stays free, always",
           ].map((f) => (
             <li key={f} className="flex items-center gap-3">
               <span className="size-1.5 rounded-full bg-dawn-rose" />
@@ -104,6 +126,14 @@ function PaywallPage() {
         </button>
         {error && <p className="mt-3 text-center text-[11px] text-dawn-rose">{error}</p>}
         <p className="mt-3 text-center text-[10px] uppercase tracking-widest opacity-40">Secure checkout · cancel anytime</p>
+        </>
+        )}
+
+        <p className="mt-8 text-center">
+          <Link to="/privacy" className="text-[10px] uppercase tracking-[0.18em] opacity-40 hover:opacity-70">
+            Privacy policy
+          </Link>
+        </p>
       </main>
     </div>
   );
