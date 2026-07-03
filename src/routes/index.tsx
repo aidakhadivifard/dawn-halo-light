@@ -27,12 +27,40 @@ function formatDate(d: Date) {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
-type RitualState = "arrival" | "drawing" | "reveal" | "open";
+type RitualState = "arrival" | "choose" | "drawing" | "reveal" | "open";
 
 // A gentle floor on the ritual so the draw never feels instant — but we don't
 // pile extra time on top of slow network latency. Total ≈ max(latency, floor).
 const RITUAL_FLOOR_MS = 1100;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// A face-down card for the pick-a-card spread: dark dawn gradient with the
+// halo-and-sun mark. Pure CSS/SVG so no asset is needed.
+function CardBack({ tilt, delay, onPick }: { tilt: number; delay: number; onPick: () => void }) {
+  return (
+    // Rotation lives on the wrapper so the button's entry animation and
+    // hover-lift transforms don't overwrite it.
+    <div className="w-[27%]" style={{ transform: `rotate(${tilt}deg)` }}>
+    <button
+      onClick={onPick}
+      aria-label="Pick this card"
+      className="relative w-full aspect-[3/4] rounded-xl border border-dawn-gold/25 shadow-[0_18px_40px_-18px_rgba(45,42,46,0.45)] transition-transform duration-200 hover:-translate-y-2 focus:-translate-y-2 focus:outline-none animate-card-rise"
+      style={{
+        animationDelay: `${delay}ms`,
+        background: "linear-gradient(165deg, #3a1626 0%, #221018 55%, #180a14 100%)",
+      }}
+    >
+      <svg viewBox="0 0 100 125" className="absolute inset-0 h-full w-full" aria-hidden>
+        <circle cx="50" cy="58" r="26" fill="none" stroke="rgba(245,207,138,0.55)" strokeWidth="3" />
+        <circle cx="50" cy="70" r="11" fill="rgba(244,163,122,0.65)" />
+        <circle cx="50" cy="16" r="1.6" fill="rgba(245,207,138,0.5)" />
+        <circle cx="18" cy="104" r="1.3" fill="rgba(245,207,138,0.4)" />
+        <circle cx="82" cy="100" r="1.3" fill="rgba(245,207,138,0.4)" />
+      </svg>
+    </button>
+    </div>
+  );
+}
 
 function TodayPage() {
   const navigate = useNavigate();
@@ -49,6 +77,8 @@ function TodayPage() {
   const [intention, setIntention] = useState("");
   const [showOther, setShowOther] = useState(false);
   const [showDream, setShowDream] = useState(false);
+  // The text captured when "Draw My Card" is pressed; drawn after a card is picked.
+  const [pendingText, setPendingText] = useState("");
 
   const INTENTIONS = ["I need clarity", "I need calm", "I need courage"];
 
@@ -265,9 +295,12 @@ function TodayPage() {
             )}
 
             <button
-              onClick={() =>
-                drawMyCard(showDream && intention.trim() ? `I had a dream: ${intention}` : intention)
-              }
+              onClick={() => {
+                setPendingText(
+                  showDream && intention.trim() ? `I had a dream: ${intention}` : intention,
+                );
+                setRitual("choose");
+              }}
               disabled={busy}
               className="mt-8 px-10 py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(244,163,122,0.5)] hover:shadow-[0_16px_50px_-12px_rgba(244,163,122,0.6)] hover:bg-dawn-haze transition-all disabled:opacity-50"
             >
@@ -280,6 +313,39 @@ function TodayPage() {
             >
               I'll skip for now
             </button>
+          </section>
+        )}
+
+        {/* STATE 1.5: Pick a card — three face-down cards, take the one that pulls you */}
+        {ritual === "choose" && (
+          <section className="flex flex-col items-center text-center py-10">
+            <h2 className="text-2xl font-serif font-light tracking-tight text-balance text-dawn-ink animate-card-rise">
+              Three cards. One is yours.
+            </h2>
+            <p className="mt-3 text-dawn-ink/50 text-sm leading-relaxed max-w-[30ch] animate-card-rise">
+              Don't think — take the one that pulls you.
+            </p>
+            <div className="mt-10 flex w-full max-w-sm items-center justify-center gap-4">
+              {[-8, 0, 8].map((tilt, i) => (
+                <CardBack
+                  key={i}
+                  tilt={tilt}
+                  delay={i * 140}
+                  onPick={() => {
+                    if (busy) return;
+                    track("card_picked", { position: i });
+                    void drawMyCard(pendingText);
+                  }}
+                />
+              ))}
+            </div>
+            <button
+              onClick={() => setRitual("arrival")}
+              className="mt-10 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors"
+            >
+              ← Change my intention
+            </button>
+            <p className="mt-12 text-[10px] uppercase tracking-[0.3em] text-dawn-ink/25">Dawnhalo</p>
           </section>
         )}
 
@@ -301,6 +367,7 @@ function TodayPage() {
             <p className="mt-4 text-[11px] uppercase tracking-[0.2em] text-dawn-haze/70 animate-card-rise">
               Drawing your card…
             </p>
+            <p className="mt-14 text-[10px] uppercase tracking-[0.3em] text-dawn-ink/25">Dawnhalo</p>
           </section>
         )}
 
@@ -339,6 +406,9 @@ function TodayPage() {
                 </button>
               </div>
             </article>
+            <p className="mt-6 text-center text-[10px] uppercase tracking-[0.3em] text-dawn-ink/25">
+              Dawnhalo · a little light for your next step
+            </p>
           </div>
         )}
 
