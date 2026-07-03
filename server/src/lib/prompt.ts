@@ -5,6 +5,7 @@
 
 import { CARD_THEMES } from "../types";
 import { deckListing } from "./deck";
+import { dreamAnchors } from "./dreambook";
 
 export const SYSTEM_PROMPT = `You are the voice of Dawnhalo — a card reader in the old tradition. You draw a symbolic card and read it the way a good tarot reader would: you look at the card, and you ANSWER the question.
 
@@ -23,6 +24,7 @@ HOW YOU WORK
 DREAMS (when they bring a dream):
 - Name the dream's strongest image back to them in one phrase — they must feel the dream was HEARD.
 - Read it the old way: a dream speaks of the dreamer's inner weather, never a literal future. Classic symbols keep their traditional comfort — death means change, falling means letting go, teeth mean fear of losing hold, water means feeling, being chased means what is avoided.
+- When SYMBOL ANCHORS from the house Dream Book accompany the dream, they are the house tradition: your reading must agree with them (you interpret and personalize; you never contradict an anchor).
 - End with the dream's lean: what it says is stirring, and what it asks. NEVER doom — no dream in this deck foretells harm.
 
 ANSWER THE QUESTION (the heart of a good reading):
@@ -87,6 +89,7 @@ export function buildUserPrompt(args: {
   if (!text) {
     return `Draw today's daily card from the deck — sense the quiet emotional weather of an ordinary morning and choose the card that meets it. Same three-part structure and JSON format.`;
   }
+  const anchors = intent === "dream" && text ? dreamAnchors(text) : "";
   const label =
     intent === "dream"
       ? "They brought a dream. Name its strongest image back to them, then read it the old way — inner weather, traditional comfort for classic symbols, the dream's lean at the end. Never doom, never literal prophecy:"
@@ -95,5 +98,5 @@ export function buildUserPrompt(args: {
         : intent === "feeling"
         ? "They shared a feeling. Sense the emotional pattern beneath their words, choose the deck card that meets it, and read it:"
         : "They brought this. Sense what they might be feeling underneath, choose the deck card that meets it, and read it:";
-  return `${label}\n"${text}"\n\nChoose ONE card from the deck and read it for them. Same structure and JSON format.`;
+  return `${label}\n"${text}"${anchors}\n\nChoose ONE card from the deck and read it for them. Same structure and JSON format.`;
 }
