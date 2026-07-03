@@ -8,6 +8,12 @@
 import { normalize } from "./crisis";
 import type { Intent } from "../types";
 
+// Dream tellings get their own reading style (symbol → omen → lean). The
+// arrival-screen "I had a dream…" chip prefixes input with "I had a dream:",
+// but freeform tellings are caught too.
+const DREAM_MARKERS =
+  /\b(i had a dream|i have a dream about|i dream(ed|t)|did i dream|in my dream|my dream last night|dream(ed|t) (about|that|of)|a dream (about|where|that)|nightmare)\b/;
+
 const QUESTION_LEADS =
   /^(should|shall|will|would|could|can|do|does|did|is|are|am|was|were|have|has|what|how|when|where|why|who|which|whom)\b/;
 
@@ -27,6 +33,10 @@ const FEELING_WORDS =
 export function classifyInput(raw: string): Exclude<Intent, "crisis"> {
   const t = normalize(raw);
   if (!t) return "general";
+
+  // Dreams win over question/feeling: "why did I dream my teeth fell out?"
+  // is a dream telling, not a decision question.
+  if (DREAM_MARKERS.test(t)) return "dream";
 
   const looksLikeQuestion =
     /\?\s*$/.test(raw.trim()) || QUESTION_LEADS.test(t) || QUESTION_PHRASES.test(t);

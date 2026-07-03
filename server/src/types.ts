@@ -16,7 +16,7 @@ export const CARD_THEMES = [
 export type CardTheme = (typeof CARD_THEMES)[number];
 
 /** How an input was classified before/by the oracle. */
-export type Intent = "crisis" | "question" | "feeling" | "general";
+export type Intent = "crisis" | "dream" | "question" | "feeling" | "general";
 
 /** The card payload returned to the client. */
 export interface Card {

@@ -67,15 +67,17 @@ export const REMINDERS = [
   "Notice one warm thing on your way somewhere.",
 ];
 
-export type Intent = "crisis" | "question" | "feeling" | "loneliness" | "appearance" | "general";
+export type Intent = "crisis" | "dream" | "question" | "feeling" | "loneliness" | "appearance" | "general";
 
 const CRISIS = ["suicide","suicidal","kill myself","end it","end my life","want to die","hurt myself","self harm","self-harm","hopeless","no point","can't go on"];
+const DREAM = ["i had a dream","i dreamed","i dreamt","in my dream","dreamed about","dreamt about","a dream about","nightmare"];
 const LONELINESS = ["no one notices","nobody notices","no one sees me","invisible","nobody loves","alone","lonely","unseen","unlovable","wish someone would"];
 const APPEARANCE = ["ugly","fat","skinny","my body","my face","look bad","look old","hate how i look","pretty","beautiful enough","not pretty"];
 
 export function classifyInput(raw: string): Intent {
   const t = raw.toLowerCase();
   if (CRISIS.some(k => t.includes(k))) return "crisis";
+  if (DREAM.some(k => t.includes(k))) return "dream";
   if (LONELINESS.some(k => t.includes(k))) return "loneliness";
   if (APPEARANCE.some(k => t.includes(k))) return "appearance";
   if (t.trim().endsWith("?") || /\b(should i|will i|can i|do i|is it)\b/.test(t)) return "question";
@@ -84,6 +86,14 @@ export function classifyInput(raw: string): Intent {
 }
 
 const responses: Record<Exclude<Intent, "crisis">, Omit<OracleCard, "id" | "createdAt" | "prompt">[]> = {
+  dream: [
+    { art: "moon", theme: "feeling_unseen", opener: "Ah — let me hold this dream up to the light…", title: "The Watchful Moon",
+      message: "This card watches what moves in the dark; nothing in a dream goes unseen.\n\nA dream this vivid is your inner weather speaking in pictures — it tells of what stirs in you, never of harm to come.\n\nThe dream leans toward something asking to be looked at, not feared.",
+      reflection: "Which image from the dream stays with you the longest?" },
+    { art: "dawn", theme: "hope_abundance", opener: "Dreams like this one knock until they're read…", title: "The Open Window",
+      message: "This card is fresh air let into a familiar room.\n\nDreams rearrange what the day would not let you say. This one points back, to something you already know but have not yet looked at straight.\n\nThe dream leans toward a truth waiting to be aired.",
+      reflection: "If the dream could speak one plain sentence, what would it say?" },
+  ],
   question: [
     { art: "moon", theme: "guidance_decision", opener: "Let me lean in — your question has weight to it…", title: "The Quiet Compass",
       message: "This card carries an inner direction steadier than the noise around it.\n\nThe card leans toward the way you were already facing — the heart often leans long before the reasons arrive.\n\nThe truest path is rarely the perfect one; it is the one that feels most like your own.",

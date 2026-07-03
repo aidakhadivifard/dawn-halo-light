@@ -1,6 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { classifyInput } from "../src/lib/classify";
 
+describe("classifyInput — dreams", () => {
+  const dreams = [
+    "I had a dream: my teeth were falling out",
+    "I dreamed about my ex last night",
+    "in my dream I was flying over the sea",
+    "why did I dream that I was falling?",
+    "I dreamt of a white horse",
+    "I had a nightmare about being chased",
+  ];
+  for (const d of dreams) {
+    it(`dream: ${JSON.stringify(d)}`, () => {
+      expect(classifyInput(d)).toBe("dream");
+    });
+  }
+  it("a mere wish is not a dream telling", () => {
+    expect(classifyInput("my dream is to open a bakery")).not.toBe("dream");
+  });
+});
+
 describe("classifyInput — questions", () => {
   const questions = [
     "Should I take the job offer?",

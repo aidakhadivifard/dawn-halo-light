@@ -48,6 +48,7 @@ function TodayPage() {
   const [hasDrawnToday, setHasDrawnToday] = useState(false);
   const [intention, setIntention] = useState("");
   const [showOther, setShowOther] = useState(false);
+  const [showDream, setShowDream] = useState(false);
 
   const INTENTIONS = ["I need clarity", "I need calm", "I need courage"];
 
@@ -105,7 +106,8 @@ function TodayPage() {
       try {
         if (withIntention.trim()) {
           const out = await drawCardEx({ intent: "ask", text: withIntention });
-          if (!handleOutcome(out, "intention")) return;
+          const mode = withIntention.startsWith("I had a dream:") ? "dream" : "intention";
+          if (!handleOutcome(out, mode)) return;
         } else {
           const { card, entitlement } = await getDailyWithEntitlement();
           setActiveCard(card);
@@ -220,10 +222,10 @@ function TodayPage() {
             <div className="mt-7 flex flex-wrap justify-center gap-2 max-w-sm">
               {INTENTIONS.map((label) => (
                 <button key={label}
-                  onClick={() => { setIntention(label); setShowOther(false); }}
+                  onClick={() => { setIntention(label); setShowOther(false); setShowDream(false); }}
                   className={
                     "text-[12px] px-4 py-2.5 rounded-full border transition-colors " +
-                    (intention === label
+                    (intention === label && !showDream
                       ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
                       : "border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10")
                   }>
@@ -231,7 +233,17 @@ function TodayPage() {
                 </button>
               ))}
               <button
-                onClick={() => { setShowOther(true); setIntention(""); }}
+                onClick={() => { setShowDream(true); setShowOther(false); setIntention(""); }}
+                className={
+                  "text-[12px] px-4 py-2.5 rounded-full border transition-colors " +
+                  (showDream
+                    ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
+                    : "border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10")
+                }>
+                I had a dream…
+              </button>
+              <button
+                onClick={() => { setShowOther(true); setShowDream(false); setIntention(""); }}
                 className={
                   "text-[12px] px-4 py-2.5 rounded-full border transition-colors " +
                   (showOther
@@ -242,18 +254,20 @@ function TodayPage() {
               </button>
             </div>
 
-            {showOther && (
+            {(showOther || showDream) && (
               <input
                 autoFocus
                 value={intention}
                 onChange={(e) => setIntention(e.target.value)}
-                placeholder="What's on your mind?"
+                placeholder={showDream ? "Tell me what you dreamed…" : "What's on your mind?"}
                 className="mt-4 w-full max-w-sm bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-3.5 text-sm text-center focus:outline-none focus:ring-1 ring-dawn-rose/30"
               />
             )}
 
             <button
-              onClick={() => drawMyCard(intention)}
+              onClick={() =>
+                drawMyCard(showDream && intention.trim() ? `I had a dream: ${intention}` : intention)
+              }
               disabled={busy}
               className="mt-8 px-10 py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(244,163,122,0.5)] hover:shadow-[0_16px_50px_-12px_rgba(244,163,122,0.6)] hover:bg-dawn-haze transition-all disabled:opacity-50"
             >

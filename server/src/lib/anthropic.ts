@@ -9,7 +9,7 @@ import { findHalo, halosForTheme } from "./deck";
 import { CARD_THEMES, type CardTheme } from "../types";
 
 export interface GenInput {
-  intent: "question" | "feeling" | "general";
+  intent: "dream" | "question" | "feeling" | "general";
   text?: string;
   previous?: { title: string; message: string };
 }
@@ -103,6 +103,22 @@ const FALLBACK: Record<
   GenInput["intent"],
   FallbackEntry[]
 > = {
+  dream: [
+    {
+      title: "The Watchful Moon",
+      message:
+        "This card watches what moves in the dark; nothing in a dream goes unseen.\n\nA dream this vivid is your inner weather speaking in pictures — it tells of what stirs in you, never of harm to come. The old readers said: what the night shows, the day is ready to face.\n\nThe dream leans toward something asking to be looked at, not feared.",
+      reflection: "Which image from the dream stays with you the longest?",
+      theme: "feeling_unseen",
+    },
+    {
+      title: "The Open Window",
+      message:
+        "This card is fresh air let into a familiar room.\n\nDreams rearrange what the day would not let you say. This one does not foretell — it points back, to something you already know but have not yet looked at straight.\n\nThe dream leans toward a truth waiting to be aired.",
+      reflection: "If the dream could speak one plain sentence, what would it say?",
+      theme: "hope_abundance",
+    },
+  ],
   question: [
     {
       title: "The Quiet Compass",
@@ -221,6 +237,7 @@ function snapToDeck(theme: CardTheme, seed: string): string | undefined {
 }
 
 function defaultTheme(intent: GenInput["intent"]): CardTheme {
+  if (intent === "dream") return "feeling_unseen";
   if (intent === "question") return "guidance_decision";
   if (intent === "feeling") return "exhaustion_rest";
   return "daily_general";
