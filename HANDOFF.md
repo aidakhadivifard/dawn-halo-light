@@ -14,7 +14,7 @@ $4.99–9.99/mo subscription. See `README.md` for architecture and API details.
 | Layer | Where | Status |
 |---|---|---|
 | Web frontend | repo root (`src/`), React 19 + TanStack Start + Tailwind 4 | builds green |
-| Backend API | `server/` — Node/Express + SQLite + Anthropic + Stripe | 178 tests green |
+| Backend API | `server/` — Node/Express + SQLite + Anthropic + Stripe | 240 tests green |
 | Android app | Capacitor shell; built by `.github/workflows/android.yml` | installable APK |
 | iOS app | Capacitor-ready (`cap add ios` on a Mac); purchase UI auto-hidden per App Store 3.1.1 | not yet built |
 | Live backend | **https://dawnhalo-api.onrender.com** (Render free plan, branch above) | live |
@@ -24,7 +24,44 @@ The latest connected Android build (run #32, backend wired in):
 (GitHub artifacts expire after ~30 days — rebuild via Actions → "Build Android
 app (.apk)" → Run workflow → set `api_url` to the Render URL.)
 
-## 2. Work completed in this engagement (commits `4e9d401..4d524e7`)
+## 1.5 The endurance-goal layer ("KeepGoing", July 16 2026, commits `11a0318..8e9e52e`)
+
+Implemented per `keepgoing-dawnhalo-spec.md`: one active goal per device
+("what you're holding on for" — never surfaced as a feature brand), daily
+emotional check-in that adapts to the answer, rituals (card / written AI
+reflection, premium), sourced benchmark lines, rare milestones (3/7/30,
+25/50/75%, target, with share image + confetti), 21-day honesty check with
+early trigger after 3 hard days, respectful goal-end summaries, premium
+journal. Key facts:
+
+- **Copy Rule is enforced in code**: `server/src/lib/copyrule.ts` lints every
+  goal-aware AI line before display (fallback to reviewed static copy in
+  `server/src/lib/keepgoing-copy.ts` / `src/lib/goalCopy.ts` — the two
+  reviewed copy files).
+- **Safety calibration**: `server/test/safety-calibration.json` (33 labeled
+  cases) + tests. Run it on every prompt/crisis change. Deliberate
+  recalibration: "can't do this (anymore)" is ordinary hardship now
+  (reflection, never referral); "can't go on" / "can't keep going" remain
+  crisis. Detection is still deterministic and pre-AI on every text path
+  (check-in note + writing ritual included).
+- **Day count is calendar math** (Day 1 = commitment day); missing days never
+  reset it; streak is separate and secondary. Check-in is idempotent per
+  local day (DB unique index).
+- Existing cards become goal-aware server-side via `goalAnchor` in
+  `server/src/lib/prompt.ts`; without a goal nothing changes.
+- Goal check-in days age the 14-day trial like draw days (rituals/journal are
+  the premium hooks; check-in + benchmark stay free).
+- The goal photo never leaves the device (downscaled into localStorage).
+- New API under `/api/goal*` (see `server/src/app.ts`); frontend seam:
+  `src/lib/goalStore.ts`, screens `src/routes/goal.tsx` + Today integration
+  (holding question before the card, discovery moment, goal strip, benchmark
+  footer). Analytics: `goal_created`, `checkin_completed(state)`,
+  `ritual_completed(type)`, `benchmark_viewed`, `honesty_check_answered`,
+  `goal_completed/abandoned`, `goal_prompt_shown/accepted/dismissed`,
+  `dN_retention(day)`. (`subscription_cancelled` needs a webhook-side hook —
+  not client-visible; not wired yet.)
+
+## 2. Work completed in the previous engagement (commits `4e9d401..4d524e7`)
 
 **Growth instrumentation**
 - `src/lib/analytics.ts`: dependency-free PostHog capture (no-ops without
