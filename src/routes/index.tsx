@@ -131,8 +131,11 @@ function TodayPage() {
   // same one-tap question before the daily card. Never a modal, never a banner.
   const [goal, setGoal] = useState<GoalStatus | null>(null);
   const [goalPhoto, setGoalPhotoState] = useState<string | null>(null);
-  const [holdingDone, setHoldingDone] = useState(false);
-  const [discovery, setDiscovery] = useState(false);
+  // pending = still loading goal state; ask = show the question;
+  // discovery = hard answer with no goal named yet; done = card as always.
+  const [holdingPhase, setHoldingPhase] = useState<"pending" | "ask" | "discovery" | "done">(
+    "pending",
+  );
   const [lastAck, setLastAck] = useState("");
 
   const INTENTIONS = ["I need clarity", "I need calm", "I need courage"];
@@ -153,8 +156,8 @@ function TodayPage() {
     }
   };
 
-  const showHolding =
-    ritual === "arrival" && !holdingDone && (goal ? !goal.checkedInToday : !askedToday());
+  const showHolding = ritual === "arrival" && holdingPhase === "ask";
+  const showDiscovery = ritual === "arrival" && holdingPhase === "discovery";
 
   const answerHolding = async (state: CheckinState) => {
     if (goal) {
@@ -170,17 +173,17 @@ function TodayPage() {
         setLastAck(res.checkin.ack);
         setGoal({ ...goal, checkedInToday: true, todayState: res.checkin.state, day: res.checkin.day, streak: res.checkin.streak });
       }
-      setHoldingDone(true);
+      setHoldingPhase("done");
       return;
     }
     // No goal yet — a hard answer is the discovery moment (spec 5.5).
     markAsked();
     if (state === "strong") {
-      setHoldingDone(true);
+      setHoldingPhase("done");
       return;
     }
     track("goal_prompt_shown", { state });
-    setDiscovery(true);
+    setHoldingPhase("discovery");
   };
 
   useEffect(() => {
@@ -196,6 +199,7 @@ function TodayPage() {
       if (!alive) return;
       setGoal(g);
       if (g) setGoalPhotoState(getGoalPhoto());
+      setHoldingPhase(g ? (g.checkedInToday ? "done" : "ask") : askedToday() ? "done" : "ask");
     });
     setDateLabel(formatDate(today));
     // Stripe redirects back here with ?checkout=success after payment.
@@ -361,7 +365,7 @@ function TodayPage() {
         )}
 
         {/* STATE 0: How are you holding up today? — before the daily card */}
-        {showHolding && !discovery && (
+        {showHolding && (
           <section className="flex flex-col items-center text-center py-10 animate-card-rise">
             <h2 className="text-2xl font-serif font-light tracking-tight text-balance text-dawn-ink">
               {HOLDING_QUESTION}
@@ -380,7 +384,7 @@ function TodayPage() {
             <button
               onClick={() => {
                 markAsked();
-                setHoldingDone(true);
+                setHoldingPhase("done");
               }}
               className="mt-6 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors"
             >
@@ -390,7 +394,7 @@ function TodayPage() {
         )}
 
         {/* Discovery moment — a hard answer, no goal named yet */}
-        {showHolding && discovery && (
+        {showDiscovery && (
           <section className="flex flex-col items-center text-center py-12 animate-card-rise">
             <p className="text-lg font-serif italic text-dawn-ink/85 max-w-[28ch] leading-relaxed">
               {DISCOVERY_LINE}
@@ -405,8 +409,7 @@ function TodayPage() {
             <button
               onClick={() => {
                 track("goal_prompt_dismissed");
-                setDiscovery(false);
-                setHoldingDone(true);
+                setHoldingPhase("done");
               }}
               className="mt-4 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors"
             >
@@ -416,7 +419,7 @@ function TodayPage() {
         )}
 
         {/* STATE 1: Arrival / Intention — what brought you here today? */}
-        {ritual === "arrival" && !showHolding && (
+        {ritual === "arrival" && holdingPhase === "done" && (
           <section className="flex flex-col items-center text-center py-10 animate-card-rise">
             <div className="relative w-40 h-40 mb-6">
               <div
