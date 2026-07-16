@@ -34,3 +34,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local env (VITE_API_URL etc.) — never commit
+.env
