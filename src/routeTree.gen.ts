@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SavedRouteImport } from './routes/saved'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PaywallRouteImport } from './routes/paywall'
+import { Route as GoalRouteImport } from './routes/goal'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SparkTokenRouteImport } from './routes/spark.$token'
@@ -43,6 +44,11 @@ const PaywallRoute = PaywallRouteImport.update({
   path: '/paywall',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GoalRoute = GoalRouteImport.update({
+  id: '/goal',
+  path: '/goal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CalendarRoute = CalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
@@ -62,6 +68,7 @@ const SparkTokenRoute = SparkTokenRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/calendar': typeof CalendarRoute
+  '/goal': typeof GoalRoute
   '/paywall': typeof PaywallRoute
   '/privacy': typeof PrivacyRoute
   '/saved': typeof SavedRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/calendar': typeof CalendarRoute
+  '/goal': typeof GoalRoute
   '/paywall': typeof PaywallRoute
   '/privacy': typeof PrivacyRoute
   '/saved': typeof SavedRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/calendar': typeof CalendarRoute
+  '/goal': typeof GoalRoute
   '/paywall': typeof PaywallRoute
   '/privacy': typeof PrivacyRoute
   '/saved': typeof SavedRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/calendar'
+    | '/goal'
     | '/paywall'
     | '/privacy'
     | '/saved'
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/calendar'
+    | '/goal'
     | '/paywall'
     | '/privacy'
     | '/saved'
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/calendar'
+    | '/goal'
     | '/paywall'
     | '/privacy'
     | '/saved'
@@ -126,6 +138,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CalendarRoute: typeof CalendarRoute
+  GoalRoute: typeof GoalRoute
   PaywallRoute: typeof PaywallRoute
   PrivacyRoute: typeof PrivacyRoute
   SavedRoute: typeof SavedRoute
@@ -171,6 +184,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PaywallRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/goal': {
+      id: '/goal'
+      path: '/goal'
+      fullPath: '/goal'
+      preLoaderRoute: typeof GoalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/calendar': {
       id: '/calendar'
       path: '/calendar'
@@ -198,6 +218,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CalendarRoute: CalendarRoute,
+  GoalRoute: GoalRoute,
   PaywallRoute: PaywallRoute,
   PrivacyRoute: PrivacyRoute,
   SavedRoute: SavedRoute,

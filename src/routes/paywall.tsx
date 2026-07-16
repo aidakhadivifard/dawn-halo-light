@@ -110,8 +110,10 @@ function PaywallPage() {
           {[
             "Unlimited card draws, any time of day",
             "Ask the oracle anything — and one follow-up per card",
+            "Daily ritual for your goal — a card or a written reflection",
+            "Your goal journal: every check-in and everything you wrote",
             "Support a small, quiet, ad-free app",
-            "Your daily card stays free, always",
+            "Your daily card and daily check-in stay free, always",
           ].map((f) => (
             <li key={f} className="flex items-center gap-3">
               <span className="size-1.5 rounded-full bg-dawn-rose" />

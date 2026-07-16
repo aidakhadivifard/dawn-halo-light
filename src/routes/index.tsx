@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
 import {
   getDailyWithEntitlement,
@@ -12,6 +12,16 @@ import { REMINDERS } from "@/lib/dawnhalo";
 import { OracleCardView } from "@/components/OracleCard";
 import { BottomNav } from "@/components/BottomNav";
 import { track } from "@/lib/analytics";
+import type { CheckinState, GoalStatus } from "@/lib/api";
+import { checkin as postCheckin, getGoalPhoto, getGoalStatus } from "@/lib/goalStore";
+import {
+  DISCOVERY_CTA,
+  DISCOVERY_DISMISS,
+  DISCOVERY_LINE,
+  HOLDING_QUESTION,
+  STATE_OPTIONS,
+} from "@/lib/goalCopy";
+import { localDay } from "@/lib/device";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -62,6 +72,43 @@ function CardBack({ tilt, delay, onPick }: { tilt: number; delay: number; onPick
   );
 }
 
+// One honest, sourced line a day beneath the card — never a stat without a source.
+function BenchmarkFooter({
+  text,
+  sourceName,
+  sourceUrl,
+  benchmarkId,
+}: {
+  text: string;
+  sourceName: string;
+  sourceUrl: string;
+  benchmarkId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-4 px-2 text-center">
+      <p className="text-sm font-serif italic text-dawn-ink/65 leading-relaxed">{text}</p>
+      <button
+        onClick={() => {
+          setOpen((v) => !v);
+          if (!open) track("benchmark_viewed", { id: benchmarkId, source: "card_footer" });
+        }}
+        className="mt-1 text-[10px] uppercase tracking-[0.18em] text-dawn-ink/35 hover:text-dawn-ink/60 border-b border-dawn-haze/20"
+      >
+        source
+      </button>
+      {open && (
+        <p className="mt-2 text-xs text-dawn-ink/50">
+          {sourceName} ·{" "}
+          <a href={sourceUrl} target="_blank" rel="noreferrer" className="underline decoration-dawn-haze/40 break-all">
+            {sourceUrl}
+          </a>
+        </p>
+      )}
+    </div>
+  );
+}
+
 function TodayPage() {
   const navigate = useNavigate();
   const [today] = useState(() => new Date());
@@ -80,7 +127,61 @@ function TodayPage() {
   // The text captured when "Draw My Card" is pressed; drawn after a card is picked.
   const [pendingText, setPendingText] = useState("");
 
+  // The goal layer ("what you're holding on for"): returning users answer the
+  // same one-tap question before the daily card. Never a modal, never a banner.
+  const [goal, setGoal] = useState<GoalStatus | null>(null);
+  const [goalPhoto, setGoalPhotoState] = useState<string | null>(null);
+  const [holdingDone, setHoldingDone] = useState(false);
+  const [discovery, setDiscovery] = useState(false);
+  const [lastAck, setLastAck] = useState("");
+
   const INTENTIONS = ["I need clarity", "I need calm", "I need courage"];
+  const ASKED_KEY = "dawnhalo:holdingAsked";
+
+  const askedToday = () => {
+    try {
+      return localStorage.getItem(ASKED_KEY) === localDay();
+    } catch {
+      return true;
+    }
+  };
+  const markAsked = () => {
+    try {
+      localStorage.setItem(ASKED_KEY, localDay());
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const showHolding =
+    ritual === "arrival" && !holdingDone && (goal ? !goal.checkedInToday : !askedToday());
+
+  const answerHolding = async (state: CheckinState) => {
+    if (goal) {
+      const res = await postCheckin({ state });
+      if (res.kind === "crisis") {
+        navigate({ to: "/support" });
+        return;
+      }
+      if (res.kind === "checkin") {
+        track("checkin_completed", { state: res.checkin.state, day: res.checkin.day, source: "today" });
+        if (!res.checkin.already && [1, 3, 7, 30].includes(res.checkin.day))
+          track("dN_retention", { day: res.checkin.day });
+        setLastAck(res.checkin.ack);
+        setGoal({ ...goal, checkedInToday: true, todayState: res.checkin.state, day: res.checkin.day, streak: res.checkin.streak });
+      }
+      setHoldingDone(true);
+      return;
+    }
+    // No goal yet — a hard answer is the discovery moment (spec 5.5).
+    markAsked();
+    if (state === "strong") {
+      setHoldingDone(true);
+      return;
+    }
+    track("goal_prompt_shown", { state });
+    setDiscovery(true);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -91,10 +192,16 @@ function TodayPage() {
       setHasDrawnToday(true);
     });
     getCalendar().then(({ streak }) => alive && setStreak(streak));
+    getGoalStatus().then((g) => {
+      if (!alive) return;
+      setGoal(g);
+      if (g) setGoalPhotoState(getGoalPhoto());
+    });
     setDateLabel(formatDate(today));
     // Stripe redirects back here with ?checkout=success after payment.
     if (new URLSearchParams(window.location.search).get("checkout") === "success") {
       track("checkout_completed");
+      track("subscription_started");
       window.history.replaceState(null, "", window.location.pathname);
     }
     const a = Math.floor(Math.random() * REMINDERS.length);
@@ -224,8 +331,92 @@ function TodayPage() {
           </div>
         </header>
 
+        {/* The goal strip — slim, persistent, above the card. The card stays primary. */}
+        {goal && (
+          <Link
+            to="/goal"
+            className="mb-6 flex items-center gap-3 p-3 bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl hover:bg-dawn-haze/10 transition-colors"
+          >
+            {goalPhoto ? (
+              <img src={goalPhoto} alt="" className="size-10 rounded-lg object-cover ring-1 ring-dawn-haze/20" />
+            ) : (
+              <span className="flex size-10 items-center justify-center rounded-lg bg-dawn-rose/15 font-serif italic text-dawn-rose">
+                {goal.day}
+              </span>
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] uppercase tracking-[0.18em] opacity-45">
+                Day {goal.day} · holding on for
+              </span>
+              <span className="block truncate text-sm font-serif italic text-dawn-ink/85">
+                {goal.goal.title}
+              </span>
+            </span>
+          </Link>
+        )}
+        {lastAck && ritual === "arrival" && (
+          <p className="mb-6 text-center text-sm font-serif italic text-dawn-ink/70 animate-card-rise">
+            {lastAck}
+          </p>
+        )}
+
+        {/* STATE 0: How are you holding up today? — before the daily card */}
+        {showHolding && !discovery && (
+          <section className="flex flex-col items-center text-center py-10 animate-card-rise">
+            <h2 className="text-2xl font-serif font-light tracking-tight text-balance text-dawn-ink">
+              {HOLDING_QUESTION}
+            </h2>
+            <div className="mt-7 w-full max-w-sm space-y-3">
+              {STATE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => void answerHolding(opt.id)}
+                  className="w-full p-4 text-left bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl hover:bg-dawn-haze/10 transition-colors"
+                >
+                  <p className="font-serif text-base">{opt.label}</p>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                markAsked();
+                setHoldingDone(true);
+              }}
+              className="mt-6 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors"
+            >
+              Just my card today
+            </button>
+          </section>
+        )}
+
+        {/* Discovery moment — a hard answer, no goal named yet */}
+        {showHolding && discovery && (
+          <section className="flex flex-col items-center text-center py-12 animate-card-rise">
+            <p className="text-lg font-serif italic text-dawn-ink/85 max-w-[28ch] leading-relaxed">
+              {DISCOVERY_LINE}
+            </p>
+            <Link
+              to="/goal"
+              onClick={() => track("goal_prompt_accepted")}
+              className="mt-8 px-10 py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full"
+            >
+              {DISCOVERY_CTA}
+            </Link>
+            <button
+              onClick={() => {
+                track("goal_prompt_dismissed");
+                setDiscovery(false);
+                setHoldingDone(true);
+              }}
+              className="mt-4 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors"
+            >
+              {DISCOVERY_DISMISS}
+            </button>
+          </section>
+        )}
+
         {/* STATE 1: Arrival / Intention — what brought you here today? */}
-        {ritual === "arrival" && (
+        {ritual === "arrival" && !showHolding && (
           <section className="flex flex-col items-center text-center py-10 animate-card-rise">
             <div className="relative w-40 h-40 mb-6">
               <div
@@ -416,6 +607,15 @@ function TodayPage() {
         {ritual === "open" && activeCard && (
           <div className="animate-card-rise">
             <OracleCardView key={activeCard.id} card={activeCard} onDrawAgain={drawAgain} />
+            {/* The daily benchmark line — the card's footer, in the card's voice. */}
+            {goal?.benchmark && goal.todayState !== "cant" && (
+              <BenchmarkFooter
+                text={goal.benchmark.text}
+                sourceName={goal.benchmark.sourceName}
+                sourceUrl={goal.benchmark.sourceUrl}
+                benchmarkId={goal.benchmark.id}
+              />
+            )}
           </div>
         )}
 

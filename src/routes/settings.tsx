@@ -4,6 +4,8 @@ import { getSettings, saveSettings } from "@/lib/store";
 import type { Settings } from "@/lib/dawnhalo";
 import { BottomNav } from "@/components/BottomNav";
 import { syncDailyReminder, reminderSupported } from "@/lib/notifications";
+import { getGoalStatus, updateGoal } from "@/lib/goalStore";
+import type { GoalStatus, RitualType } from "@/lib/api";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Dawnhalo" }, { name: "description", content: "Reminders and preferences." }] }),
@@ -16,14 +18,26 @@ function SettingsPage() {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [isNative, setIsNative] = useState(false);
 
+  const [goal, setGoal] = useState<GoalStatus | null>(null);
+
   useEffect(() => {
     let alive = true;
     getSettings().then((loaded) => alive && setS(loaded));
+    getGoalStatus().then((g) => alive && setGoal(g));
     setIsNative(reminderSupported());
     return () => {
       alive = false;
     };
   }, []);
+
+  const switchRitual = async (ritual: RitualType) => {
+    if (!goal || goal.goal.ritual === ritual) return;
+    setGoal({ ...goal, goal: { ...goal.goal, ritual } }); // optimistic
+    const next = await updateGoal({ ritual });
+    if (next) setGoal(next);
+    setSavedMsg(true);
+    setTimeout(() => setSavedMsg(false), 1200);
+  };
 
   const update = (next: Settings) => {
     setS(next);
@@ -75,7 +89,44 @@ function SettingsPage() {
           </p>
         )}
 
+        {/* What you're holding on for — quiet entry point + ritual switch */}
         <div className="mt-10 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl divide-y divide-dawn-haze/10 backdrop-blur-md">
+          <Link to="/goal" className="block p-5">
+            <p className="font-serif text-lg text-dawn-ink">What you're holding on for</p>
+            <p className="text-xs text-dawn-ink/50">
+              {goal ? `Day ${goal.day} · ${goal.goal.title}` : "Name one goal and check in daily."}
+            </p>
+          </Link>
+          {goal && (
+            <div className="p-5">
+              <p className="font-serif text-lg text-dawn-ink mb-1">Daily ritual</p>
+              <p className="text-xs text-dawn-ink/50 mb-3">What helps you keep going.</p>
+              <div className="flex gap-2">
+                {(
+                  [
+                    { id: "card", label: "Pull a card" },
+                    { id: "writing", label: "Write it out" },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => switchRitual(opt.id)}
+                    className={
+                      "px-4 py-2 text-[12px] rounded-full border transition-colors " +
+                      (goal.goal.ritual === opt.id
+                        ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
+                        : "border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10")
+                    }
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl divide-y divide-dawn-haze/10 backdrop-blur-md">
           <Link to="/privacy" className="block p-5">
             <p className="font-serif text-lg text-dawn-ink">Privacy</p>
             <p className="text-xs text-dawn-ink/50">What we store, and what we never collect.</p>

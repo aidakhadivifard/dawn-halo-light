@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 
 const items = [
   { to: "/", label: "Today" },
+  { to: "/goal", label: "Goal" },
   { to: "/saved", label: "Saved" },
   { to: "/calendar", label: "Calendar" },
   { to: "/settings", label: "Settings" },
