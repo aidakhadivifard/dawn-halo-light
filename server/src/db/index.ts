@@ -32,6 +32,53 @@ export interface DrawRow {
   created_at: string;
 }
 
+export interface GoalRow {
+  id: string;
+  device_id: string;
+  title: string;
+  reward: string;
+  start_date: string; // local YYYY-MM-DD of commitment — Day 1
+  target_date: string; // local YYYY-MM-DD, LOCKED after creation
+  photo_url: string | null;
+  ritual: string; // "card" | "writing"
+  status: string; // "active" | "completed" | "abandoned"
+  created_at: string;
+  closed_at: string | null;
+}
+
+export interface CheckinRow {
+  id: string;
+  goal_id: string;
+  device_id: string;
+  local_date: string;
+  state: string; // "strong" | "barely" | "cant" | "exhausted"
+  note: string | null;
+  created_at: string;
+}
+
+export interface RitualEntryRow {
+  id: string;
+  checkin_id: string;
+  goal_id: string;
+  device_id: string;
+  local_date: string;
+  type: string; // "card" | "writing"
+  card_id: string | null;
+  user_text: string | null;
+  ai_reflection: string | null;
+  created_at: string;
+}
+
+export interface HonestyRow {
+  id: string;
+  goal_id: string;
+  device_id: string;
+  local_date: string;
+  day_number: number;
+  answer: string; // "continue" | "thinking" | "done"
+  created_at: string;
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS devices (
   device_id TEXT PRIMARY KEY,
@@ -93,6 +140,57 @@ CREATE TABLE IF NOT EXISTS shares (
   note TEXT,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS goals (
+  id TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  reward TEXT NOT NULL,
+  start_date TEXT NOT NULL,
+  target_date TEXT NOT NULL,
+  photo_url TEXT,
+  ritual TEXT NOT NULL DEFAULT 'card',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL,
+  closed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_goals_device_status ON goals(device_id, status);
+
+CREATE TABLE IF NOT EXISTS goal_checkins (
+  id TEXT PRIMARY KEY,
+  goal_id TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  local_date TEXT NOT NULL,
+  state TEXT NOT NULL,
+  note TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_checkins_goal_date ON goal_checkins(goal_id, local_date);
+
+CREATE TABLE IF NOT EXISTS ritual_entries (
+  id TEXT PRIMARY KEY,
+  checkin_id TEXT NOT NULL,
+  goal_id TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  local_date TEXT NOT NULL,
+  type TEXT NOT NULL,
+  card_id TEXT,
+  user_text TEXT,
+  ai_reflection TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rituals_goal_date ON ritual_entries(goal_id, local_date);
+
+CREATE TABLE IF NOT EXISTS honesty_checks (
+  id TEXT PRIMARY KEY,
+  goal_id TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  local_date TEXT NOT NULL,
+  day_number INTEGER NOT NULL,
+  answer TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_honesty_goal_created ON honesty_checks(goal_id, created_at);
 `;
 
 export type DB = ReturnType<typeof createDb>;
@@ -173,6 +271,57 @@ export function createDb(path = ":memory:") {
        VALUES (@token, @theme, @illustration_id, @opener, @title, @message, @note, @created_at)`,
     ),
     getShare: sqlite.prepare<[string]>("SELECT * FROM shares WHERE token = ?"),
+
+    insertGoal: sqlite.prepare(
+      `INSERT INTO goals (id, device_id, title, reward, start_date, target_date, photo_url, ritual, status, created_at, closed_at)
+       VALUES (@id, @device_id, @title, @reward, @start_date, @target_date, @photo_url, @ritual, 'active', @created_at, NULL)`,
+    ),
+    getActiveGoal: sqlite.prepare<[string]>(
+      "SELECT * FROM goals WHERE device_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1",
+    ),
+    getGoal: sqlite.prepare<[string]>("SELECT * FROM goals WHERE id = ?"),
+    updateGoalMeta: sqlite.prepare(
+      "UPDATE goals SET title = @title, photo_url = @photoUrl, ritual = @ritual WHERE id = @id",
+    ),
+    setGoalStatus: sqlite.prepare(
+      "UPDATE goals SET status = @status, closed_at = @closedAt WHERE id = @id",
+    ),
+    insertCheckin: sqlite.prepare(
+      `INSERT INTO goal_checkins (id, goal_id, device_id, local_date, state, note, created_at)
+       VALUES (@id, @goal_id, @device_id, @local_date, @state, @note, @created_at)`,
+    ),
+    getCheckin: sqlite.prepare<[string, string]>(
+      "SELECT * FROM goal_checkins WHERE goal_id = ? AND local_date = ?",
+    ),
+    listCheckins: sqlite.prepare<[string]>(
+      "SELECT * FROM goal_checkins WHERE goal_id = ? ORDER BY local_date ASC",
+    ),
+    countCheckinDays: sqlite.prepare<[string]>(
+      "SELECT COUNT(DISTINCT local_date) AS n FROM goal_checkins WHERE device_id = ?",
+    ),
+    countCheckinsOn: sqlite.prepare<[string, string]>(
+      "SELECT COUNT(*) AS n FROM goal_checkins WHERE device_id = ? AND local_date = ?",
+    ),
+    insertRitualEntry: sqlite.prepare(
+      `INSERT INTO ritual_entries (id, checkin_id, goal_id, device_id, local_date, type, card_id, user_text, ai_reflection, created_at)
+       VALUES (@id, @checkin_id, @goal_id, @device_id, @local_date, @type, @card_id, @user_text, @ai_reflection, @created_at)`,
+    ),
+    getRitualForCheckin: sqlite.prepare<[string]>(
+      "SELECT * FROM ritual_entries WHERE checkin_id = ? LIMIT 1",
+    ),
+    listRitualEntries: sqlite.prepare<[string]>(
+      "SELECT * FROM ritual_entries WHERE goal_id = ? ORDER BY local_date ASC",
+    ),
+    insertHonesty: sqlite.prepare(
+      `INSERT INTO honesty_checks (id, goal_id, device_id, local_date, day_number, answer, created_at)
+       VALUES (@id, @goal_id, @device_id, @local_date, @day_number, @answer, @created_at)`,
+    ),
+    lastHonesty: sqlite.prepare<[string]>(
+      "SELECT * FROM honesty_checks WHERE goal_id = ? ORDER BY day_number DESC LIMIT 1",
+    ),
+    listHonesty: sqlite.prepare<[string]>(
+      "SELECT * FROM honesty_checks WHERE goal_id = ? ORDER BY day_number ASC",
+    ),
   };
 
   return {
@@ -268,6 +417,59 @@ export function createDb(path = ":memory:") {
         reminderTime,
         notificationsOn: notificationsOn ? 1 : 0,
       });
+    },
+
+    insertGoal(row: Omit<GoalRow, "status" | "closed_at">) {
+      stmts.insertGoal.run(row as any);
+    },
+    getActiveGoal(deviceId: string): GoalRow | undefined {
+      return stmts.getActiveGoal.get(deviceId) as GoalRow | undefined;
+    },
+    getGoal(id: string): GoalRow | undefined {
+      return stmts.getGoal.get(id) as GoalRow | undefined;
+    },
+    updateGoalMeta(id: string, title: string, photoUrl: string | null, ritual: string) {
+      stmts.updateGoalMeta.run({ id, title, photoUrl, ritual });
+    },
+    setGoalStatus(id: string, status: "completed" | "abandoned", closedAt: string) {
+      stmts.setGoalStatus.run({ id, status, closedAt });
+    },
+
+    /** Throws on duplicate (goal_id, local_date) — the day is already checked in. */
+    insertCheckin(row: CheckinRow) {
+      stmts.insertCheckin.run(row as any);
+    },
+    getCheckin(goalId: string, localDate: string): CheckinRow | undefined {
+      return stmts.getCheckin.get(goalId, localDate) as CheckinRow | undefined;
+    },
+    listCheckins(goalId: string): CheckinRow[] {
+      return stmts.listCheckins.all(goalId) as CheckinRow[];
+    },
+    countCheckinDays(deviceId: string): number {
+      return (stmts.countCheckinDays.get(deviceId) as { n: number }).n;
+    },
+    hasCheckinOn(deviceId: string, localDate: string): boolean {
+      return (stmts.countCheckinsOn.get(deviceId, localDate) as { n: number }).n > 0;
+    },
+
+    insertRitualEntry(row: RitualEntryRow) {
+      stmts.insertRitualEntry.run(row as any);
+    },
+    getRitualForCheckin(checkinId: string): RitualEntryRow | undefined {
+      return stmts.getRitualForCheckin.get(checkinId) as RitualEntryRow | undefined;
+    },
+    listRitualEntries(goalId: string): RitualEntryRow[] {
+      return stmts.listRitualEntries.all(goalId) as RitualEntryRow[];
+    },
+
+    insertHonesty(row: HonestyRow) {
+      stmts.insertHonesty.run(row as any);
+    },
+    lastHonesty(goalId: string): HonestyRow | undefined {
+      return stmts.lastHonesty.get(goalId) as HonestyRow | undefined;
+    },
+    listHonesty(goalId: string): HonestyRow[] {
+      return stmts.listHonesty.all(goalId) as HonestyRow[];
     },
 
     putShare(row: {

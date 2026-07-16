@@ -12,6 +12,8 @@ export interface GenInput {
   intent: "dream" | "question" | "feeling" | "general";
   text?: string;
   previous?: { title: string; message: string };
+  /** Endurance-goal prompt fragment (see prompt.ts goalAnchor) — optional. */
+  goalContext?: string;
 }
 
 export interface GenResult {

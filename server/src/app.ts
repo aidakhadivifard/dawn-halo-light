@@ -161,6 +161,110 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     res.json({ ok: true });
   });
 
+  // --- Endurance goal ("what you're holding on for") ---
+  app.get("/api/goal", requireDevice, resolveLocalDate, (req, res) => {
+    res.json({ status: svc.goalStatus(req.deviceId!, req.localDate!) });
+  });
+
+  app.post("/api/goal", requireDevice, resolveLocalDate, (req, res) => {
+    const result = svc.createGoal(req.deviceId!, req.localDate!, {
+      title: (req.body?.title ?? "").toString(),
+      reward: (req.body?.reward ?? "").toString(),
+      targetDate: (req.body?.targetDate ?? "").toString(),
+      photoUrl: req.body?.photoUrl ? req.body.photoUrl.toString() : undefined,
+      ritual: (req.body?.ritual ?? "card").toString(),
+    });
+    if (result.kind === "exists") return res.status(409).json({ error: "goal_already_active" });
+    if (result.kind === "invalid") return res.status(400).json({ error: result.reason });
+    res.json({ status: result.status });
+  });
+
+  app.patch("/api/goal", requireDevice, resolveLocalDate, (req, res) => {
+    const result = svc.updateGoal(req.deviceId!, {
+      title: req.body?.title !== undefined ? req.body.title.toString() : undefined,
+      photoUrl:
+        req.body?.photoUrl !== undefined
+          ? req.body.photoUrl === null
+            ? null
+            : req.body.photoUrl.toString()
+          : undefined,
+      ritual: req.body?.ritual !== undefined ? req.body.ritual.toString() : undefined,
+    });
+    if (result.kind === "no_goal") return res.status(404).json({ error: "no_active_goal" });
+    res.json({ ok: true, status: svc.goalStatus(req.deviceId!, req.localDate!) });
+  });
+
+  app.post("/api/goal/close", requireDevice, resolveLocalDate, (req, res) => {
+    const reason = req.body?.reason === "completed" ? "completed" : "abandoned";
+    const result = svc.closeGoal(req.deviceId!, req.localDate!, reason);
+    if (result.kind === "no_goal") return res.status(404).json({ error: "no_active_goal" });
+    if (result.kind === "target_not_reached")
+      return res.status(400).json({ error: "target_not_reached" });
+    res.json({ summary: result.summary });
+  });
+
+  app.post("/api/goal/checkin", requireDevice, resolveLocalDate, (req, res) => {
+    const result = svc.checkin(req.deviceId!, req.localDate!, {
+      state: (req.body?.state ?? "").toString(),
+      note: (req.body?.note ?? "").toString(),
+    });
+    if (result.kind === "crisis") {
+      return res
+        .status(200)
+        .json({ isCrisis: true, message: result.message, resources: result.resources });
+    }
+    if (result.kind === "no_goal") return res.status(404).json({ error: "no_active_goal" });
+    if (result.kind === "invalid") return res.status(400).json({ error: result.reason });
+    res.json({ checkin: result.payload });
+  });
+
+  app.post("/api/goal/ritual", requireDevice, resolveLocalDate, cardLimiter, async (req, res) => {
+    const type = req.body?.type === "writing" ? "writing" : "card";
+    const text = (req.body?.text ?? "").toString();
+    if (type === "writing" && !text.trim())
+      return res.status(400).json({ error: "missing_text" });
+    const result = await svc.ritual(req.deviceId!, req.localDate!, { type, text });
+    if (result.kind === "crisis") {
+      return res
+        .status(200)
+        .json({ isCrisis: true, message: result.message, resources: result.resources });
+    }
+    if (result.kind === "no_goal") return res.status(404).json({ error: "no_active_goal" });
+    if (result.kind === "no_checkin") return res.status(400).json({ error: "checkin_required" });
+    if (result.kind === "already_done")
+      return res.status(409).json({ error: "ritual_already_done" });
+    if (result.kind === "invalid") return res.status(400).json({ error: result.reason });
+    if (result.kind === "paywall") {
+      return res.status(402).json({
+        paywall: true,
+        reason: result.reason,
+        entitlement: svc.entitlement(req.deviceId!, req.localDate!),
+      });
+    }
+    if (result.kind === "card") return res.json({ card: result.card });
+    res.json({ reflection: result.reflection, fallback: result.fallback });
+  });
+
+  app.post("/api/goal/honesty", requireDevice, resolveLocalDate, (req, res) => {
+    const result = svc.honesty(req.deviceId!, req.localDate!, (req.body?.answer ?? "").toString());
+    if (result.kind === "no_goal") return res.status(404).json({ error: "no_active_goal" });
+    if (result.kind === "invalid") return res.status(400).json({ error: result.reason });
+    res.json({ ok: true, summary: result.summary });
+  });
+
+  app.get("/api/goal/history", requireDevice, resolveLocalDate, (req, res) => {
+    const result = svc.goalHistory(req.deviceId!, req.localDate!);
+    if (result.kind === "no_goal") return res.status(404).json({ error: "no_active_goal" });
+    if (result.kind === "paywall") {
+      return res.status(402).json({
+        paywall: true,
+        reason: result.reason,
+        entitlement: svc.entitlement(req.deviceId!, req.localDate!),
+      });
+    }
+    res.json({ checkins: result.checkins, entries: result.entries });
+  });
+
   // --- Send a Spark (share) ---
   app.post("/api/spark", requireDevice, (req, res) => {
     const c = req.body?.card;

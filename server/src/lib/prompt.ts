@@ -77,17 +77,28 @@ Question: "does he still think about me?"
 
 OUTPUT FORMAT: respond with ONLY the JSON object — no prose, no code fences.`;
 
+/**
+ * Prompt fragment injected when the reader has an active endurance goal
+ * (mirrors the dreamAnchors pattern). The reading may weave the day count in,
+ * but must obey the Copy Rule: affirm the effort, never promise the outcome.
+ */
+export function goalAnchor(goal: { title: string; reward: string; day: number }): string {
+  return `\n\nCONTEXT — WHAT THEY ARE HOLDING ON FOR (the house knows this; weave it in naturally, do not announce it as a feature):\nDay ${goal.day} of holding on for: "${goal.title}". The reward they wait for: ${goal.reward}.\nThe reading may acknowledge the day count and the holding (e.g. "Day ${goal.day} of holding on…"). It must affirm the effort, never promise the outcome — never predict that they will reach it, never name results.`;
+}
+
 export function buildUserPrompt(args: {
   intent: "dream" | "question" | "feeling" | "general";
   text?: string;
   previous?: { title: string; message: string };
+  goalContext?: string;
 }): string {
   const { intent, text, previous } = args;
+  const goalCtx = args.goalContext ?? "";
   if (previous) {
-    return `Earlier you drew this card for them:\nCard: ${previous.title}\nReading: ${previous.message}\n\nThey want to go deeper: "${text ?? ""}"\n\nDraw the card from the deck that best meets this follow-up (it may be the same card revealing a new face, or a new one). Interpret it in light of both their original reading and this question. Same three-part structure and JSON format.`;
+    return `Earlier you drew this card for them:\nCard: ${previous.title}\nReading: ${previous.message}\n\nThey want to go deeper: "${text ?? ""}"\n\nDraw the card from the deck that best meets this follow-up (it may be the same card revealing a new face, or a new one). Interpret it in light of both their original reading and this question. Same three-part structure and JSON format.${goalCtx}`;
   }
   if (!text) {
-    return `Draw today's daily card from the deck — sense the quiet emotional weather of an ordinary morning and choose the card that meets it. Same three-part structure and JSON format.`;
+    return `Draw today's daily card from the deck — sense the quiet emotional weather of an ordinary morning and choose the card that meets it. Same three-part structure and JSON format.${goalCtx}`;
   }
   const anchors = intent === "dream" && text ? dreamAnchors(text) : "";
   const label =
@@ -98,5 +109,5 @@ export function buildUserPrompt(args: {
         : intent === "feeling"
         ? "They shared a feeling. Sense the emotional pattern beneath their words, choose the deck card that meets it, and read it:"
         : "They brought this. Sense what they might be feeling underneath, choose the deck card that meets it, and read it:";
-  return `${label}\n"${text}"${anchors}\n\nChoose ONE card from the deck and read it for them. Same structure and JSON format.`;
+  return `${label}\n"${text}"${anchors}${goalCtx}\n\nChoose ONE card from the deck and read it for them. Same structure and JSON format.`;
 }

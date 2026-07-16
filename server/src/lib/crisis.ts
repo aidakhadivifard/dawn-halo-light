@@ -53,7 +53,11 @@ const CRISIS_PATTERNS: { label: string; re: RegExp }[] = [
   { label: "world_without_me", re: /\b(everyone|world|they)\s+(would\s+be|are|is)\s+better\s+(off\s+)?without\s+me\b/ },
   { label: "no_reason_to_live", re: /\b(no|nothing|not worth)\s+(reason|point|left)?\s*(to\s+)?(live|living)\b/ },
   { label: "not_worth_living", re: /\b(life|everything)\s+(isn'?t|is not|ain'?t)\s+worth\s+(it|living)\b/ },
-  { label: "cant_go_on", re: /\bcan'?t\s+(go\s+on|keep\s+going|do\s+this)\s+(anymore|any\s?longer)?\b/ },
+  // NOTE: "can't do this (anymore)" is deliberately NOT here — in the
+  // endurance-goal calibration it is ordinary hardship ("I can't do this
+  // anymore" about a goal), which must get reflection, never a referral.
+  // "can't go on" / "can't keep going" remain crisis signals.
+  { label: "cant_go_on", re: /\bcan'?t\s+(go\s+on|keep\s+going)\s+(anymore|any\s?longer)?\b/ },
   { label: "self_harm", re: /\bself[\s-]?harm(ing)?\b/ },
   { label: "hurt_myself", re: /\b(hurt|hurting|harm|harming|cut|cutting)\s+my\s?self\b/ },
   { label: "overdose", re: /\b(overdose|over\s?dosing|od)\s+(on\s+\w+|to\s+die)\b/ },
