@@ -20,22 +20,29 @@ export const DISCOVERY_CTA = "Want to name it?";
 export const DISCOVERY_DISMISS = "Not now";
 
 export const ONBOARDING = {
-  step1Heading: "What are you holding on for?",
-  step1Sub: "One concrete thing, with a real day it ends.",
-  titlePlaceholder: "e.g. stay at this job until my equity vests",
-  rewardLabel: "The reward at the end",
-  rewardPlaceholder: "e.g. the vested shares — my way out",
-  dateLabel: "The day it ends",
-  photoLabel: "A photo of it (optional — stays on your phone)",
-  step2Heading: "What helps you keep going?",
-  step2Card: "Pull a card",
-  step2CardSub: "A reading for the day you're in.",
-  step2Writing: "Write it out",
-  step2WritingSub: "Say it plainly; get one honest reflection.",
-  step3Heading: HOLDING_QUESTION,
-  step3Sub: "Day 1 starts the moment you answer.",
-  dateLockNote:
-    "The date locks when you commit. Changing it later means closing this goal and starting a new one — a shorter road you actually walk beats a longer one you keep redrawing.",
+  titleHeading: "What are you holding on for?",
+  titleSub: "Name the one thing. Plain words are enough.",
+  titlePlaceholder: "say it in your own words…",
+  titleExamples: [
+    "stay at this job until my shares vest",
+    "fit into it by the wedding",
+    "finish my thesis",
+  ],
+  rewardHeading: "What's waiting for you at the end?",
+  rewardSub: "The reward that makes the days worth paying.",
+  rewardPlaceholder: "the vested shares — my way out…",
+  dateHeading: "Which day does it end?",
+  dateSub: "A real date. That's what makes it a promise, not a wish.",
+  dateLockNote: "This date locks when you commit — you can close the goal early, you just can't stretch the road.",
+  photoButton: "Add a photo of it (optional)",
+  photoPrivacy: "It never leaves your phone.",
+  ritualHeading: "What helps you keep going?",
+  ritualCard: "Pull a card",
+  ritualCardSub: "A reading for the day you're in.",
+  ritualWriting: "Write it out",
+  ritualWritingSub: "Say it plainly; get one honest reflection.",
+  checkinHeading: HOLDING_QUESTION,
+  checkinSub: "Day 1 starts the moment you answer.",
 } as const;
 
 export const HONESTY_OPTIONS = [
