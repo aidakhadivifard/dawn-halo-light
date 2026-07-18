@@ -130,14 +130,19 @@ function GoalPage() {
 
   useEffect(() => {
     let alive = true;
+    // Don't hang on a cold backend (Render free tier): show onboarding/home
+    // from what we know, reconcile when the real status arrives.
+    const loadingFallback = setTimeout(() => alive && setLoading(false), 2500);
     getGoalStatus().then((s) => {
       if (!alive) return;
+      clearTimeout(loadingFallback);
       setStatus(s);
       setLoading(false);
     });
     setPhoto(getGoalPhoto());
     return () => {
       alive = false;
+      clearTimeout(loadingFallback);
     };
   }, []);
 

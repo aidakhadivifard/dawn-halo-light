@@ -195,11 +195,22 @@ function TodayPage() {
       setHasDrawnToday(true);
     });
     getCalendar().then(({ streak }) => alive && setStreak(streak));
+    // Never let a sleeping backend (Render free tier cold start, 30–50s)
+    // blank the page: if goal status hasn't arrived quickly, proceed with
+    // the question and reconcile when the real answer lands.
+    const phaseFallback = setTimeout(() => {
+      setHoldingPhase((p) => (p === "pending" ? (askedToday() ? "done" : "ask") : p));
+    }, 2500);
     getGoalStatus().then((g) => {
       if (!alive) return;
+      clearTimeout(phaseFallback);
       setGoal(g);
       if (g) setGoalPhotoState(getGoalPhoto());
-      setHoldingPhase(g ? (g.checkedInToday ? "done" : "ask") : askedToday() ? "done" : "ask");
+      setHoldingPhase((p) => {
+        if (g?.checkedInToday) return "done";
+        if (p === "pending") return g ? "ask" : askedToday() ? "done" : "ask";
+        return p; // user is already mid-question/discovery — don't yank the UI
+      });
     });
     setDateLabel(formatDate(today));
     // Stripe redirects back here with ?checkout=success after payment.
@@ -214,6 +225,7 @@ function TodayPage() {
     setReminders([REMINDERS[a], REMINDERS[b]]);
     return () => {
       alive = false;
+      clearTimeout(phaseFallback);
     };
   }, [today]);
 
