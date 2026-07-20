@@ -1,11 +1,12 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 
+// Flow v2: the goal is reached through the Today strip (details, not a
+// destination), so the nav stays four quiet doors.
 const items = [
   { to: "/", label: "Today" },
-  { to: "/goal", label: "Goal" },
-  { to: "/saved", label: "Saved" },
-  { to: "/calendar", label: "Calendar" },
-  { to: "/settings", label: "Settings" },
+  { to: "/calendar", label: "Journal" },
+  { to: "/saved", label: "Library" },
+  { to: "/settings", label: "Me" },
 ] as const;
 
 export function BottomNav() {

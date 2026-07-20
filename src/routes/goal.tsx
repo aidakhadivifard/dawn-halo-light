@@ -168,10 +168,9 @@ function GoalPage() {
     return (
       <Shell>
         <Onboarding
-          onCreated={(s, firstCheckin) => {
+          onCreated={(s) => {
             setStatus(s);
             setPhoto(getGoalPhoto());
-            if (firstCheckin) void refresh();
           }}
           onOffline={() => setOfflineNote(true)}
           offlineNote={offlineNote}
@@ -219,89 +218,29 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 // ---------------------------------------------------------------- onboarding
 
-type OnboardStep = "title" | "reward" | "date" | "ritual" | "checkin";
-const ONBOARD_STEPS: OnboardStep[] = ["title", "reward", "date", "ritual", "checkin"];
-
-/** One question per screen — a ritual, not a form. Mirrors the Today arrival. */
-function OnboardScreen({
-  step,
-  heading,
-  sub,
-  children,
-  onBack,
-}: {
-  step: OnboardStep;
-  heading: string;
-  sub?: string;
-  children: React.ReactNode;
-  onBack?: () => void;
-}) {
-  const index = ONBOARD_STEPS.indexOf(step);
-  return (
-    <section className="flex flex-col items-center text-center py-8 animate-card-rise">
-      <div className="relative w-32 h-32 mb-2">
-        <div
-          aria-hidden
-          className="absolute inset-0 rounded-full blur-[50px] opacity-70 animate-halo"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(245,207,138,0.5) 0%, rgba(244,163,122,0.25) 50%, transparent 75%)",
-          }}
-        />
-      </div>
-      <div className="flex gap-1.5 mb-6" aria-hidden>
-        {ONBOARD_STEPS.map((s, i) => (
-          <span
-            key={s}
-            className={
-              "size-1.5 rounded-full transition-colors " +
-              (i <= index ? "bg-dawn-haze shadow-[0_0_10px_rgba(245,183,138,0.7)]" : "bg-dawn-ink/20")
-            }
-          />
-        ))}
-      </div>
-      <h1 className="text-2xl sm:text-3xl font-serif font-light tracking-tight italic text-balance leading-snug">
-        {heading}
-      </h1>
-      {sub && (
-        <p className="mt-3 text-sm text-dawn-ink/60 leading-relaxed max-w-[30ch]">{sub}</p>
-      )}
-      <div className="mt-7 w-full max-w-sm">{children}</div>
-      {onBack && (
-        <button
-          onClick={onBack}
-          className="mt-6 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors"
-        >
-          ← Back
-        </button>
-      )}
-    </section>
-  );
-}
+// Flow v2: goal creation is ONE flowing conversation — every question on one
+// scroll, no pagination. The first check-in happens on Today, after the card.
 
 const ONBOARD_INPUT =
   "w-full bg-dawn-surface text-dawn-ink placeholder:text-dawn-ink/40 border border-dawn-haze/30 rounded-2xl px-5 py-4 text-base text-center focus:outline-none focus:ring-1 ring-dawn-rose/40";
-const ONBOARD_CTA =
-  "mt-6 w-full py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(244,163,122,0.5)] hover:bg-dawn-haze transition-all disabled:opacity-40";
 
 function Onboarding({
   onCreated,
   onOffline,
   offlineNote,
 }: {
-  onCreated: (s: GoalStatus, firstCheckin: boolean) => void;
+  onCreated: (s: GoalStatus) => void;
   onOffline: () => void;
   offlineNote: boolean;
 }) {
-  const [step, setStep] = useState<OnboardStep>("title");
+  const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [reward, setReward] = useState("");
   const [targetDate, setTargetDate] = useState("");
-  const [ritual, setRitual] = useState<RitualType | null>(null);
+  const [ritual, setRitual] = useState<RitualType>("card");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<GoalStatus | null>(null);
-  const [ack, setAck] = useState<CheckinResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
@@ -311,17 +250,17 @@ function Onboarding({
     return d.toLocaleDateString("en-CA");
   })();
 
-  const commit = async (chosen: RitualType) => {
-    if (busy) return;
-    setRitual(chosen);
+  const ready = title.trim() && reward.trim() && targetDate;
+
+  const commit = async () => {
+    if (busy || !ready) return;
     setBusy(true);
     setError("");
-    const res = await createGoal({ title, reward, targetDate, ritual: chosen });
+    const res = await createGoal({ title, reward, targetDate, ritual });
     setBusy(false);
     if (res.kind === "ok") {
       track("goal_created");
       setCreated(res.status);
-      setStep("checkin");
       return;
     }
     if (res.kind === "offline") {
@@ -331,211 +270,178 @@ function Onboarding({
     setError("That didn't take — check the date is in the future.");
   };
 
-  const firstCheckin = async (state: CheckinState) => {
-    if (busy) return;
-    setBusy(true);
-    const res = await postCheckin({ state });
-    setBusy(false);
-    if (res.kind === "checkin") {
-      track("checkin_completed", { state, day: res.checkin.day });
-      if (RETENTION_DAYS.includes(res.checkin.day))
-        track("dN_retention", { day: res.checkin.day });
-      setAck(res.checkin);
-    }
-  };
-
-  if (ack && created) {
+  // Day 1 starts at commit; the first check-in happens on Today, after the card.
+  if (created) {
     return (
-      <section className="py-10 text-center animate-card-rise">
+      <section className="py-14 text-center animate-card-rise">
         <p className="text-[10px] uppercase tracking-[0.2em] opacity-50">Day 1</p>
-        <h1 className="mt-3 text-3xl font-serif font-light italic">{ack.ack}</h1>
+        <h1 className="mt-3 text-3xl font-serif font-light italic leading-snug">
+          It's named. It's yours now.
+        </h1>
         <p className="mt-4 text-sm text-dawn-ink/60 leading-relaxed max-w-[32ch] mx-auto">
           {created.goal.title}
         </p>
         <button
-          onClick={() => onCreated(created, true)}
-          className="mt-10 px-10 py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full"
+          onClick={() => {
+            onCreated(created);
+            void navigate({ to: "/" });
+          }}
+          className="mt-10 px-10 py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(244,163,122,0.5)]"
         >
-          Begin
+          Draw today's card
         </button>
       </section>
     );
   }
 
-  if (step === "title") {
-    return (
-      <OnboardScreen step="title" heading={ONBOARDING.titleHeading} sub={ONBOARDING.titleSub}>
-        <input
-          autoFocus
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={ONBOARDING.titlePlaceholder}
-          className={ONBOARD_INPUT}
-        />
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          {ONBOARDING.titleExamples.map((ex) => (
-            <button
-              key={ex}
-              onClick={() => setTitle(ex)}
-              className={
-                "text-[12px] px-4 py-2.5 rounded-full border transition-colors " +
-                (title === ex
-                  ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
-                  : "border-dawn-haze/25 text-dawn-ink/75 hover:bg-dawn-haze/10")
-              }
-            >
-              {ex}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => title.trim() && setStep("reward")}
-          disabled={!title.trim()}
-          className={ONBOARD_CTA}
-        >
-          Continue
-        </button>
-      </OnboardScreen>
-    );
-  }
-
-  if (step === "reward") {
-    return (
-      <OnboardScreen
-        step="reward"
-        heading={ONBOARDING.rewardHeading}
-        sub={ONBOARDING.rewardSub}
-        onBack={() => setStep("title")}
-      >
-        <input
-          autoFocus
-          value={reward}
-          onChange={(e) => setReward(e.target.value)}
-          placeholder={ONBOARDING.rewardPlaceholder}
-          className={ONBOARD_INPUT}
-        />
-        <button
-          onClick={() => reward.trim() && setStep("date")}
-          disabled={!reward.trim()}
-          className={ONBOARD_CTA}
-        >
-          Continue
-        </button>
-      </OnboardScreen>
-    );
-  }
-
-  if (step === "date") {
-    return (
-      <OnboardScreen
-        step="date"
-        heading={ONBOARDING.dateHeading}
-        sub={ONBOARDING.dateSub}
-        onBack={() => setStep("reward")}
-      >
-        <input
-          type="date"
-          min={minDate}
-          value={targetDate}
-          onChange={(e) => setTargetDate(e.target.value)}
-          className={ONBOARD_INPUT}
-        />
-        <p className="mt-3 text-xs text-dawn-ink/50 leading-relaxed max-w-[34ch] mx-auto">
-          {ONBOARDING.dateLockNote}
-        </p>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={async (e) => {
-            const f = e.target.files?.[0];
-            if (f) setPhotoPreview(await setGoalPhoto(f));
+  // One flowing conversation — every question on one scroll, nothing removed.
+  return (
+    <section className="flex flex-col items-center text-center py-6 animate-card-rise">
+      <div className="relative w-28 h-28 mb-4">
+        <div
+          aria-hidden
+          className="absolute inset-0 rounded-full blur-[46px] opacity-70 animate-halo"
+          style={{
+            background:
+              "radial-gradient(circle, rgba(245,207,138,0.5) 0%, rgba(244,163,122,0.25) 50%, transparent 75%)",
           }}
         />
-        <div className="mt-5 flex items-center justify-center gap-3">
-          {photoPreview && (
-            <img
-              src={photoPreview}
-              alt=""
-              className="size-12 rounded-xl object-cover ring-1 ring-dawn-haze/30"
-            />
-          )}
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="text-[12px] px-4 py-2.5 rounded-full border border-dawn-haze/25 text-dawn-ink/75 hover:bg-dawn-haze/10 transition-colors"
-          >
-            {photoPreview ? "Change photo" : ONBOARDING.photoButton}
-          </button>
-        </div>
-        <p className="mt-2 text-[11px] text-dawn-ink/40">{ONBOARDING.photoPrivacy}</p>
-        <button
-          onClick={() => targetDate && setStep("ritual")}
-          disabled={!targetDate}
-          className={ONBOARD_CTA}
-        >
-          Continue
-        </button>
-      </OnboardScreen>
-    );
-  }
-
-  if (step === "ritual") {
-    return (
-      <OnboardScreen
-        step="ritual"
-        heading={ONBOARDING.ritualHeading}
-        onBack={() => setStep("date")}
-      >
-        <div className="space-y-3">
-          {(
-            [
-              { id: "card", label: ONBOARDING.ritualCard, sub: ONBOARDING.ritualCardSub },
-              { id: "writing", label: ONBOARDING.ritualWriting, sub: ONBOARDING.ritualWritingSub },
-            ] as const
-          ).map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => commit(opt.id)}
-              disabled={busy}
-              className={
-                "w-full p-5 rounded-2xl border transition-colors disabled:opacity-50 " +
-                (ritual === opt.id
-                  ? "bg-dawn-rose/15 border-dawn-rose/40"
-                  : "bg-dawn-surface border-dawn-haze/25 hover:bg-dawn-haze/10")
-              }
-            >
-              <p className="font-serif text-xl italic">{opt.label}</p>
-              <p className="mt-1 text-xs text-dawn-ink/55">{opt.sub}</p>
-            </button>
-          ))}
-        </div>
-        {busy && <p className="mt-4 text-xs text-dawn-ink/50 animate-pulse">Committing…</p>}
-        {error && <p className="mt-4 text-xs text-dawn-rose/90">{error}</p>}
-        {offlineNote && (
-          <p className="mt-4 text-xs text-dawn-rose/90">
-            Can't reach Dawnhalo right now — try again in a moment.
-          </p>
-        )}
-      </OnboardScreen>
-    );
-  }
-
-  return (
-    <OnboardScreen step="checkin" heading={ONBOARDING.checkinHeading} sub={ONBOARDING.checkinSub}>
-      <div className="space-y-3">
-        {STATE_OPTIONS.map((opt) => (
-          <button
-            key={opt.id}
-            onClick={() => firstCheckin(opt.id)}
-            disabled={busy}
-            className="w-full p-4 bg-dawn-surface border border-dawn-haze/25 rounded-2xl hover:bg-dawn-haze/10 transition-colors disabled:opacity-50"
-          >
-            <p className="font-serif text-lg italic">{opt.label}</p>
-          </button>
-        ))}
       </div>
-    </OnboardScreen>
+
+      <div className="w-full max-w-sm space-y-10">
+        <div>
+          <h1 className="text-2xl font-serif font-light italic text-balance leading-snug">
+            {ONBOARDING.titleHeading}
+          </h1>
+          <p className="mt-2 text-sm text-dawn-ink/55">{ONBOARDING.titleSub}</p>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={ONBOARDING.titlePlaceholder}
+            className={ONBOARD_INPUT + " mt-4"}
+          />
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {ONBOARDING.titleExamples.map((ex) => (
+              <button
+                key={ex}
+                onClick={() => setTitle(ex)}
+                className={
+                  "text-[12px] px-4 py-2 rounded-full border transition-colors " +
+                  (title === ex
+                    ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
+                    : "border-dawn-haze/25 text-dawn-ink/75 hover:bg-dawn-haze/10")
+                }
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-serif font-light italic text-balance leading-snug">
+            {ONBOARDING.rewardHeading}
+          </h2>
+          <p className="mt-2 text-sm text-dawn-ink/55">{ONBOARDING.rewardSub}</p>
+          <input
+            value={reward}
+            onChange={(e) => setReward(e.target.value)}
+            placeholder={ONBOARDING.rewardPlaceholder}
+            className={ONBOARD_INPUT + " mt-4"}
+          />
+        </div>
+
+        <div>
+          <h2 className="text-xl font-serif font-light italic text-balance leading-snug">
+            {ONBOARDING.dateHeading}
+          </h2>
+          <p className="mt-2 text-sm text-dawn-ink/55">{ONBOARDING.dateSub}</p>
+          <input
+            type="date"
+            min={minDate}
+            value={targetDate}
+            onChange={(e) => setTargetDate(e.target.value)}
+            className={ONBOARD_INPUT + " mt-4"}
+          />
+          <p className="mt-2 text-xs text-dawn-ink/45 leading-relaxed max-w-[34ch] mx-auto">
+            {ONBOARDING.dateLockNote}
+          </p>
+        </div>
+
+        <div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (f) setPhotoPreview(await setGoalPhoto(f));
+            }}
+          />
+          <div className="flex items-center justify-center gap-3">
+            {photoPreview && (
+              <img
+                src={photoPreview}
+                alt=""
+                className="size-12 rounded-xl object-cover ring-1 ring-dawn-haze/30"
+              />
+            )}
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="text-[12px] px-4 py-2.5 rounded-full border border-dawn-haze/25 text-dawn-ink/75 hover:bg-dawn-haze/10 transition-colors"
+            >
+              {photoPreview ? "Change photo" : ONBOARDING.photoButton}
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-dawn-ink/40">{ONBOARDING.photoPrivacy}</p>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-serif font-light italic text-balance leading-snug">
+            {ONBOARDING.ritualHeading}
+          </h2>
+          <div className="mt-4 space-y-3">
+            {(
+              [
+                { id: "card", label: ONBOARDING.ritualCard, sub: ONBOARDING.ritualCardSub },
+                { id: "writing", label: ONBOARDING.ritualWriting, sub: ONBOARDING.ritualWritingSub },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setRitual(opt.id)}
+                className={
+                  "w-full p-5 rounded-2xl border transition-colors " +
+                  (ritual === opt.id
+                    ? "bg-dawn-rose/15 border-dawn-rose/40"
+                    : "bg-dawn-surface border-dawn-haze/25 hover:bg-dawn-haze/10")
+                }
+              >
+                <p className="font-serif text-xl italic">{opt.label}</p>
+                <p className="mt-1 text-xs text-dawn-ink/55">{opt.sub}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <button
+            onClick={commit}
+            disabled={busy || !ready}
+            className="w-full py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(244,163,122,0.5)] hover:bg-dawn-haze transition-all disabled:opacity-40"
+          >
+            {busy ? "Committing…" : "Commit — Day 1 starts now"}
+          </button>
+          {error && <p className="mt-3 text-xs text-dawn-rose/90">{error}</p>}
+          {offlineNote && (
+            <p className="mt-3 text-xs text-dawn-rose/90">
+              Can't reach Dawnhalo right now — try again in a moment.
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
