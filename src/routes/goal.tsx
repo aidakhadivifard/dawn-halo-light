@@ -692,9 +692,11 @@ function GoalHome({
         <p className="mt-1 text-[11px] text-dawn-ink/40">
           streak {status.streak} · {Math.max(0, status.totalDays - status.day)} days to {g.targetDate}
         </p>
-        <p className="mt-1 text-[11px] text-dawn-ink/45 font-serif italic">
-          {RETURNED_TIMES(status.checkinCount)}
-        </p>
+        {(status.checkinCount ?? 0) > 0 && (
+          <p className="mt-1 text-[11px] text-dawn-ink/45 font-serif italic">
+            {RETURNED_TIMES(status.checkinCount)}
+          </p>
+        )}
         <div className="mt-5">
           <ProgressBar value={status.progress} />
         </div>

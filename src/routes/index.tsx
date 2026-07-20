@@ -313,7 +313,7 @@ function TodayPage() {
         todayState: c.state,
         day: c.day,
         streak: c.streak,
-        checkinCount: goal.checkinCount + (c.already ? 0 : 1),
+        checkinCount: (goal.checkinCount ?? 0) + (c.already ? 0 : 1),
       });
     }
     if (c.summary) {
@@ -485,7 +485,7 @@ function TodayPage() {
                 style={{ width: `${Math.round(goal.progress * 100)}%` }}
               />
             </div>
-            {goal.checkinCount > 0 && (
+            {(goal.checkinCount ?? 0) > 0 && (
               <p className="mt-1.5 text-[10px] uppercase tracking-[0.18em] opacity-40">
                 {RETURNED_TIMES(goal.checkinCount)}
               </p>
