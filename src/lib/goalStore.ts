@@ -135,10 +135,11 @@ export async function doRitual(input: {
 }
 
 export async function answerHonesty(
-  answer: "continue" | "thinking" | "done",
+  answer: "continue" | "adjust" | "thinking" | "done",
+  note?: string,
 ): Promise<{ kind: "ok"; summary?: GoalSummary } | { kind: "offline" }> {
   try {
-    const res = await api.honesty(answer);
+    const res = await api.honesty(answer, note);
     if (answer === "done") writeCache(null);
     return { kind: "ok", summary: res.summary };
   } catch {

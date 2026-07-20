@@ -15,11 +15,12 @@ const REMINDER_ID = 1001;
 
 // Warm, non-pushy copy. One is picked at scheduling time, so it rotates
 // whenever the user revisits the app or changes settings.
+// Intimate, never gamified — no streak threats, no guilt, no countdowns.
 const REMINDER_LINES = [
-  "Your card for today is waiting.",
+  "Your card is waiting.",
   "A little light for your next step is here.",
   "One quiet moment before the day begins?",
-  "The deck is shuffled. Come see what today holds.",
+  "You only need to meet today.",
 ];
 
 export function reminderSupported(): boolean {

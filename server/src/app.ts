@@ -9,6 +9,7 @@ import { getConfig } from "./config";
 import { requireDevice, resolveLocalDate, rateLimit } from "./middleware";
 import { computeStreak } from "./lib/streak";
 import { PLANS, getStripe, createCheckoutSession, handleStripeEvent, type PlanId } from "./lib/stripe";
+import { HALO_DECK } from "./lib/deck";
 
 export interface AppOptions extends ServiceDeps {
   /** Inject a custom Stripe webhook verifier (tests bypass signature checks). */
@@ -246,7 +247,12 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   });
 
   app.post("/api/goal/honesty", requireDevice, resolveLocalDate, (req, res) => {
-    const result = svc.honesty(req.deviceId!, req.localDate!, (req.body?.answer ?? "").toString());
+    const result = svc.honesty(
+      req.deviceId!,
+      req.localDate!,
+      (req.body?.answer ?? "").toString(),
+      (req.body?.note ?? "").toString(),
+    );
     if (result.kind === "no_goal") return res.status(404).json({ error: "no_active_goal" });
     if (result.kind === "invalid") return res.status(400).json({ error: result.reason });
     res.json({ ok: true, summary: result.summary });
@@ -262,7 +268,12 @@ export function createApp(db: DB, opts: AppOptions = {}) {
         entitlement: svc.entitlement(req.deviceId!, req.localDate!),
       });
     }
-    res.json({ checkins: result.checkins, entries: result.entries });
+    res.json({ checkins: result.checkins, entries: result.entries, honesty: result.honesty });
+  });
+
+  // --- The deck (public content: titles + essences, for the Library) ---
+  app.get("/api/deck", (_req, res) => {
+    res.json({ deck: HALO_DECK.map((c) => ({ title: c.title, theme: c.theme, essence: c.essence })) });
   });
 
   // --- Send a Spark (share) ---

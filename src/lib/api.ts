@@ -75,6 +75,7 @@ export interface GoalStatus {
   totalDays: number;
   progress: number;
   streak: number;
+  checkinCount: number;
   checkedInToday: boolean;
   todayState: CheckinState | null;
   ritualDoneToday: boolean;
@@ -258,8 +259,11 @@ export const api = {
     if (body.card) return { kind: "card", card: body.card };
     return { kind: "reflection", reflection: body.reflection, fallback: !!body.fallback };
   },
-  async honesty(answer: "continue" | "thinking" | "done"): Promise<{ ok: true; summary?: GoalSummary }> {
-    return req(`/goal/honesty`, { method: "POST", body: JSON.stringify({ answer }) });
+  async honesty(
+    answer: "continue" | "adjust" | "thinking" | "done",
+    note?: string,
+  ): Promise<{ ok: true; summary?: GoalSummary }> {
+    return req(`/goal/honesty`, { method: "POST", body: JSON.stringify({ answer, note }) });
   },
   async goalHistory(): Promise<{
     checkins: { id: string; date: string; state: CheckinState; note?: string }[];
@@ -271,7 +275,11 @@ export const api = {
       userText?: string;
       aiReflection?: string;
     }[];
+    honesty: { id: string; date: string; day: number; answer: string; note?: string }[];
   }> {
     return req(`/goal/history`);
+  },
+  async deck(): Promise<{ deck: { title: string; theme: string; essence: string }[] }> {
+    return req(`/deck`);
   },
 };

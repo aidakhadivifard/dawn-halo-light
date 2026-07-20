@@ -63,6 +63,8 @@ export interface GoalStatusPayload {
   totalDays: number;
   progress: number;
   streak: number;
+  /** Total check-ins — "You have returned N times", never "you missed X days". */
+  checkinCount: number;
   checkedInToday: boolean;
   todayState: CheckinState | null;
   ritualDoneToday: boolean;
@@ -208,6 +210,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       totalDays: totalDays(goal.start_date, goal.target_date),
       progress: progress(goal.start_date, goal.target_date, localDate),
       streak: computeStreak(checkins.map((c) => c.local_date), localDate),
+      checkinCount: checkins.length,
       checkedInToday: !!today,
       todayState: (today?.state as CheckinState) ?? null,
       ritualDoneToday: today ? !!db.getRitualForCheckin(today.id) : false,
@@ -683,18 +686,28 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       return { kind: "reflection", reflection: result.reflection, fallback: result.fallback };
     },
 
-    /** Log an honesty-check answer. "done" closes the goal with respect. */
+    /**
+     * Log an honesty-check answer. Four honest positions: continue clearly,
+     * continue but adjust the method, unsure, done. Only "done" closes the
+     * goal (with respect); the rest never push perseverance.
+     */
     honesty(
       deviceId: string,
       localDate: string,
       answer: string,
+      note?: string,
     ):
       | { kind: "no_goal" }
       | { kind: "invalid"; reason: string }
       | { kind: "ok"; summary?: GoalSummary } {
       const goal = db.getActiveGoal(deviceId);
       if (!goal) return { kind: "no_goal" };
-      if (answer !== "continue" && answer !== "thinking" && answer !== "done") {
+      if (
+        answer !== "continue" &&
+        answer !== "adjust" &&
+        answer !== "thinking" &&
+        answer !== "done"
+      ) {
         return { kind: "invalid", reason: "invalid_answer" };
       }
       const day = daysSince(goal.start_date, localDate);
@@ -705,6 +718,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         local_date: localDate,
         day_number: day,
         answer,
+        note: (note ?? "").trim().slice(0, 500) || null,
         created_at: now().toISOString(),
       });
       if (answer === "done") {
@@ -721,7 +735,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     ):
       | { kind: "no_goal" }
       | { kind: "paywall"; reason: string }
-      | { kind: "history"; checkins: any[]; entries: any[] } {
+      | { kind: "history"; checkins: any[]; entries: any[]; honesty: any[] } {
       const goal = db.getActiveGoal(deviceId);
       if (!goal) return { kind: "no_goal" };
       const state = ritualQuota(deviceId, localDate);
@@ -743,6 +757,13 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
           cardId: e.card_id ?? undefined,
           userText: e.user_text ?? undefined,
           aiReflection: e.ai_reflection ?? undefined,
+        })),
+        honesty: db.listHonesty(goal.id).map((h) => ({
+          id: h.id,
+          date: h.local_date,
+          day: h.day_number,
+          answer: h.answer,
+          note: h.note ?? undefined,
         })),
       };
     },

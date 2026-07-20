@@ -1,7 +1,9 @@
-// Flow v2 — "Don't remove features. Remove friction."
-// The cards come FIRST (two taps to the reading). Every question — intention,
-// dream, daily check-in, ritual — happens AFTER value, woven into one
-// continuous conversation beneath the card.
+// Flow v3 — one uninterrupted conversation.
+// With a goal: light one-tap check-in → (milestone / honesty when due) →
+// cards → reading → personalized endurance response with per-state actions.
+// Without a goal: optional intention + cards on one screen, value first.
+// At every point: one primary action; the next moment appears only when the
+// current one is complete.
 
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
@@ -14,13 +16,41 @@ import {
   type Entitlement,
 } from "@/lib/cards";
 import { getCalendar } from "@/lib/store";
-import { REMINDERS } from "@/lib/dawnhalo";
 import { OracleCardView } from "@/components/OracleCard";
 import { BottomNav } from "@/components/BottomNav";
 import { track } from "@/lib/analytics";
 import type { CheckinResult, CheckinState, GoalStatus, RitualType } from "@/lib/api";
-import { checkin as postCheckin, doRitual, getGoalPhoto, getGoalStatus } from "@/lib/goalStore";
-import { HOLDING_QUESTION, RITUAL_WRITING_PLACEHOLDER, STATE_OPTIONS } from "@/lib/goalCopy";
+import {
+  answerHonesty,
+  checkin as postCheckin,
+  doRitual,
+  getGoalPhoto,
+  getGoalStatus,
+} from "@/lib/goalStore";
+import { localDay } from "@/lib/device";
+import {
+  CALM_FLOW,
+  CANT_RESPONSE,
+  CLARITY_FLOW,
+  DISCOVERY_SOFT,
+  EXHAUSTED_LEAD,
+  HOLDING_QUESTION,
+  HONESTY_CHANGED,
+  HONESTY_OPENING,
+  HONESTY_OPTIONS,
+  HONESTY_QUESTION,
+  HONESTY_RESPONSES,
+  NOW_LABEL,
+  NOW_OPTIONS,
+  NOW_QUESTION,
+  RETURNED_TIMES,
+  RITUAL_CARD_PROMPTS,
+  SOFT_TRANSITION,
+  STATE_OPTIONS,
+  TRUTH_RESPONSE,
+  WRITING_PROMPTS,
+  smallActionFor,
+} from "@/lib/goalCopy";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -36,14 +66,13 @@ function formatDate(d: Date) {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
-type RitualState = "choose" | "drawing" | "open";
+type Phase = "loading" | "checkin" | "transition" | "milestone" | "honesty" | "choose" | "drawing" | "open";
 
 const RITUAL_FLOOR_MS = 1100;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const RETENTION_DAYS = [1, 3, 7, 30];
+const DISCOVERY_KEY = "dawnhalo:discoveryShown";
 
-// A face-down card for the pick-a-card spread: dark dawn gradient with the
-// halo-and-sun mark. Pure CSS/SVG so no asset is needed.
 function CardBack({ tilt, delay, onPick }: { tilt: number; delay: number; onPick: () => void }) {
   return (
     <div className="w-[27%]" style={{ transform: `rotate(${tilt}deg)` }}>
@@ -68,7 +97,6 @@ function CardBack({ tilt, delay, onPick }: { tilt: number; delay: number; onPick
   );
 }
 
-// One honest, sourced line a day beneath the card — never a stat without a source.
 function BenchmarkFooter({
   text,
   sourceName,
@@ -91,7 +119,7 @@ function BenchmarkFooter({
         }}
         className="mt-1 text-[10px] uppercase tracking-[0.18em] text-dawn-ink/35 hover:text-dawn-ink/60 border-b border-dawn-haze/20"
       >
-        source
+        View source
       </button>
       {open && (
         <p className="mt-2 text-xs text-dawn-ink/50">
@@ -105,23 +133,34 @@ function BenchmarkFooter({
   );
 }
 
+function Lines({ lines, className }: { lines: readonly string[]; className?: string }) {
+  return (
+    <div className={className}>
+      {lines.map((l, i) => (
+        <p key={i} className="font-serif italic text-lg leading-relaxed">
+          {l}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function TodayPage() {
   const navigate = useNavigate();
   const [today] = useState(() => new Date());
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [streak, setStreak] = useState(0);
-  const [reminders, setReminders] = useState<[string, string]>([REMINDERS[0], REMINDERS[1]]);
   const [entitlement, setEntitlement] = useState<Entitlement | null>(null);
   const [dateLabel, setDateLabel] = useState("");
   const [busy, setBusy] = useState(false);
-  const [ritual, setRitual] = useState<RitualState>("choose");
+  const [phase, setPhase] = useState<Phase>("loading");
 
-  // Post-reading conversation: intention chips + free text / dream.
-  const [intentInput, setIntentInput] = useState("");
-  const [showOther, setShowOther] = useState(false);
-  const [showDream, setShowDream] = useState(false);
+  // Intention brought to the cards (optional, never blocking).
+  const [intent, setIntent] = useState("");
+  const [freeText, setFreeText] = useState("");
+  const [inputMode, setInputMode] = useState<null | "dream" | "ask">(null);
 
-  // The goal layer, woven in AFTER the reading.
+  // Goal layer.
   const [goal, setGoal] = useState<GoalStatus | null>(null);
   const [goalPhoto, setGoalPhotoState] = useState<string | null>(null);
   const [checkinResult, setCheckinResult] = useState<CheckinResult | null>(null);
@@ -129,17 +168,41 @@ function TodayPage() {
   const [reflection, setReflection] = useState<string | null>(null);
   const [writingOpen, setWritingOpen] = useState(false);
   const [writingText, setWritingText] = useState("");
+  const [smallAction, setSmallAction] = useState<string | null>(null);
+  const [truthOpen, setTruthOpen] = useState(false);
+  const [calmOpen, setCalmOpen] = useState(false);
+  const [finished, setFinished] = useState(false);
   const [offlineNote, setOfflineNote] = useState(false);
 
-  const INTENTIONS = ["I need clarity", "I need calm", "I need courage"];
+  // Honesty check state.
+  const [honestyAnswer, setHonestyAnswer] = useState<string | null>(null);
+  const [honestyNote, setHonestyNote] = useState("");
+  const [honestyDone, setHonestyDone] = useState(false);
+
+  // "I need something now" sheet.
+  const [nowOpen, setNowOpen] = useState(false);
+  const [nowFlow, setNowFlow] = useState<null | "calm" | "clarity">(null);
+
+  // Soft discovery (no goal).
+  const [discovery, setDiscovery] = useState(false);
 
   useEffect(() => {
     let alive = true;
     getCalendar().then(({ streak }) => alive && setStreak(streak));
+    const phaseFallback = setTimeout(() => {
+      setPhase((p) => (p === "loading" ? "choose" : p));
+    }, 2500);
     getGoalStatus().then((g) => {
       if (!alive) return;
+      clearTimeout(phaseFallback);
       setGoal(g);
       if (g) setGoalPhotoState(getGoalPhoto());
+      setPhase((p) => {
+        if (p !== "loading") return p;
+        if (g && !g.checkedInToday) return "checkin";
+        if (g && g.honestyDue) return "honesty";
+        return "choose";
+      });
     });
     setDateLabel(formatDate(today));
     if (new URLSearchParams(window.location.search).get("checkout") === "success") {
@@ -147,12 +210,9 @@ function TodayPage() {
       track("subscription_started");
       window.history.replaceState(null, "", window.location.pathname);
     }
-    const a = Math.floor(Math.random() * REMINDERS.length);
-    let b = Math.floor(Math.random() * REMINDERS.length);
-    if (b === a) b = (b + 1) % REMINDERS.length;
-    setReminders([REMINDERS[a], REMINDERS[b]]);
     return () => {
       alive = false;
+      clearTimeout(phaseFallback);
     };
   }, [today]);
 
@@ -176,68 +236,57 @@ function TodayPage() {
     return true;
   };
 
-  // Two taps to the reading: pick a card → today's card opens fully.
+  const maybeDiscover = () => {
+    if (goal) return;
+    try {
+      const last = localStorage.getItem(DISCOVERY_KEY);
+      const today3 = new Date(Date.now() - 3 * 86_400_000).toLocaleDateString("en-CA");
+      if (!last || last < today3) {
+        setDiscovery(true);
+        localStorage.setItem(DISCOVERY_KEY, localDay());
+        track("goal_prompt_shown", { source: "soft_discovery" });
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
   const pickCard = useCallback(
     async (position: number) => {
       if (busy) return;
       track("card_picked", { position });
-      setRitual("drawing");
+      setPhase("drawing");
       setBusy(true);
       const started = Date.now();
+      const brought = inputMode === "dream" && freeText.trim()
+        ? `I had a dream: ${freeText}`
+        : inputMode === "ask" && freeText.trim()
+          ? freeText
+          : intent;
       try {
-        const { card, entitlement } = await getDailyWithEntitlement();
-        setActiveCard(card);
-        if (entitlement) setEntitlement(entitlement);
-        track("card_drawn", { mode: "daily" });
+        if (brought.trim()) {
+          const out = await drawCardEx({ intent: "ask", text: brought });
+          if (!handleOutcome(out, inputMode === "dream" ? "dream" : intent ? "intention" : "ask")) return;
+        } else {
+          const { card, entitlement } = await getDailyWithEntitlement();
+          setActiveCard(card);
+          if (entitlement) setEntitlement(entitlement);
+          track("card_drawn", { mode: "daily" });
+        }
       } catch {
         setActiveCard(offlineDailyCard(today));
       } finally {
         await sleep(Math.max(0, RITUAL_FLOOR_MS - (Date.now() - started)));
         track("card_revealed");
-        setRitual("open");
+        setPhase("open");
         setBusy(false);
+        maybeDiscover();
       }
     },
-    [busy, today],
+    [busy, today, intent, freeText, inputMode, goal],
   );
 
-  // Post-reading personalization: an intention/dream draws a new reading.
-  const askWith = async (text: string, mode: string) => {
-    if (!text.trim() || busy) return;
-    setRitual("drawing");
-    setBusy(true);
-    const started = Date.now();
-    try {
-      const out = await drawCardEx({ intent: "ask", text });
-      if (handleOutcome(out, mode)) {
-        setIntentInput("");
-        setShowOther(false);
-        setShowDream(false);
-        await sleep(Math.max(0, RITUAL_FLOOR_MS - (Date.now() - started)));
-        setRitual("open");
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const drawAgain = async () => {
-    if (busy) return;
-    setRitual("drawing");
-    setBusy(true);
-    const started = Date.now();
-    try {
-      const out = await drawCardEx({ intent: "ask", text: "" });
-      if (handleOutcome(out, "again")) {
-        await sleep(Math.max(0, RITUAL_FLOOR_MS - (Date.now() - started)));
-        setRitual("open");
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // The daily check-in, after the reading.
+  // One-tap check-in → soft transition → (milestone/honesty) → cards.
   const submitCheckin = async (state: CheckinState) => {
     if (busy) return;
     setBusy(true);
@@ -246,6 +295,7 @@ function TodayPage() {
     setBusy(false);
     if (res.kind === "offline") {
       setOfflineNote(true);
+      setPhase("choose");
       return;
     }
     if (res.kind === "crisis") {
@@ -257,11 +307,46 @@ function TodayPage() {
     if (!c.already && RETENTION_DAYS.includes(c.day)) track("dN_retention", { day: c.day });
     setCheckinResult(c);
     if (goal) {
-      setGoal({ ...goal, checkedInToday: true, todayState: c.state, day: c.day, streak: c.streak });
+      setGoal({
+        ...goal,
+        checkedInToday: true,
+        todayState: c.state,
+        day: c.day,
+        streak: c.streak,
+        checkinCount: goal.checkinCount + (c.already ? 0 : 1),
+      });
+    }
+    if (c.summary) {
+      track("goal_completed", { daysHeld: c.summary.daysHeld });
+      navigate({ to: "/goal" });
+      return;
+    }
+    setPhase("transition");
+    await sleep(1200);
+    if (c.milestone) setPhase("milestone");
+    else if (c.honestyDue) setPhase("honesty");
+    else setPhase("choose");
+  };
+
+  const submitHonesty = async (answer: "continue" | "adjust" | "thinking" | "done") => {
+    if (busy) return;
+    setBusy(true);
+    const res = await answerHonesty(answer, honestyNote);
+    setBusy(false);
+    if (res.kind === "offline") {
+      setOfflineNote(true);
+      return;
+    }
+    track("honesty_check_answered", { answer });
+    setHonestyAnswer(answer);
+    setHonestyDone(true);
+    if (goal) setGoal({ ...goal, honestyDue: false });
+    if (answer === "done" && res.summary) {
+      track("goal_abandoned", { daysHeld: res.summary.daysHeld });
+      setGoal(null);
     }
   };
 
-  // The ritual, inline — pull a contextual card or write it out.
   const runRitual = async (type: RitualType) => {
     if (busy) return;
     if (type === "writing" && !writingText.trim()) return;
@@ -288,17 +373,68 @@ function TodayPage() {
     if (goal) setGoal({ ...goal, ritualDoneToday: true });
   };
 
+  const askWith = async (text: string, mode: string) => {
+    if (!text.trim() || busy) return;
+    setNowOpen(false);
+    setPhase("drawing");
+    setBusy(true);
+    const started = Date.now();
+    try {
+      const out = await drawCardEx({ intent: "ask", text });
+      if (handleOutcome(out, mode)) {
+        await sleep(Math.max(0, RITUAL_FLOOR_MS - (Date.now() - started)));
+        setPhase("open");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const greetingHour = today.getHours();
   const greeting =
     greetingHour < 12 ? "Good morning." : greetingHour < 17 ? "Good afternoon." : "Good evening.";
 
-  const checked = !!goal && (goal.checkedInToday || !!checkinResult);
-  const todayState = checkinResult?.state ?? goal?.todayState ?? null;
-  const gentle = todayState === "cant";
-  const benchmark = checkinResult ? checkinResult.benchmark : gentle ? null : goal?.benchmark ?? null;
-  const showRitualOffer =
-    !!goal && checked && !goal.ritualDoneToday && !ritualCard && !reflection;
-  const honestyDue = checkinResult?.honestyDue ?? goal?.honestyDue ?? false;
+  const state: CheckinState | null = checkinResult?.state ?? goal?.todayState ?? null;
+  const gentle = state === "cant";
+  const benchmark =
+    !gentle && (checkinResult?.benchmark ?? (state && state !== "strong" ? goal?.benchmark : goal?.benchmark)) || null;
+  const showEndurance = phase === "open" && !!goal && !!state && !finished;
+  const ritualAvailable = !!goal && !goal.ritualDoneToday && !ritualCard && !reflection;
+
+  const nowRoute = (id: string) => {
+    setNowFlow(null);
+    switch (id) {
+      case "card":
+        setNowOpen(false);
+        if (phase === "open" && ritualAvailable) void runRitual("card");
+        else setPhase("choose");
+        break;
+      case "clarity":
+        setNowFlow("clarity");
+        break;
+      case "calm":
+        setNowFlow("calm");
+        break;
+      case "courage":
+        void askWith("I need courage today", "now_courage");
+        break;
+      case "motivation":
+        void askWith(
+          goal ? `I need help holding on for: ${goal.goal.title}` : "I need motivation today",
+          "now_motivation",
+        );
+        break;
+      case "goal":
+        setNowOpen(false);
+        navigate({ to: "/goal" });
+        break;
+      case "write":
+        setNowOpen(false);
+        if (goal && phase === "open") setWritingOpen(true);
+        else navigate({ to: "/calendar" });
+        break;
+    }
+  };
 
   return (
     <div className="relative min-h-screen bg-dawn-sky text-dawn-ink selection:bg-dawn-haze/20 overflow-hidden">
@@ -310,8 +446,8 @@ function TodayPage() {
             "radial-gradient(circle, rgba(245,207,138,0.35) 0%, rgba(244,163,122,0.18) 35%, rgba(189,92,120,0.10) 60%, transparent 75%)",
         }}
       />
-      <main className="relative max-w-md mx-auto px-6 pt-12 pb-32">
-        <header className="mb-8 flex justify-between items-end">
+      <main className="relative max-w-md mx-auto px-6 pt-12 pb-36">
+        <header className="mb-6 flex justify-between items-end">
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 mb-1">{dateLabel}</p>
             <h1 className="text-3xl font-serif font-light tracking-tight italic">{greeting}</h1>
@@ -322,7 +458,7 @@ function TodayPage() {
           </div>
         </header>
 
-        {/* The goal, always present, never in the way — details live behind it. */}
+        {/* Goal header — light, tappable, never overloaded. */}
         {goal && (
           <Link
             to="/goal"
@@ -338,11 +474,9 @@ function TodayPage() {
               )}
               <span className="min-w-0 flex-1">
                 <span className="block text-[10px] uppercase tracking-[0.18em] opacity-45">
-                  Day {goal.day} · holding on for
+                  Day {goal.day} · {Math.max(0, goal.totalDays - goal.day)} days remaining
                 </span>
-                <span className="block truncate text-sm font-serif italic text-dawn-ink/85">
-                  {goal.goal.title}
-                </span>
+                <span className="block truncate text-sm font-serif italic text-dawn-ink/85">{goal.goal.title}</span>
               </span>
             </div>
             <div className="mt-2 h-1 w-full rounded-full bg-dawn-ink/10 overflow-hidden">
@@ -351,29 +485,209 @@ function TodayPage() {
                 style={{ width: `${Math.round(goal.progress * 100)}%` }}
               />
             </div>
+            {goal.checkinCount > 0 && (
+              <p className="mt-1.5 text-[10px] uppercase tracking-[0.18em] opacity-40">
+                {RETURNED_TIMES(goal.checkinCount)}
+              </p>
+            )}
           </Link>
         )}
 
-        {/* STATE 1: The cards come first. */}
-        {ritual === "choose" && (
-          <section className="flex flex-col items-center text-center py-10">
-            <h2 className="text-2xl font-serif font-light tracking-tight text-balance text-dawn-ink animate-card-rise">
-              The cards have been waiting.
-            </h2>
-            <p className="mt-3 text-dawn-ink/50 text-sm leading-relaxed max-w-[30ch] animate-card-rise">
-              Don't think — take the one that pulls you.
+        {phase === "loading" && <p className="py-24 text-center text-sm opacity-40">…</p>}
+
+        {/* One-tap check-in, before anything asks for attention. */}
+        {phase === "checkin" && (
+          <section className="py-6 animate-card-rise">
+            <h2 className="text-2xl font-serif font-light italic text-center text-balance">{HOLDING_QUESTION}</h2>
+            <div className="mt-6 space-y-3">
+              {STATE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => void submitCheckin(opt.id)}
+                  disabled={busy}
+                  className="w-full p-4 bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl hover:bg-dawn-haze/10 transition-colors disabled:opacity-50"
+                >
+                  <p className="font-serif text-base">{opt.label}</p>
+                </button>
+              ))}
+            </div>
+            {offlineNote && (
+              <p className="mt-4 text-center text-xs text-dawn-rose/90">
+                Can't reach Dawnhalo right now — your day count is safe.
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* Soft transition — no long response yet. */}
+        {phase === "transition" && (
+          <section className="py-20 text-center animate-card-rise">
+            <Lines lines={SOFT_TRANSITION} className="space-y-2 text-dawn-ink/80" />
+          </section>
+        )}
+
+        {/* Milestone — rare, weighty, before the card. */}
+        {phase === "milestone" && checkinResult?.milestone && (
+          <section className="py-14 text-center animate-card-rise">
+            <p className="text-[10px] uppercase tracking-[0.25em] opacity-50">Milestone</p>
+            <p className="mt-5 text-2xl font-serif font-light italic leading-snug text-balance">
+              {checkinResult.milestone.message}
             </p>
-            <div className="mt-10 flex w-full max-w-sm items-center justify-center gap-4">
+            <button
+              onClick={() => setPhase(checkinResult.honestyDue ? "honesty" : "choose")}
+              className="mt-10 w-full py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full"
+            >
+              Continue to today's card
+            </button>
+            <Link
+              to="/goal"
+              className="mt-3 inline-block text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40"
+            >
+              Share this milestone
+            </Link>
+          </section>
+        )}
+
+        {/* Honesty check — before the card, never rushed. */}
+        {phase === "honesty" && (
+          <section className="py-8 animate-card-rise">
+            {!honestyDone ? (
+              <>
+                <p className="text-center text-sm text-dawn-ink/60 font-serif italic">{HONESTY_OPENING}</p>
+                <h2 className="mt-3 text-2xl font-serif font-light italic text-center text-balance leading-snug">
+                  {HONESTY_QUESTION}
+                </h2>
+                <div className="mt-6 space-y-3">
+                  {HONESTY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => void submitHonesty(opt.id)}
+                      disabled={busy}
+                      className="w-full p-4 text-left bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl hover:bg-dawn-haze/10 transition-colors disabled:opacity-50"
+                    >
+                      <p className="font-serif text-base">{opt.label}</p>
+                    </button>
+                  ))}
+                </div>
+                <input
+                  value={honestyNote}
+                  onChange={(e) => setHonestyNote(e.target.value)}
+                  placeholder={HONESTY_CHANGED}
+                  className="mt-4 w-full bg-dawn-surface/70 border border-dawn-haze/15 rounded-xl px-5 py-3 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30 placeholder:text-dawn-ink/30"
+                />
+              </>
+            ) : (
+              <div className="text-center">
+                <p className="text-lg font-serif italic leading-relaxed text-dawn-ink/85">
+                  {HONESTY_RESPONSES[honestyAnswer ?? "continue"]}
+                </p>
+                {honestyAnswer === "done" ? (
+                  <Link
+                    to="/goal"
+                    className="mt-8 inline-block px-10 py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full"
+                  >
+                    Close this chapter
+                  </Link>
+                ) : (
+                  <button
+                    onClick={() => setPhase("choose")}
+                    className="mt-8 w-full py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full"
+                  >
+                    Draw today's card
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* The cards — with an optional, never-blocking intention. */}
+        {phase === "choose" && (
+          <section className="flex flex-col items-center text-center py-6">
+            {!goal && (
+              <>
+                <h2 className="text-xl font-serif font-light italic text-balance animate-card-rise">
+                  What would you like to bring to the cards today?
+                </h2>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  {["I need clarity", "I need courage", "I need calm"].map((label) => (
+                    <button
+                      key={label}
+                      onClick={() => {
+                        setIntent(intent === label ? "" : label);
+                        setInputMode(null);
+                      }}
+                      className={
+                        "text-[12px] px-4 py-2.5 rounded-full border transition-colors " +
+                        (intent === label
+                          ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
+                          : "border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10")
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => {
+                      setInputMode(inputMode === "dream" ? null : "dream");
+                      setIntent("");
+                    }}
+                    className={
+                      "text-[12px] px-4 py-2.5 rounded-full border transition-colors " +
+                      (inputMode === "dream"
+                        ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
+                        : "border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10")
+                    }
+                  >
+                    I had a dream
+                  </button>
+                  <button
+                    onClick={() => {
+                      setInputMode(inputMode === "ask" ? null : "ask");
+                      setIntent("");
+                    }}
+                    className={
+                      "text-[12px] px-4 py-2.5 rounded-full border transition-colors " +
+                      (inputMode === "ask"
+                        ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
+                        : "border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10")
+                    }
+                  >
+                    Ask something else
+                  </button>
+                </div>
+                {inputMode && (
+                  <input
+                    autoFocus
+                    value={freeText}
+                    onChange={(e) => setFreeText(e.target.value)}
+                    placeholder={
+                      inputMode === "dream"
+                        ? "A place, a person, a feeling, a strange detail…"
+                        : "You can ask plainly. It doesn't need to sound perfect."
+                    }
+                    className="mt-4 w-full max-w-sm bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-3.5 text-sm text-center focus:outline-none focus:ring-1 ring-dawn-rose/30"
+                  />
+                )}
+              </>
+            )}
+
+            <p className={"font-serif italic text-dawn-ink/80 " + (goal ? "text-xl mt-2" : "text-base mt-8")}>
+              Take a breath.
+            </p>
+            <p className="mt-1 text-dawn-ink/50 text-sm">
+              {goal ? "Choose the card that meets you here." : "Choose the one you are drawn to."}
+            </p>
+            <div className="mt-8 flex w-full max-w-sm items-center justify-center gap-4">
               {[-8, 0, 8].map((tilt, i) => (
                 <CardBack key={i} tilt={tilt} delay={i * 140} onPick={() => void pickCard(i)} />
               ))}
             </div>
-            <p className="mt-12 text-[10px] uppercase tracking-[0.3em] text-dawn-ink/25">Dawnhalo</p>
+            <p className="mt-10 text-[10px] uppercase tracking-[0.3em] text-dawn-ink/25">Dawnhalo</p>
           </section>
         )}
 
-        {/* STATE 2: Drawing */}
-        {ritual === "drawing" && (
+        {phase === "drawing" && (
           <section className="flex flex-col items-center text-center py-16">
             <div className="relative w-56 h-56 mb-6">
               <div
@@ -391,12 +705,34 @@ function TodayPage() {
           </section>
         )}
 
-        {/* STATE 3: The reading, open immediately — then the conversation. */}
-        {ritual === "open" && activeCard && (
+        {/* The reading. */}
+        {phase === "open" && activeCard && (
           <div className="animate-card-rise">
-            <OracleCardView key={activeCard.id} card={activeCard} onDrawAgain={drawAgain} />
+            <OracleCardView key={activeCard.id} card={activeCard} onDrawAgain={() => setPhase("choose")} />
+          </div>
+        )}
 
-            {benchmark && (
+        {/* Personalized endurance response — after the reading. */}
+        {showEndurance && (
+          <section className="mt-8 space-y-4">
+            {checkinResult && state === "strong" && (
+              <div className="p-5 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl animate-card-rise">
+                <p className="font-serif text-lg italic leading-snug">{checkinResult.ack}</p>
+              </div>
+            )}
+            {checkinResult && (state === "barely" || state === "exhausted") && (
+              <div className="p-5 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl animate-card-rise">
+                {state === "exhausted" && <Lines lines={EXHAUSTED_LEAD} className="space-y-1 mb-3 text-dawn-ink/80" />}
+                <p className="font-serif text-lg italic leading-snug">{checkinResult.ack}</p>
+              </div>
+            )}
+            {state === "cant" && (
+              <div className="p-5 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl animate-card-rise">
+                <Lines lines={CANT_RESPONSE} className="space-y-2 text-dawn-ink/85" />
+              </div>
+            )}
+
+            {benchmark && state !== "cant" && (
               <BenchmarkFooter
                 text={benchmark.text}
                 sourceName={benchmark.sourceName}
@@ -404,154 +740,128 @@ function TodayPage() {
                 benchmarkId={benchmark.id}
               />
             )}
-          </div>
-        )}
 
-        {/* What brought you here today? — now it deepens, never blocks. */}
-        {ritual === "open" && (
-          <section className="mt-10">
-            <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 mb-3 ml-1">
-              Go deeper — what brought you here today?
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {INTENTIONS.map((label) => (
-                <button
-                  key={label}
-                  onClick={() => void askWith(label, "intention")}
-                  disabled={busy}
-                  className="text-[12px] px-4 py-2.5 rounded-full border border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10 transition-colors disabled:opacity-50"
-                >
-                  {label}
-                </button>
-              ))}
-              <button
-                onClick={() => {
-                  setShowDream(true);
-                  setShowOther(false);
-                }}
-                className={
-                  "text-[12px] px-4 py-2.5 rounded-full border transition-colors " +
-                  (showDream
-                    ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
-                    : "border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10")
-                }
-              >
-                I had a dream…
-              </button>
-              <button
-                onClick={() => {
-                  setShowOther(true);
-                  setShowDream(false);
-                }}
-                className={
-                  "text-[12px] px-4 py-2.5 rounded-full border transition-colors " +
-                  (showOther
-                    ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
-                    : "border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10")
-                }
-              >
-                Something else…
-              </button>
-            </div>
-            {(showOther || showDream) && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void askWith(showDream ? `I had a dream: ${intentInput}` : intentInput, showDream ? "dream" : "ask");
-                }}
-                className="relative mt-4"
-              >
-                <input
-                  autoFocus
-                  value={intentInput}
-                  onChange={(e) => setIntentInput(e.target.value)}
-                  placeholder={showDream ? "Tell me what you dreamed…" : "What's on your mind?"}
-                  className="w-full bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-3.5 pr-14 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30"
-                />
-                <button
-                  type="submit"
-                  aria-label="Ask"
-                  disabled={busy || !intentInput.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 size-9 bg-dawn-rose text-dawn-sky rounded-full flex items-center justify-center hover:bg-dawn-haze transition-colors disabled:opacity-50"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" className="size-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                </button>
-              </form>
+            {/* Per-state actions — one clear next step each. */}
+            {!writingOpen && !smallAction && !truthOpen && !calmOpen && ritualAvailable && (
+              <div className="space-y-2">
+                {state === "strong" && (
+                  <button
+                    onClick={() => setFinished(true)}
+                    className="w-full py-3 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/45 hover:text-dawn-ink/75"
+                  >
+                    Finish for today
+                  </button>
+                )}
+                {(state === "barely" || state === "exhausted") && (
+                  <>
+                    <button
+                      onClick={() =>
+                        (goal?.goal.ritual ?? "card") === "writing" ? setWritingOpen(true) : void runRitual("card")
+                      }
+                      disabled={busy}
+                      className="w-full py-3.5 bg-dawn-rose/15 border border-dawn-rose/30 text-dawn-rose text-xs uppercase tracking-[0.2em] font-bold rounded-full disabled:opacity-50"
+                    >
+                      Help me through today
+                    </button>
+                    {state === "exhausted" && (
+                      <button
+                        onClick={() => setSmallAction(smallActionFor(goal!.goal.title))}
+                        className="w-full py-3 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/50 hover:text-dawn-ink/80"
+                      >
+                        Give me one small action
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setWritingOpen(true)}
+                      className="w-full py-2 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70"
+                    >
+                      Write what is heavy
+                    </button>
+                  </>
+                )}
+                {state === "cant" && (
+                  <>
+                    <p className="text-center text-[10px] uppercase tracking-[0.2em] opacity-50">
+                      What do you need right now?
+                    </p>
+                    <button
+                      onClick={() => setCalmOpen(true)}
+                      className="w-full p-4 text-left bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl hover:bg-dawn-haze/10 font-serif"
+                    >
+                      Help me slow down
+                    </button>
+                    <button
+                      onClick={() => setWritingOpen(true)}
+                      className="w-full p-4 text-left bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl hover:bg-dawn-haze/10 font-serif"
+                    >
+                      Let me write
+                    </button>
+                    <button
+                      onClick={() => setTruthOpen(true)}
+                      className="w-full p-4 text-left bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl hover:bg-dawn-haze/10 font-serif"
+                    >
+                      Tell me the truth
+                    </button>
+                    <button
+                      onClick={() => {
+                        setHonestyDone(false);
+                        setHonestyAnswer(null);
+                        setPhase("honesty");
+                      }}
+                      className="w-full p-4 text-left bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl hover:bg-dawn-haze/10 font-serif"
+                    >
+                      I may need to stop this goal
+                    </button>
+                  </>
+                )}
+              </div>
             )}
-            <p className="mt-2 ml-1 text-[10px] uppercase tracking-[0.18em] opacity-40">
-              {unlimited
-                ? "Unlimited draws"
-                : remaining === null
-                  ? " "
-                  : remaining > 0
-                    ? `${remaining} free draw${remaining === 1 ? "" : "s"} left today`
-                    : "Free draws used — open a plan to keep drawing"}
-            </p>
-          </section>
-        )}
 
-        {/* The daily check-in — after the reading, where it feels natural. */}
-        {ritual === "open" && goal && !checked && (
-          <section className="mt-10 space-y-3">
-            <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 ml-1">
-              {HOLDING_QUESTION}
-            </p>
-            {STATE_OPTIONS.map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => void submitCheckin(opt.id)}
-                disabled={busy}
-                className="w-full p-4 text-left bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl hover:bg-dawn-haze/10 transition-colors disabled:opacity-50"
-              >
-                <p className="font-serif text-base">{opt.label}</p>
-              </button>
-            ))}
-          </section>
-        )}
-
-        {/* Adaptive response + ritual, inline — one conversation. */}
-        {ritual === "open" && checkinResult && (
-          <section className="mt-6 space-y-4">
-            <div className="p-5 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl animate-card-rise">
-              <p className="font-serif text-lg italic leading-snug">{checkinResult.ack}</p>
-              {checkinResult.milestone && (
-                <p className="mt-3 font-serif italic text-dawn-haze leading-snug">
-                  {checkinResult.milestone.message}
-                </p>
-              )}
-              {checkinResult.honestyOffer && (
-                <Link
-                  to="/goal"
-                  className="mt-3 block text-xs text-dawn-ink/55 underline decoration-dawn-haze/40"
+            {calmOpen && (
+              <div className="p-6 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl animate-card-rise">
+                <Lines lines={CALM_FLOW} className="space-y-3 text-dawn-ink/85" />
+                <button
+                  onClick={() => setCalmOpen(false)}
+                  className="mt-4 w-full py-2 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40"
                 >
-                  {checkinResult.honestyOffer}
-                </Link>
-              )}
-            </div>
-          </section>
-        )}
+                  I'm back
+                </button>
+              </div>
+            )}
 
-        {ritual === "open" && honestyDue && checked && !checkinResult?.honestyOffer && (
-          <Link
-            to="/goal"
-            className="mt-4 block p-4 bg-dawn-rose/10 border border-dawn-rose/30 rounded-2xl text-sm font-serif"
-          >
-            {goal?.honestyPrompt ?? "Is the reward still worth the price?"}
-          </Link>
-        )}
+            {truthOpen && (
+              <div className="p-6 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl animate-card-rise">
+                <Lines lines={TRUTH_RESPONSE} className="space-y-3 text-dawn-ink/85" />
+                <button
+                  onClick={() => {
+                    setHonestyDone(false);
+                    setHonestyAnswer(null);
+                    setPhase("honesty");
+                  }}
+                  className="mt-4 w-full py-3 text-xs uppercase tracking-[0.18em] font-bold text-dawn-rose border border-dawn-rose/30 rounded-full"
+                >
+                  Look at it honestly
+                </button>
+              </div>
+            )}
 
-        {ritual === "open" && showRitualOffer && (
-          <section className="mt-4 p-5 bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl">
-            <p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-3">
-              {gentle ? "Write it out." : "A ritual for what you're holding."}
-            </p>
-            {gentle || writingOpen || (checkinResult?.suggestedRitual ?? goal?.goal.ritual) === "writing" ? (
-              <div>
+            {smallAction && (
+              <div className="p-6 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl animate-card-rise">
+                <p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-2">One small action</p>
+                <p className="font-serif italic text-lg leading-relaxed">{smallAction}</p>
+              </div>
+            )}
+
+            {writingOpen && !reflection && (
+              <div className="p-5 bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl">
+                <p className="text-sm font-serif italic text-dawn-ink/70 mb-3">
+                  {state ? WRITING_PROMPTS[state] : "Write it out."}
+                </p>
                 <textarea
                   value={writingText}
                   onChange={(e) => setWritingText(e.target.value)}
                   rows={3}
-                  placeholder={RITUAL_WRITING_PLACEHOLDER}
+                  placeholder="Say it plainly…"
                   className="w-full bg-dawn-night/40 border border-dawn-haze/15 rounded-xl p-4 text-sm leading-relaxed focus:outline-none focus:ring-1 ring-dawn-rose/30 resize-none placeholder:text-dawn-ink/30"
                 />
                 <button
@@ -562,79 +872,152 @@ function TodayPage() {
                   Reflect
                 </button>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <button
-                  onClick={() => void runRitual("card")}
-                  disabled={busy}
-                  className="w-full py-3.5 bg-dawn-rose/15 border border-dawn-rose/30 text-dawn-rose text-xs uppercase tracking-[0.2em] font-bold rounded-full disabled:opacity-50"
-                >
-                  Pull a card for it
-                </button>
-                <button
-                  onClick={() => setWritingOpen(true)}
-                  className="w-full py-2 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70"
-                >
-                  Write instead
-                </button>
+            )}
+
+            {/* A second, smaller question for the ritual card. */}
+            {ritualAvailable && !writingOpen && state !== "cant" && !smallAction && (
+              <div className="pt-2">
+                <p className="text-[10px] uppercase tracking-[0.2em] opacity-40 mb-2 text-center">
+                  Let us ask a smaller question
+                </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {RITUAL_CARD_PROMPTS.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => void askWith(p, "ritual_prompt")}
+                      disabled={busy}
+                      className="text-[12px] px-4 py-2 rounded-full border border-dawn-haze/20 text-dawn-ink/70 hover:bg-dawn-haze/10 disabled:opacity-50"
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {ritualCard && (
+              <article className="p-6 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl animate-card-rise">
+                <div className="w-full aspect-[4/5] mb-5 rounded-lg overflow-hidden ring-1 ring-dawn-haze/15 bg-black/30">
+                  <img src={ritualCard.illustration} alt={ritualCard.title} className="h-full w-full object-cover" />
+                </div>
+                {ritualCard.opener && (
+                  <p className="text-sm italic font-serif text-dawn-ink/60 mb-2">{ritualCard.opener}</p>
+                )}
+                <h2 className="text-2xl font-serif font-light">{ritualCard.title}</h2>
+                <div className="mt-3 space-y-3">
+                  {ritualCard.message.split(/\n{2,}/).map((p, i) => (
+                    <p key={i} className="text-sm leading-relaxed text-dawn-ink/85">{p}</p>
+                  ))}
+                </div>
+              </article>
+            )}
+
+            {reflection && (
+              <div className="p-6 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl animate-card-rise">
+                <p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-2">Kept in your journal</p>
+                <p className="font-serif italic text-lg leading-relaxed">{reflection}</p>
               </div>
             )}
           </section>
         )}
 
-        {ritual === "open" && ritualCard && (
-          <article className="mt-4 p-6 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl animate-card-rise">
-            <div className="w-full aspect-[4/5] mb-5 rounded-lg overflow-hidden ring-1 ring-dawn-haze/15 bg-black/30">
-              <img src={ritualCard.illustration} alt={ritualCard.title} className="h-full w-full object-cover" />
+        {/* Soft goal discovery — gentle, rare, after value. */}
+        {phase === "open" && !goal && discovery && (
+          <section className="mt-10 p-6 bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl text-center animate-card-rise">
+            <Lines lines={DISCOVERY_SOFT} className="space-y-1 text-dawn-ink/80 text-base" />
+            <div className="mt-5 flex gap-3 justify-center">
+              <Link
+                to="/goal"
+                onClick={() => track("goal_prompt_accepted")}
+                className="px-6 py-3 bg-dawn-rose text-dawn-sky text-xs uppercase tracking-[0.18em] font-bold rounded-full"
+              >
+                Create a journey
+              </Link>
+              <button
+                onClick={() => {
+                  track("goal_prompt_dismissed");
+                  setDiscovery(false);
+                }}
+                className="px-6 py-3 text-xs uppercase tracking-[0.18em] text-dawn-ink/50 border border-dawn-haze/20 rounded-full"
+              >
+                Not now
+              </button>
             </div>
-            {ritualCard.opener && (
-              <p className="text-sm italic font-serif text-dawn-ink/60 mb-2">{ritualCard.opener}</p>
-            )}
-            <h2 className="text-2xl font-serif font-light">{ritualCard.title}</h2>
-            <div className="mt-3 space-y-3">
-              {ritualCard.message.split(/\n{2,}/).map((p, i) => (
-                <p key={i} className="text-sm leading-relaxed text-dawn-ink/85">{p}</p>
-              ))}
-            </div>
-            {ritualCard.reflection && (
-              <p className="mt-4 text-sm italic font-serif text-dawn-ink/60">{ritualCard.reflection}</p>
-            )}
-          </article>
+          </section>
         )}
 
-        {ritual === "open" && reflection && (
-          <div className="mt-4 p-6 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl animate-card-rise">
-            <p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-2">Reflection</p>
-            <p className="font-serif italic text-lg leading-relaxed">{reflection}</p>
-          </div>
-        )}
-
-        {ritual === "open" && offlineNote && (
+        {phase === "open" && offlineNote && (
           <p className="mt-4 text-center text-xs text-dawn-rose/90">
             Can't reach Dawnhalo right now — your day count is safe; try again in a moment.
           </p>
         )}
 
-        {/* Reminders — the quiet end of the conversation. */}
-        {ritual === "open" && (
-          <section className="mt-10 space-y-3">
-            <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 ml-1">Reminders for today</p>
-            {reminders.map((r, i) => (
-              <div key={i} className="flex items-start gap-4 p-5 bg-dawn-surface/60 backdrop-blur-md border border-dawn-haze/15 rounded-xl">
-                <div className="mt-1.5 size-1.5 rounded-full bg-dawn-rose shrink-0" />
-                <p className="text-sm leading-relaxed italic font-serif text-dawn-ink/85">{r}</p>
+        {phase === "open" && (
+          <>
+            <p className="mt-8 text-center text-[10px] uppercase tracking-[0.18em] opacity-40">
+              {unlimited
+                ? "Unlimited draws"
+                : remaining === null
+                  ? " "
+                  : remaining > 0
+                    ? `${remaining} free draw${remaining === 1 ? "" : "s"} left today`
+                    : "Free draws used — open a plan to keep drawing"}
+            </p>
+            <div className="mt-12 pt-8 border-t border-dawn-haze/10 text-center">
+              <p className="text-[10px] uppercase tracking-widest opacity-30">In need of immediate support?</p>
+              <div className="mt-3 flex justify-center gap-6">
+                <a href="tel:988" className="text-[11px] font-medium border-b border-dawn-haze/20">US — call or text 988</a>
+                <a href="tel:116123" className="text-[11px] font-medium border-b border-dawn-haze/20">UK — Samaritans 116 123</a>
               </div>
-            ))}
-          </section>
+            </div>
+          </>
         )}
 
-        {ritual === "open" && (
-          <div className="mt-16 pt-8 border-t border-dawn-haze/10 text-center">
-            <p className="text-[10px] uppercase tracking-widest opacity-30">In need of immediate support?</p>
-            <div className="mt-3 flex justify-center gap-6">
-              <a href="tel:988" className="text-[11px] font-medium border-b border-dawn-haze/20">US — call or text 988</a>
-              <a href="tel:116123" className="text-[11px] font-medium border-b border-dawn-haze/20">UK — Samaritans 116 123</a>
-            </div>
+        {/* "I need something now" — always reachable, never loud. */}
+        {(phase === "choose" || phase === "open") && (
+          <div className="mt-10 text-center">
+            <button
+              onClick={() => {
+                setNowOpen((v) => !v);
+                setNowFlow(null);
+              }}
+              className="text-[11px] uppercase tracking-[0.2em] text-dawn-ink/40 hover:text-dawn-ink/70 border-b border-dawn-haze/20 pb-0.5"
+            >
+              {NOW_LABEL}
+            </button>
+            {nowOpen && (
+              <div className="mt-4 p-5 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl text-left animate-card-rise">
+                {!nowFlow ? (
+                  <>
+                    <p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-3">{NOW_QUESTION}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {NOW_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => nowRoute(opt.id)}
+                          className="text-[12px] px-4 py-2.5 rounded-full border border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10"
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <Lines
+                      lines={nowFlow === "calm" ? CALM_FLOW : CLARITY_FLOW}
+                      className="space-y-3 text-dawn-ink/85 text-base"
+                    />
+                    <button
+                      onClick={() => setNowOpen(false)}
+                      className="mt-4 w-full py-2 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40"
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>

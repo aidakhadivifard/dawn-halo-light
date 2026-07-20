@@ -75,7 +75,8 @@ export interface HonestyRow {
   device_id: string;
   local_date: string;
   day_number: number;
-  answer: string; // "continue" | "thinking" | "done"
+  answer: string; // "continue" | "adjust" | "thinking" | "done"
+  note?: string | null; // optional "what has changed" reflection
   created_at: string;
 }
 
@@ -188,6 +189,7 @@ CREATE TABLE IF NOT EXISTS honesty_checks (
   local_date TEXT NOT NULL,
   day_number INTEGER NOT NULL,
   answer TEXT NOT NULL,
+  note TEXT,
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_honesty_goal_created ON honesty_checks(goal_id, created_at);
@@ -204,6 +206,7 @@ export function createDb(path = ":memory:") {
   for (const sql of [
     "ALTER TABLE draws ADD COLUMN reflection TEXT",
     "ALTER TABLE saved ADD COLUMN reflection TEXT",
+    "ALTER TABLE honesty_checks ADD COLUMN note TEXT",
   ]) {
     try {
       sqlite.exec(sql);
@@ -313,8 +316,8 @@ export function createDb(path = ":memory:") {
       "SELECT * FROM ritual_entries WHERE goal_id = ? ORDER BY local_date ASC",
     ),
     insertHonesty: sqlite.prepare(
-      `INSERT INTO honesty_checks (id, goal_id, device_id, local_date, day_number, answer, created_at)
-       VALUES (@id, @goal_id, @device_id, @local_date, @day_number, @answer, @created_at)`,
+      `INSERT INTO honesty_checks (id, goal_id, device_id, local_date, day_number, answer, note, created_at)
+       VALUES (@id, @goal_id, @device_id, @local_date, @day_number, @answer, @note, @created_at)`,
     ),
     lastHonesty: sqlite.prepare<[string]>(
       "SELECT * FROM honesty_checks WHERE goal_id = ? ORDER BY day_number DESC LIMIT 1",

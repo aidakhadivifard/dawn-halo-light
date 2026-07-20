@@ -29,9 +29,20 @@ import { artForCard } from "@/lib/dawnhalo";
 import {
   ABANDON_CONFIRM,
   BENCHMARK_SOURCE_LABEL,
+  CREATION_BEGIN,
+  CREATION_CTA,
+  CREATION_EDIT,
+  CREATION_LATER,
+  CREATION_OPENING,
+  CREATION_REWARD_HELPER,
+  CREATION_SUMMARY_HEAD,
+  CREATION_SUMMARY_NOTE,
+  CREATION_TITLE_HELPER,
   HONESTY_OPTIONS,
+  HONESTY_RESPONSES,
   JOURNAL_LOCKED,
   ONBOARDING,
+  RETURNED_TIMES,
   RITUAL_CARD_HEADING,
   RITUAL_WRITING_HEADING,
   RITUAL_WRITING_PLACEHOLDER,
@@ -234,6 +245,8 @@ function Onboarding({
   offlineNote: boolean;
 }) {
   const navigate = useNavigate();
+  const [intro, setIntro] = useState(true);
+  const [review, setReview] = useState(false);
   const [title, setTitle] = useState("");
   const [reward, setReward] = useState("");
   const [targetDate, setTargetDate] = useState("");
@@ -294,7 +307,79 @@ function Onboarding({
     );
   }
 
-  // One flowing conversation — every question on one scroll, nothing removed.
+  // Gentle opening — a journey is offered, never pushed.
+  if (intro) {
+    return (
+      <section className="flex flex-col items-center text-center py-16 animate-card-rise">
+        <div className="relative w-32 h-32 mb-6">
+          <div
+            aria-hidden
+            className="absolute inset-0 rounded-full blur-[50px] opacity-70 animate-halo"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(245,207,138,0.5) 0%, rgba(244,163,122,0.25) 50%, transparent 75%)",
+            }}
+          />
+        </div>
+        {CREATION_OPENING.map((l, i) => (
+          <p key={i} className="font-serif italic text-xl leading-relaxed text-balance max-w-[28ch]">
+            {l}
+          </p>
+        ))}
+        <button
+          onClick={() => setIntro(false)}
+          className="mt-10 px-10 py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(244,163,122,0.5)]"
+        >
+          {CREATION_CTA}
+        </button>
+        <button
+          onClick={() => void navigate({ to: "/" })}
+          className="mt-4 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70"
+        >
+          {CREATION_LATER}
+        </button>
+      </section>
+    );
+  }
+
+  // Commitment summary — eyes open before Day 1.
+  if (review) {
+    return (
+      <section className="py-10 text-center animate-card-rise">
+        <p className="text-[10px] uppercase tracking-[0.2em] opacity-50">{CREATION_SUMMARY_HEAD}</p>
+        <h1 className="mt-4 text-2xl font-serif font-light italic leading-snug text-balance">{title}</h1>
+        <p className="mt-2 text-sm text-dawn-ink/60">Until {targetDate}</p>
+        <p className="mt-1 text-sm text-dawn-ink/60">For: {reward}</p>
+        <div className="mt-8 space-y-1">
+          {CREATION_SUMMARY_NOTE.map((l, i) => (
+            <p key={i} className="text-sm font-serif italic text-dawn-ink/70 leading-relaxed">
+              {l}
+            </p>
+          ))}
+        </div>
+        <button
+          onClick={commit}
+          disabled={busy}
+          className="mt-10 w-full py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full disabled:opacity-50"
+        >
+          {busy ? "Committing…" : CREATION_BEGIN}
+        </button>
+        <button
+          onClick={() => setReview(false)}
+          className="mt-3 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70"
+        >
+          {CREATION_EDIT}
+        </button>
+        {error && <p className="mt-3 text-xs text-dawn-rose/90">{error}</p>}
+        {offlineNote && (
+          <p className="mt-3 text-xs text-dawn-rose/90">Can't reach Dawnhalo right now — try again in a moment.</p>
+        )}
+      </section>
+    );
+  }
+
+  // One flowing conversation — the next question appears when the current one
+  // is answered (progressive disclosure), nothing removed.
   return (
     <section className="flex flex-col items-center text-center py-6 animate-card-rise">
       <div className="relative w-28 h-28 mb-4">
@@ -313,7 +398,7 @@ function Onboarding({
           <h1 className="text-2xl font-serif font-light italic text-balance leading-snug">
             {ONBOARDING.titleHeading}
           </h1>
-          <p className="mt-2 text-sm text-dawn-ink/55">{ONBOARDING.titleSub}</p>
+          <p className="mt-2 text-sm text-dawn-ink/55">{CREATION_TITLE_HELPER}</p>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -338,11 +423,12 @@ function Onboarding({
           </div>
         </div>
 
-        <div>
+        {title.trim() && (
+        <div className="animate-card-rise">
           <h2 className="text-xl font-serif font-light italic text-balance leading-snug">
             {ONBOARDING.rewardHeading}
           </h2>
-          <p className="mt-2 text-sm text-dawn-ink/55">{ONBOARDING.rewardSub}</p>
+          <p className="mt-2 text-sm text-dawn-ink/55">{CREATION_REWARD_HELPER}</p>
           <input
             value={reward}
             onChange={(e) => setReward(e.target.value)}
@@ -350,8 +436,10 @@ function Onboarding({
             className={ONBOARD_INPUT + " mt-4"}
           />
         </div>
+        )}
 
-        <div>
+        {reward.trim() && (
+        <div className="animate-card-rise">
           <h2 className="text-xl font-serif font-light italic text-balance leading-snug">
             {ONBOARDING.dateHeading}
           </h2>
@@ -367,8 +455,10 @@ function Onboarding({
             {ONBOARDING.dateLockNote}
           </p>
         </div>
+        )}
 
-        <div>
+        {targetDate && (
+        <div className="animate-card-rise">
           <input
             ref={fileRef}
             type="file"
@@ -396,10 +486,12 @@ function Onboarding({
           </div>
           <p className="mt-2 text-[11px] text-dawn-ink/40">{ONBOARDING.photoPrivacy}</p>
         </div>
+        )}
 
-        <div>
+        {targetDate && (
+        <div className="animate-card-rise">
           <h2 className="text-xl font-serif font-light italic text-balance leading-snug">
-            {ONBOARDING.ritualHeading}
+            When the journey feels difficult, how would you rather return to yourself?
           </h2>
           <div className="mt-4 space-y-3">
             {(
@@ -424,22 +516,18 @@ function Onboarding({
             ))}
           </div>
         </div>
+        )}
 
-        <div>
+        {ready && (
+        <div className="animate-card-rise">
           <button
-            onClick={commit}
-            disabled={busy || !ready}
-            className="w-full py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(244,163,122,0.5)] hover:bg-dawn-haze transition-all disabled:opacity-40"
+            onClick={() => setReview(true)}
+            className="w-full py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(244,163,122,0.5)] hover:bg-dawn-haze transition-all"
           >
-            {busy ? "Committing…" : "Commit — Day 1 starts now"}
+            Continue
           </button>
-          {error && <p className="mt-3 text-xs text-dawn-rose/90">{error}</p>}
-          {offlineNote && (
-            <p className="mt-3 text-xs text-dawn-rose/90">
-              Can't reach Dawnhalo right now — try again in a moment.
-            </p>
-          )}
         </div>
+        )}
       </div>
     </section>
   );
@@ -533,7 +621,7 @@ function GoalHome({
     void onRefresh();
   };
 
-  const answer = async (a: "continue" | "thinking" | "done") => {
+  const answer = async (a: "continue" | "adjust" | "thinking" | "done") => {
     if (busy) return;
     setBusy(true);
     const res = await answerHonesty(a);
@@ -603,6 +691,9 @@ function GoalHome({
         </span>
         <p className="mt-1 text-[11px] text-dawn-ink/40">
           streak {status.streak} · {Math.max(0, status.totalDays - status.day)} days to {g.targetDate}
+        </p>
+        <p className="mt-1 text-[11px] text-dawn-ink/45 font-serif italic">
+          {RETURNED_TIMES(status.checkinCount)}
         </p>
         <div className="mt-5">
           <ProgressBar value={status.progress} />
@@ -799,6 +890,24 @@ function GoalHome({
                 </div>
               );
             })}
+            {journal.honesty.length > 0 && (
+              <>
+                <p className="pt-2 text-[10px] uppercase tracking-[0.2em] opacity-50 ml-1">
+                  Honesty checks
+                </p>
+                {[...journal.honesty].reverse().map((h) => (
+                  <div key={h.id} className="p-4 bg-dawn-surface/60 border border-dawn-haze/15 rounded-xl">
+                    <p className="text-[10px] uppercase tracking-[0.18em] opacity-40">
+                      Day {h.day} · {h.date}
+                    </p>
+                    <p className="mt-1 text-sm font-serif">
+                      {HONESTY_OPTIONS.find((o) => o.id === h.answer)?.label ?? h.answer}
+                    </p>
+                    {h.note && <p className="mt-1 text-sm text-dawn-ink/70 italic">“{h.note}”</p>}
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
       </section>

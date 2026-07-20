@@ -307,6 +307,26 @@ describe("endurance goal (e2e)", () => {
       expect(third.body.checkin.honestyDue).toBe(true);
     });
 
+    it("'adjust' and 'thinking' log with a note and never close the goal", async () => {
+      const r1 = await h(request(api).post("/api/goal/honesty"), onDay(21)).send({
+        answer: "adjust",
+        note: "the method is wrong, the goal is right",
+      });
+      expect(r1.status).toBe(200);
+      expect(r1.body.summary).toBeUndefined();
+      const r2 = await h(request(api).post("/api/goal/honesty"), onDay(42)).send({
+        answer: "thinking",
+      });
+      expect(r2.status).toBe(200);
+      const status = await h(request(api).get("/api/goal"), onDay(43));
+      expect(status.body.status).not.toBeNull(); // still active
+
+      const hist = await h(request(api).get("/api/goal/history"), onDay(43));
+      expect(hist.body.honesty).toHaveLength(2);
+      expect(hist.body.honesty[0].answer).toBe("adjust");
+      expect(hist.body.honesty[0].note).toContain("method is wrong");
+    });
+
     it("'done' closes the goal with a respectful summary — zero guilt language", async () => {
       await h(request(api).post("/api/goal/checkin"), onDay(1)).send({
         state: "strong",
@@ -353,6 +373,15 @@ describe("endurance goal (e2e)", () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("target_not_reached");
     });
+  });
+
+  it("the deck is public content for the Library", async () => {
+    const res = await request(api).get("/api/deck");
+    expect(res.status).toBe(200);
+    expect(res.body.deck.length).toBeGreaterThanOrEqual(40);
+    expect(res.body.deck[0]).toHaveProperty("title");
+    expect(res.body.deck[0]).toHaveProperty("essence");
+    expect(res.body.deck[0]).toHaveProperty("theme");
   });
 
   it("goal-aware cards: the daily card prompt carries the goal context", async () => {
