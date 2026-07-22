@@ -17,6 +17,7 @@ import {
 } from "@/lib/cards";
 import { getCalendar } from "@/lib/store";
 import { OracleCardView } from "@/components/OracleCard";
+import { shareJourneyImage } from "@/lib/shareImage";
 import { BottomNav } from "@/components/BottomNav";
 import { track } from "@/lib/analytics";
 import type { CheckinResult, CheckinState, GoalStatus, RitualType } from "@/lib/api";
@@ -47,6 +48,8 @@ import {
   RITUAL_CARD_PROMPTS,
   SOFT_TRANSITION,
   STATE_OPTIONS,
+  SUPPORT_INTRO,
+  SUPPORT_RESOURCES,
   TRUTH_RESPONSE,
   WRITING_PROMPTS,
   smallActionFor,
@@ -181,7 +184,7 @@ function TodayPage() {
 
   // "I need something now" sheet.
   const [nowOpen, setNowOpen] = useState(false);
-  const [nowFlow, setNowFlow] = useState<null | "calm" | "clarity">(null);
+  const [nowFlow, setNowFlow] = useState<null | "calm" | "clarity" | "support">(null);
 
   // Soft discovery (no goal).
   const [discovery, setDiscovery] = useState(false);
@@ -215,9 +218,6 @@ function TodayPage() {
       clearTimeout(phaseFallback);
     };
   }, [today]);
-
-  const remaining = entitlement?.freeDrawsRemaining ?? null;
-  const unlimited = entitlement?.subscribed || remaining === -1;
 
   const handleOutcome = (out: Awaited<ReturnType<typeof drawCardEx>>, mode: string) => {
     if (out.kind === "crisis") {
@@ -373,6 +373,16 @@ function TodayPage() {
     if (goal) setGoal({ ...goal, ritualDoneToday: true });
   };
 
+  const shareMilestone = async (message: string) => {
+    if (!goal) return;
+    try {
+      const outcome = await shareJourneyImage({ day: goal.day, card: activeCard, line: message });
+      track("card_image_shared", { method: outcome, format: "milestone" });
+    } catch {
+      /* canvas/share unavailable — quietly do nothing */
+    }
+  };
+
   const askWith = async (text: string, mode: string) => {
     if (!text.trim() || busy) return;
     setNowOpen(false);
@@ -415,6 +425,9 @@ function TodayPage() {
       case "calm":
         setNowFlow("calm");
         break;
+      case "support":
+        setNowFlow("support");
+        break;
       case "courage":
         void askWith("I need courage today", "now_courage");
         break;
@@ -447,48 +460,54 @@ function TodayPage() {
         }}
       />
       <main className="relative max-w-md mx-auto px-6 pt-12 pb-36">
-        <header className="mb-6 flex justify-between items-end">
+        <header className="mb-6 flex justify-between items-start">
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 mb-1">{dateLabel}</p>
-            <h1 className="text-3xl font-serif font-light tracking-tight italic">{greeting}</h1>
+            {!goal && <h1 className="text-3xl font-serif font-light tracking-tight italic">{greeting}</h1>}
           </div>
-          <div className="text-right">
-            <span className="block text-2xl font-serif italic text-dawn-haze">{String(streak).padStart(2, "0")}</span>
-            <span className="text-[8px] uppercase tracking-widest opacity-40">Day streak</span>
-          </div>
+          {/* The streak is invisible until it exists; never zero-padded. */}
+          {streak >= 1 && (
+            <div className="text-right">
+              <span className="block text-2xl font-serif italic text-dawn-haze">{streak}</span>
+              <span className="text-[8px] uppercase tracking-widest opacity-40">Day streak</span>
+            </div>
+          )}
         </header>
 
-        {/* Goal header — light, tappable, never overloaded. */}
+        {/* Goal header — the hero of the app. The Day number is the home; the
+            card is the guest. Calm and typographic, like a clock. */}
         {goal && (
           <Link
             to="/goal"
-            className="mb-6 block p-3 bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl hover:bg-dawn-haze/10 transition-colors"
+            className="mb-8 block text-center hover:opacity-90 transition-opacity"
           >
-            <div className="flex items-center gap-3">
-              {goalPhoto ? (
-                <img src={goalPhoto} alt="" className="size-10 rounded-lg object-cover ring-1 ring-dawn-haze/20" />
-              ) : (
-                <span className="flex size-10 items-center justify-center rounded-lg bg-dawn-rose/15 font-serif italic text-dawn-rose">
-                  {goal.day}
-                </span>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block text-[10px] uppercase tracking-[0.18em] opacity-45">
-                  Day {goal.day} · {Math.max(0, goal.totalDays - goal.day)} days remaining
-                </span>
-                <span className="block truncate text-sm font-serif italic text-dawn-ink/85">{goal.goal.title}</span>
-              </span>
-            </div>
-            <div className="mt-2 h-1 w-full rounded-full bg-dawn-ink/10 overflow-hidden">
+            {goalPhoto && (
+              <img
+                src={goalPhoto}
+                alt=""
+                className="mx-auto mb-3 size-12 rounded-xl object-cover ring-1 ring-dawn-haze/25"
+              />
+            )}
+            <span className="block text-[10px] uppercase tracking-[0.3em] opacity-45">Day</span>
+            <span className="block font-serif font-light italic leading-none text-dawn-ink text-[5.5rem] sm:text-[6.5rem]">
+              {goal.day}
+            </span>
+            <span className="mt-1 block truncate text-sm font-serif italic text-dawn-ink/80 px-4">
+              {goal.goal.title}
+            </span>
+            <span className="mt-1 block text-[11px] uppercase tracking-[0.18em] opacity-45">
+              {Math.max(0, goal.totalDays - goal.day)} days remaining
+            </span>
+            <div className="mx-auto mt-3 h-1 w-40 rounded-full bg-dawn-ink/10 overflow-hidden">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-dawn-gold to-dawn-rose"
                 style={{ width: `${Math.round(goal.progress * 100)}%` }}
               />
             </div>
             {(goal.checkinCount ?? 0) > 0 && (
-              <p className="mt-1.5 text-[10px] uppercase tracking-[0.18em] opacity-40">
+              <span className="mt-2 block text-[10px] uppercase tracking-[0.18em] opacity-40">
                 {RETURNED_TIMES(goal.checkinCount)}
-              </p>
+              </span>
             )}
           </Link>
         )}
@@ -539,12 +558,13 @@ function TodayPage() {
             >
               Continue to today's card
             </button>
-            <Link
-              to="/goal"
-              className="mt-3 inline-block text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40"
+            <button
+              onClick={() => void shareMilestone(checkinResult.milestone!.message)}
+              disabled={busy}
+              className="mt-3 inline-block text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 disabled:opacity-50"
             >
               Share this milestone
-            </Link>
+            </button>
           </section>
         )}
 
@@ -708,7 +728,7 @@ function TodayPage() {
         {/* The reading. */}
         {phase === "open" && activeCard && (
           <div className="animate-card-rise">
-            <OracleCardView key={activeCard.id} card={activeCard} onDrawAgain={() => setPhase("choose")} />
+            <OracleCardView key={activeCard.id} card={activeCard} journeyDay={goal?.day} />
           </div>
         )}
 
@@ -952,26 +972,9 @@ function TodayPage() {
           </p>
         )}
 
-        {phase === "open" && (
-          <>
-            <p className="mt-8 text-center text-[10px] uppercase tracking-[0.18em] opacity-40">
-              {unlimited
-                ? "Unlimited draws"
-                : remaining === null
-                  ? " "
-                  : remaining > 0
-                    ? `${remaining} free draw${remaining === 1 ? "" : "s"} left today`
-                    : "Free draws used — open a plan to keep drawing"}
-            </p>
-            <div className="mt-12 pt-8 border-t border-dawn-haze/10 text-center">
-              <p className="text-[10px] uppercase tracking-widest opacity-30">In need of immediate support?</p>
-              <div className="mt-3 flex justify-center gap-6">
-                <a href="tel:988" className="text-[11px] font-medium border-b border-dawn-haze/20">US — call or text 988</a>
-                <a href="tel:116123" className="text-[11px] font-medium border-b border-dawn-haze/20">UK — Samaritans 116 123</a>
-              </div>
-            </div>
-          </>
-        )}
+        {/* No draw counter, no persistent hotlines (spec §5.2, §10). Support
+            lives one tap away inside "I need something now", and appears
+            prominently only when crisis detection triggers. */}
 
         {/* "I need something now" — always reachable, never loud. */}
         {(phase === "choose" || phase === "open") && (
@@ -1002,6 +1005,30 @@ function TodayPage() {
                       ))}
                     </div>
                   </>
+                ) : nowFlow === "support" ? (
+                  <div>
+                    <p className="font-serif italic text-base leading-relaxed text-dawn-ink/85">
+                      {SUPPORT_INTRO}
+                    </p>
+                    <div className="mt-4 space-y-2">
+                      {SUPPORT_RESOURCES.map((r) => (
+                        <a
+                          key={r.region}
+                          href={`tel:${r.tel}`}
+                          className="block p-4 bg-dawn-sky/50 border border-dawn-haze/15 rounded-xl"
+                        >
+                          <p className="font-serif text-base text-dawn-ink">{r.label}</p>
+                          <p className="text-xs text-dawn-ink/55">{r.detail}</p>
+                        </a>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setNowOpen(false)}
+                      className="mt-4 w-full py-2 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40"
+                    >
+                      Close
+                    </button>
+                  </div>
                 ) : (
                   <div>
                     <Lines

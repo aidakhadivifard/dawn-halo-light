@@ -9,7 +9,7 @@ import { classifyInput } from "./lib/classify";
 import { canDraw, snapshot, withinTrial, type QuotaState } from "./lib/entitlement";
 import { selectIllustration, NO_REPEAT_WINDOW_DAYS } from "./lib/illustrations";
 import { generateCardText, type MessagesClient } from "./lib/anthropic";
-import { goalAnchor } from "./lib/prompt";
+import { buildReadingContext } from "./lib/readingContext";
 import { generateReflection } from "./lib/reflect";
 import { copyRuleViolations } from "./lib/copyrule";
 import { benchmarkForDay, type BenchmarkLine } from "./lib/benchmarks";
@@ -177,12 +177,14 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     return { ...base, activeDays: Math.max(base.activeDays, checkinDays) };
   }
 
-  /** Prompt fragment for goal-aware cards, or undefined when no active goal. */
+  /**
+   * The Reading Engine payload (spec §3.7): goal, recent check-ins, the
+   * reader's own written words, honesty answers, nearby milestones — plus the
+   * engine's rules. Undefined when no active goal (general reading, that day
+   * only).
+   */
   function activeGoalContext(deviceId: string, localDate: string): string | undefined {
-    const goal = db.getActiveGoal(deviceId);
-    if (!goal) return undefined;
-    const day = daysSince(goal.start_date, localDate);
-    return goalAnchor({ title: goal.title, reward: goal.reward, day });
+    return buildReadingContext(db, deviceId, localDate);
   }
 
   function toGoal(row: GoalRow): GoalPayload {
@@ -620,7 +622,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         if (!decision.allowed) return { kind: "paywall", reason: decision.reason };
         const genInput = {
           intent: "general" as const,
-          goalContext: goalAnchor({ title: goal.title, reward: goal.reward, day }),
+          goalContext: buildReadingContext(db, deviceId, localDate),
         };
         let gen = await generateCardText(genInput, { client, timeoutMs });
         // The Copy Rule lint runs on every goal-aware AI line before display.
@@ -668,6 +670,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
           day,
           state: checkin.state as CheckinState,
           text,
+          context: buildReadingContext(db, deviceId, localDate),
         },
         { client, timeoutMs },
       );

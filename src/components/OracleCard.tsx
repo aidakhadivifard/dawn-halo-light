@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { askFollowUpEx, type Card } from "@/lib/cards";
 import { saveCard, removeSaved, getSaved, createSpark } from "@/lib/store";
-import { shareCardAsImage } from "@/lib/shareImage";
+import { shareCardAsImage, shareJourneyImage } from "@/lib/shareImage";
 import { track } from "@/lib/analytics";
 
 type Props = {
@@ -11,9 +11,13 @@ type Props = {
   onDrawNew?: () => void;
   readOnly?: boolean;
   showCanDraw?: boolean;
+  /** Active journey day — makes shares Day-first (spec §8). */
+  journeyDay?: number;
 };
 
-export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCanDraw = true }: Props) {
+// One card, one message: no "draw another" here, ever. A second card exists
+// only inside the ritual, as a smaller question (spec §2).
+export function OracleCardView({ card, readOnly, journeyDay }: Props) {
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     let alive = true;
@@ -28,6 +32,8 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
   const [followUp, setFollowUp] = useState("");
   const [followUpUsed, setFollowUpUsed] = useState(!!card.followUpUsed);
   const [followCard, setFollowCard] = useState<Card | null>(null);
+  const [askOpen, setAskOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [sparkOpen, setSparkOpen] = useState(false);
   const [note, setNote] = useState("");
   const [copied, setCopied] = useState(false);
@@ -105,8 +111,15 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
     if (imageBusy) return;
     setImageBusy(true);
     try {
-      const outcome = await shareCardAsImage(card);
-      track("card_image_shared", { method: outcome });
+      // With a journey: the Day number is the hero of the share, not the card.
+      const outcome = journeyDay
+        ? await shareJourneyImage({
+            day: journeyDay,
+            card,
+            line: card.message.split(/\n{2,}/)[0]?.slice(0, 140) ?? card.title,
+          })
+        : await shareCardAsImage(card);
+      track("card_image_shared", { method: outcome, format: journeyDay ? "journey" : "card" });
     } catch {
       /* canvas/share unavailable — quietly do nothing */
     } finally {
@@ -147,7 +160,8 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
         }}
       />
       <div className="relative rounded-2xl p-7 sm:p-8 border border-dawn-haze/15 bg-dawn-surface/80 backdrop-blur-xl shadow-[0_40px_120px_-30px_rgba(245,180,120,0.35),inset_0_1px_0_rgba(255,220,180,0.08)]">
-        <div className="w-full aspect-[4/5] mb-7 rounded-lg overflow-hidden ring-1 ring-dawn-haze/15 bg-black/30">
+        {/* The reveal flip is the ritual — a slow, tactile second. */}
+        <div className="w-full aspect-[4/5] mb-7 rounded-lg overflow-hidden ring-1 ring-dawn-haze/15 bg-black/30 animate-card-flip">
           <img src={card.illustration} alt={card.title} width={768} height={1152} className="h-full w-full object-cover" loading="lazy" />
         </div>
 
@@ -169,23 +183,36 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
           )}
         </div>
 
-        {/* Action buttons — single row, wrapping naturally */}
+        {/* One primary action; everything else collapses under a quiet More row. */}
         {!readOnly && (
-          <div className="mt-7 pt-6 border-t border-dawn-haze/10 flex flex-wrap gap-2">
-            <ActionButton onClick={toggleSave} active={saved}>
-              {saved ? "Saved" : "Save"}
-            </ActionButton>
-            {showCanDraw && onDrawAgain && (
-              <ActionButton onClick={onDrawAgain}>Draw another</ActionButton>
+          <div className="mt-7 pt-6 border-t border-dawn-haze/10">
+            {!followUpUsed && !askOpen && (
+              <button
+                onClick={() => setAskOpen(true)}
+                className="w-full py-3.5 bg-dawn-rose/15 border border-dawn-rose/30 text-dawn-rose text-xs uppercase tracking-[0.2em] font-bold rounded-full hover:bg-dawn-rose/25 transition-colors"
+              >
+                Ask one more thing
+              </button>
             )}
-            {!followUpUsed && (
-              <ActionButton onClick={() => document.getElementById(`fu-${card.id}`)?.focus()}>
-                Ask a follow-up
-              </ActionButton>
-            )}
-            <ActionButton onClick={() => setSparkOpen((s) => !s)} active={sparkOpen}>
-              Share
-            </ActionButton>
+            <div className="mt-3 text-center">
+              {!moreOpen ? (
+                <button
+                  onClick={() => setMoreOpen(true)}
+                  className="text-[10px] uppercase tracking-[0.2em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors"
+                >
+                  More
+                </button>
+              ) : (
+                <div className="flex flex-wrap justify-center gap-2">
+                  <ActionButton onClick={toggleSave} active={saved}>
+                    {saved ? "Saved" : "Save"}
+                  </ActionButton>
+                  <ActionButton onClick={() => setSparkOpen((s) => !s)} active={sparkOpen}>
+                    Share
+                  </ActionButton>
+                </div>
+              )}
+            </div>
           </div>
         )}
         {readOnly && (
@@ -193,9 +220,6 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
             <ActionButton onClick={toggleSave} active={saved}>
               {saved ? "Saved" : "Save"}
             </ActionButton>
-            {onDrawNew && (
-              <ActionButton onClick={onDrawNew}>Draw a new card</ActionButton>
-            )}
             <ActionButton onClick={() => setSparkOpen((s) => !s)} active={sparkOpen}>
               Share
             </ActionButton>
@@ -236,8 +260,8 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
         </div>
       )}
 
-      {!readOnly && !followUpUsed && !busy && (
-        <form onSubmit={submitFollowUp} className="mt-6">
+      {!readOnly && !followUpUsed && !busy && askOpen && (
+        <form onSubmit={submitFollowUp} className="mt-6 animate-card-rise">
           <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">What would you like to know more about?</label>
           <div className="flex flex-wrap gap-2 mb-3">
             {["My next step", "What I need to hear", "A different perspective"].map((s) => (
@@ -267,7 +291,7 @@ export function OracleCardView({ card, onDrawAgain, onDrawNew, readOnly, showCan
       {followCard && (
         <div className="mt-8">
           <p className="text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">The card answered</p>
-          <OracleCardView card={followCard} readOnly showCanDraw={false} onDrawNew={onDrawAgain} />
+          <OracleCardView card={followCard} readOnly journeyDay={journeyDay} />
         </div>
       )}
     </article>

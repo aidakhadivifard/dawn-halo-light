@@ -159,6 +159,114 @@ async function renderCardImage(card: Card): Promise<Blob> {
   });
 }
 
+/**
+ * The journey share format (spec §8): the DAY NUMBER is the hero — people
+ * share their chapters, not card art. Card smaller, one short line from the
+ * reading, small wordmark. Goal title stays off unless the user opts in.
+ */
+async function renderJourneyImage(args: {
+  day: number;
+  card?: Card | null;
+  line: string;
+  goalTitle?: string;
+}): Promise<Blob> {
+  try {
+    await Promise.all([
+      document.fonts.load('italic 300 260px "Fraunces"'),
+      document.fonts.load('400 34px "Inter"'),
+    ]);
+  } catch {
+    /* system fallbacks are fine */
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas_unavailable");
+
+  ctx.fillStyle = SKY;
+  ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W / 2, 430, 60, W / 2, 430, 860);
+  glow.addColorStop(0, "rgba(245,207,138,0.5)");
+  glow.addColorStop(0.5, "rgba(244,163,122,0.2)");
+  glow.addColorStop(1, "rgba(189,92,120,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+
+  // The hero: the day number, calm and typographic, like a clock.
+  ctx.fillStyle = "rgba(45,42,46,0.55)";
+  ctx.font = '500 40px "Inter", -apple-system, sans-serif';
+  ctx.fillText("D A Y", W / 2, 300);
+  ctx.fillStyle = INK;
+  ctx.font = 'italic 300 300px "Fraunces", Georgia, serif';
+  ctx.fillText(String(args.day), W / 2, 590);
+
+  if (args.goalTitle) {
+    ctx.fillStyle = "rgba(45,42,46,0.6)";
+    ctx.font = 'italic 300 40px "Fraunces", Georgia, serif';
+    const gl = wrapText(ctx, args.goalTitle, W - 240, 1);
+    ctx.fillText(gl[0] ?? "", W / 2, 670);
+  }
+
+  // The card, a guest below the number.
+  let y = 780;
+  if (args.card) {
+    const imgW = 520;
+    const imgH = 650;
+    const imgX = (W - imgW) / 2;
+    try {
+      const img = await loadIllustration(args.card.illustration);
+      ctx.save();
+      ctx.shadowColor = "rgba(45,42,46,0.25)";
+      ctx.shadowBlur = 50;
+      ctx.shadowOffsetY = 20;
+      roundedRectPath(ctx, imgX, y, imgW, imgH, 24);
+      ctx.fillStyle = "#1a1518";
+      ctx.fill();
+      ctx.restore();
+      ctx.save();
+      roundedRectPath(ctx, imgX, y, imgW, imgH, 24);
+      ctx.clip();
+      const scale = Math.max(imgW / img.naturalWidth, imgH / img.naturalHeight);
+      ctx.drawImage(
+        img,
+        imgX + (imgW - img.naturalWidth * scale) / 2,
+        y + (imgH - img.naturalHeight * scale) / 2,
+        img.naturalWidth * scale,
+        img.naturalHeight * scale,
+      );
+      ctx.restore();
+      y += imgH + 120;
+    } catch {
+      /* no illustration — the day number carries the image */
+      y += 60;
+    }
+  } else {
+    y += 60;
+  }
+
+  // One short line from the reading.
+  ctx.fillStyle = "rgba(45,42,46,0.8)";
+  ctx.font = 'italic 300 46px "Fraunces", Georgia, serif';
+  const lines = wrapText(ctx, `“${args.line}”`, W - 240, 3);
+  for (const line of lines) {
+    ctx.fillText(line, W / 2, y);
+    y += 62;
+  }
+
+  ctx.fillStyle = ROSE;
+  ctx.font = '700 30px "Inter", -apple-system, sans-serif';
+  ctx.fillText("D A W N H A L O", W / 2, H - 100);
+
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("image_encode_failed"))), "image/png");
+  });
+}
+
 export type ShareImageOutcome = "shared" | "downloaded";
 
 /**
@@ -166,7 +274,23 @@ export type ShareImageOutcome = "shared" | "downloaded";
  * (mobile → Instagram/WhatsApp/etc.), otherwise download the PNG.
  */
 export async function shareCardAsImage(card: Card): Promise<ShareImageOutcome> {
-  const blob = await renderCardImage(card);
+  return shareBlob(await renderCardImage(card));
+}
+
+/**
+ * Share a journey moment: Day number as the hero, the card as the guest,
+ * one line from the reading. Goal title off by default (privacy).
+ */
+export async function shareJourneyImage(args: {
+  day: number;
+  card?: Card | null;
+  line: string;
+  goalTitle?: string;
+}): Promise<ShareImageOutcome> {
+  return shareBlob(await renderJourneyImage(args));
+}
+
+async function shareBlob(blob: Blob): Promise<ShareImageOutcome> {
   const file = new File([blob], "dawnhalo-card.png", { type: "image/png" });
 
   const nav = navigator as Navigator & {

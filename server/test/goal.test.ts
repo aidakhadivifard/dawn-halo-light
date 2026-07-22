@@ -402,8 +402,60 @@ describe("endurance goal (e2e)", () => {
     });
     const daily = await h(request(spyApi).get("/api/cards/daily"), onDay(47));
     expect(daily.status).toBe(200);
-    expect(capturedPrompt).toContain("Day 47 of holding on for");
-    expect(capturedPrompt).toContain("stay at this job");
+    expect(capturedPrompt).toContain('Holding on for: "stay at this job"');
+    expect(capturedPrompt).toContain("Day 47 of 200");
+    expect(capturedPrompt).toContain("READING ENGINE RULES");
     expect(capturedPrompt).toContain("never promise the outcome");
+  });
+
+  it("the Reading Engine payload carries the reader's own life (spec 3.7)", async () => {
+    let capturedPrompt = "";
+    const spying: MessagesClient = {
+      messages: {
+        create: async (args: any) => {
+          capturedPrompt = args.messages[0].content;
+          return { content: [{ type: "text", text: JSON.stringify(card) }] };
+        },
+      },
+    };
+    const spyApi = app(db, spying);
+    await h(request(spyApi).post("/api/goal")).send({
+      title: "finish my thesis",
+      reward: "the defense behind me",
+      targetDate: onDay(60),
+    });
+    // Build a history: check-ins with a note, and a written ritual.
+    await h(request(spyApi).post("/api/goal/checkin"), onDay(1)).send({ state: "strong" });
+    await h(request(spyApi).post("/api/goal/checkin"), onDay(2)).send({
+      state: "barely",
+      note: "the Monday meeting drained me",
+    });
+    await h(request(spyApi).post("/api/goal/ritual"), onDay(2)).send({
+      type: "writing",
+      text: "I keep dreaming about unfinished chapters",
+    });
+    await h(request(spyApi).post("/api/goal/honesty"), onDay(3)).send({ answer: "continue" });
+    await h(request(spyApi).post("/api/goal/checkin"), onDay(3)).send({ state: "exhausted" });
+
+    capturedPrompt = "";
+    const draw = await h(request(spyApi).post("/api/cards/draw"), onDay(3)).send({
+      intent: "ask",
+      text: "am I going to make it?",
+    });
+    expect(draw.status).toBe(200);
+    // goal + numbers
+    expect(capturedPrompt).toContain('Holding on for: "finish my thesis"');
+    expect(capturedPrompt).toContain("Day 3 of 60");
+    // today's + recent check-in states with dates
+    expect(capturedPrompt).toContain("Today's check-in: exhausted");
+    expect(capturedPrompt).toContain(`${onDay(2)} barely holding on`);
+    // their own words, quoted
+    expect(capturedPrompt).toContain("the Monday meeting drained me");
+    expect(capturedPrompt).toContain("unfinished chapters");
+    // honesty answer + the engine's rules
+    expect(capturedPrompt).toContain('answered "continue"');
+    expect(capturedPrompt).toContain("counter-evidence");
+    // milestone within 3 days (day 3 milestone fires today)
+    expect(capturedPrompt).toContain("milestone");
   });
 });

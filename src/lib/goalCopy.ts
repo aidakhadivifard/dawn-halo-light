@@ -164,6 +164,15 @@ export const NOW_OPTIONS = [
   { id: "motivation", label: "Motivation" },
   { id: "goal", label: "Help with my goal" },
   { id: "write", label: "Write something down" },
+  { id: "support", label: "Talk to a person" },
+] as const;
+
+// Support is one tap away here (spec §10) — never permanently on the reading.
+export const SUPPORT_INTRO =
+  "A card isn't the right thing for this moment — a real person is. They want to hear from you.";
+export const SUPPORT_RESOURCES = [
+  { region: "US", label: "Call or text 988", detail: "Suicide & Crisis Lifeline · 24/7", tel: "988" },
+  { region: "UK", label: "Samaritans — 116 123", detail: "Free, 24/7, any reason at all", tel: "116123" },
 ] as const;
 
 export const CALM_FLOW = [
