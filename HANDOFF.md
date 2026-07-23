@@ -1,6 +1,6 @@
 # Dawnhalo — Project Handoff
 
-_Last updated: July 2026 · branch `claude/app-review-monetization-n9o6k8`_
+_Last updated: July 23 2026 · newest work on branch `claude/flow-v3`_
 
 Dawnhalo is a daily oracle-card companion: draw a daily card, ask the oracle a
 question (or tell it a dream), get one warm card-reading back, save it, build a
@@ -9,20 +9,92 @@ $4.99–9.99/mo subscription. See `README.md` for architecture and API details.
 
 ---
 
+## 0. Branches — read this first
+
+There are now **three** feature branches. They stack: each builds on the last.
+
+| Branch | What it is | Deployed? |
+|---|---|---|
+| `claude/app-review-monetization-n9o6k8` | The original launch branch. Backend goal layer + first goal UI (5-page onboarding, separate Goal tab, pre-card check-in). | **This is what Render + the live backend serve.** |
+| `claude/flow-v2` | Experiment: cards first, all questions after the reading. One-scroll goal creation. Nav Today/Journal/Library/Me. | branch only |
+| `claude/flow-v3` | **Newest / recommended.** Full product-flow spec (v3) + the "spec v2" pass: Reading Engine, Day-number-as-hero Today, one-primary-action reading, Journal/Library, "I need something now", Day-first share format. | branch only |
+
+**Nothing is merged to `main` yet.** The three flows are alternatives the user is
+comparing on-device (an APK was built from each). When the user picks one, merge
+that branch to `main` and point Render's connected branch at it. Until then the
+live app behaves like the first branch.
+
+The Reading Engine (§1.7 below) only comes fully alive once its branch is the one
+Render deploys **with** `ANTHROPIC_API_KEY` set — locally and in fallback mode the
+cards are static, so the "speaks about MY day in my own words" effect isn't visible.
+
 ## 1. What exists and works today
 
 | Layer | Where | Status |
 |---|---|---|
 | Web frontend | repo root (`src/`), React 19 + TanStack Start + Tailwind 4 | builds green |
-| Backend API | `server/` — Node/Express + SQLite + Anthropic + Stripe | 240 tests green |
-| Android app | Capacitor shell; built by `.github/workflows/android.yml` | installable APK |
+| Backend API | `server/` — Node/Express + SQLite + Anthropic + Stripe | **243 tests green** on `flow-v3` |
+| Android app | Capacitor shell; built by `.github/workflows/android.yml` | installable APK, one per flow branch |
 | iOS app | Capacitor-ready (`cap add ios` on a Mac); purchase UI auto-hidden per App Store 3.1.1 | not yet built |
-| Live backend | **https://dawnhalo-api.onrender.com** (Render free plan, branch above) | live |
+| Live backend | **https://dawnhalo-api.onrender.com** (Render free plan) | live, serving the FIRST branch |
 
-The latest connected Android build (run #32, backend wired in):
-`https://github.com/aidakhadivifard/dawn-halo-light/actions/runs/28752677671/artifacts/8095158267`
-(GitHub artifacts expire after ~30 days — rebuild via Actions → "Build Android
-app (.apk)" → Run workflow → set `api_url` to the Render URL.)
+Build any branch's APK via Actions → "Build Android app (.apk)" → Run workflow →
+pick the branch → set `api_url=https://dawnhalo-api.onrender.com`. Artifacts expire
+after ~30 days. All flow branches share one backend and one device DB, so installing
+one APK over another keeps the user's goal + check-ins.
+
+## 1.4 Flow redesign — v2 & v3 (July 18–22 2026, branch `claude/flow-v3`)
+
+Built on top of §1.5. Two design docs drove this (both from the user, delivered
+in chat): a full product-flow spec and a follow-up "Product Flow, UX Copy and
+Reading Engine (v2)". The goal: make the app feel like **one uninterrupted
+conversation**, and make the endurance layer — not the card — the visual anchor.
+Everything below is on `flow-v3`; `flow-v2` is the earlier "cards first" cut.
+
+**The Reading Engine (§1.7 — the highest-priority change).** `server/src/lib/
+readingContext.ts` builds a per-reading data payload so the model writes about
+*this* user's life, not generic sentences. It ships with every goal-aware daily
+card, prompted draw, and writing reflection. Payload = goal title/reward/day/
+target, today's + last-7 check-in states with dates, the 3 most recent written
+entries (quoted), last honesty answer, milestones within 3 days — plus the
+engine's rules (Specificity: ≥1 concrete detail from their data; evidence-based
+reframe using *their own* history; documented disagreement; "I only see what you
+have written here — but I do see it", never claim to feel or foretell). Rules
+live in the same file (`READING_ENGINE_RULES`) so payload + rules travel together.
+The Copy Rule lint still runs after. **Only visible with a real API key** (see §0).
+
+**Today, restructured (`src/routes/index.tsx`).** With a goal, the phases run:
+one-tap check-in → soft transition ("Thank you. Let us see what today has for
+you.") → milestone/honesty only when due → three cards → immediate reveal →
+reading → adaptive endurance response with per-state actions (strong: finish
+quietly; barely/exhausted: help me through today / one small realistic action /
+write what is heavy; can't: slow down / write / tell me the truth / I may need
+to stop). Fixes from the v2 audit: **Day number is the typographic hero**
+(largest text, no greeting when a goal exists); **streak hidden until Day 1,
+never zero-padded** (no more "00 STREAK"); **"Draw another" and the free-draw
+counter removed** (strict one-card rule — a second card exists only inside the
+"pull another card" ritual as a smaller question); post-reading collapses to
+**one primary action + a quiet More row**; **persistent crisis hotlines removed**
+from under the reading — support is one tap away inside "I need something now"
+("Talk to a person") and still fires immediately on crisis detection; ~800ms
+reveal flip (`animate-card-flip`).
+
+**Other v3 pieces.** Goal creation is one flowing screen with progressive
+disclosure + a commitment summary. Honesty check has four positions incl.
+"change how I'm doing it" (new server answer value `adjust` + optional
+what-changed note; DB migration adds `honesty_checks.note`). Journal
+(`calendar.tsx`) merges check-ins/writing/readings per day with search. Library
+(`saved.tsx`) has saved cards + past readings + the deck's meanings (new public
+`GET /api/deck`). Goal header framing "You have returned N times" (new
+`checkinCount` in goal status) — never missed-day shaming. Share format
+(`src/lib/shareImage.ts` `shareJourneyImage`): the **Day number is the hero** of
+the image, card the guest, one line from the reading; goal title off by default.
+Nav is Today / Journal / Library / Me (no separate Goal tab). Reminder copy
+softened (no streak threats).
+
+**Deferred (need bigger data-model changes):** approximate/no target date, goal
+pause, deadline change, and a full SVG line-art card-face set (spec §7 — phase in
+the 20 most common cards first).
 
 ## 1.5 The endurance-goal layer ("KeepGoing", July 16 2026, commits `11a0318..8e9e52e`)
 
@@ -131,6 +203,10 @@ journal. Key facts:
 
 ## 4. Launch checklist (remaining)
 
+0. **Pick a flow (do this first).** The user is comparing the three branches in
+   §0 on-device. Once they choose, merge that branch to `main`, then point
+   Render → Settings → Build & Deploy at the chosen branch so the live backend
+   serves the matching Reading Engine. `flow-v3` is the recommended target.
 1. **Stripe**: create monthly ($9.99) / yearly ($59.99) recurring prices, a
    webhook to `https://<backend>/api/stripe/webhook`, put keys in Render env.
    Until then the app is free-tier only.
@@ -141,11 +217,19 @@ journal. Key facts:
 4. **`VITE_APP_URL`**: set to the public web origin at build time for correct
    social previews.
 5. **Render**: upgrade to the $7 plan before any marketing (free plan sleeps
-   after 15 min; first request takes ~30–50 s).
-6. **Merge to `main`** when ready (Render/App builds currently track the
-   feature branch).
-7. iOS later: Apple Developer ($99/yr) + a Mac; integrate RevenueCat/StoreKit
+   after 15 min; first request takes ~30–50 s). This cold start is also why
+   Today/Goal show a 2.5s fallback before real data arrives — a paid plan
+   removes the wait.
+6. iOS later: Apple Developer ($99/yr) + a Mac; integrate RevenueCat/StoreKit
    before enabling purchases on iOS.
+
+**Working from a phone (context for whoever picks this up).** This repo is
+driven from the Claude Code desktop app; `/remote-control` mirrors a desktop
+conversation to the phone. One conversation hit a desktop-app bug
+("Cannot read properties of undefined (reading 'session_url')") after the PC
+went offline, and can't re-pair. Fix: start a **fresh** desktop conversation in
+this folder and run `/remote-control` there (it inherits project memory + this
+file), or start a cloud session on the GitHub repo from the phone's Code tab.
 
 ## 5. Marketing plan (agreed)
 
@@ -173,7 +257,17 @@ Health thresholds: D7 retention > 15%, install→paid > 1.5%.
 ## 7. Day-to-day commands
 
 ```bash
-# web dev            # backend dev              # tests
+# newest work lives here:
+git checkout claude/flow-v3
+
+# web dev            # backend dev              # tests (243 on flow-v3)
 bun run dev          cd server && npm run dev   cd server && npm test
-bun run build        # Android build: GitHub → Actions → Run workflow (api_url=<render url>)
+bun run build        # frontend typecheck: npx tsc --noEmit
+# Android build: GitHub → Actions → "Build Android app (.apk)" → Run workflow
+#   → choose the branch → api_url=https://dawnhalo-api.onrender.com
 ```
+
+Local dev note: the frontend Vite server prints `localhost:8080` (not 3000);
+set `VITE_API_URL=http://localhost:8787` in a repo-root `.env` (gitignored).
+The backend runs without keys — it serves deterministic fallback cards and
+Stripe returns 503 — so the whole flow works offline for development.
