@@ -17,6 +17,7 @@ import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as GoalRouteImport } from './routes/goal'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as WitnessTokenRouteImport } from './routes/witness.$token'
 import { Route as SparkTokenRouteImport } from './routes/spark.$token'
 
 const SupportRoute = SupportRouteImport.update({
@@ -59,6 +60,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WitnessTokenRoute = WitnessTokenRouteImport.update({
+  id: '/witness/$token',
+  path: '/witness/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SparkTokenRoute = SparkTokenRouteImport.update({
   id: '/spark/$token',
   path: '/spark/$token',
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/spark/$token': typeof SparkTokenRoute
+  '/witness/$token': typeof WitnessTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/spark/$token': typeof SparkTokenRoute
+  '/witness/$token': typeof WitnessTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +106,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/spark/$token': typeof SparkTokenRoute
+  '/witness/$token': typeof WitnessTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +120,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/support'
     | '/spark/$token'
+    | '/witness/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +132,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/support'
     | '/spark/$token'
+    | '/witness/$token'
   id:
     | '__root__'
     | '/'
@@ -133,6 +144,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/support'
     | '/spark/$token'
+    | '/witness/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -145,6 +157,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SupportRoute: typeof SupportRoute
   SparkTokenRoute: typeof SparkTokenRoute
+  WitnessTokenRoute: typeof WitnessTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -205,6 +218,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/witness/$token': {
+      id: '/witness/$token'
+      path: '/witness/$token'
+      fullPath: '/witness/$token'
+      preLoaderRoute: typeof WitnessTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/spark/$token': {
       id: '/spark/$token'
       path: '/spark/$token'
@@ -225,6 +245,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SupportRoute: SupportRoute,
   SparkTokenRoute: SparkTokenRoute,
+  WitnessTokenRoute: WitnessTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

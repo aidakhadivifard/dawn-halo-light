@@ -5,7 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getConfig } from "../config";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt";
 import { pickOpener } from "./openers";
-import { findHalo, halosForTheme } from "./deck";
+import { findHalo, halosForTheme, HALO_DECK, type HaloCard } from "./deck";
 import { CARD_THEMES, type CardTheme } from "../types";
 
 export interface GenInput {
@@ -14,6 +14,14 @@ export interface GenInput {
   previous?: { title: string; message: string };
   /** Endurance-goal prompt fragment (see prompt.ts goalAnchor) — optional. */
   goalContext?: string;
+  /**
+   * A card already drawn by the SERVER (daily draws). The model interprets
+   * this exact card instead of choosing one — choosing lets it converge on
+   * the same on-the-nose title every day (the "Morning Field every morning"
+   * bug). Title/theme are forced onto the result regardless of what the
+   * model returns.
+   */
+  forcedCard?: HaloCard;
 }
 
 export interface GenResult {
@@ -171,7 +179,41 @@ const FALLBACK: Record<
   ],
 };
 
+// Reviewed offline readings for a server-drawn card: the essence slots into
+// each template as a noun phrase ("This card is <essence>."). Same voice rules
+// as the live prompt — plain, proverb-cadence, no wellness vocabulary.
+const FORCED_TEMPLATES: { message: (essence: string) => string; reflection: string }[] = [
+  {
+    message: (e) =>
+      `This card is ${e}.\n\nAn ordinary day can still turn on such a card. What it names is already somewhere in your day, quietly at work.\n\nKeep what is yours close, and let the rest pass.`,
+    reflection: "Where in today does this card already live?",
+  },
+  {
+    message: (e) =>
+      `This card is ${e}.\n\nThe day asks nothing grand of you — only that you notice what the card names when it passes near.\n\nWhat is steady in you is enough for what today holds.`,
+    reflection: "What small moment today might carry this card's meaning?",
+  },
+  {
+    message: (e) =>
+      `This card is ${e}.\n\nRead plainly: what it speaks of does not need to be chased today. It needs only room.\n\nNothing more must be decided before evening.`,
+    reflection: "If this card had one thing to show you today, what would it be?",
+  },
+];
+
 function fallbackCard(input: GenInput, rand = Math.random): GenResult {
+  // A server-drawn card keeps its identity even offline — only the reading
+  // text degrades to a reviewed template, never the card itself.
+  if (input.forcedCard) {
+    const t = FORCED_TEMPLATES[Math.floor(rand() * FORCED_TEMPLATES.length) % FORCED_TEMPLATES.length];
+    return {
+      opener: pickOpener(undefined, rand),
+      title: input.forcedCard.title,
+      message: t.message(input.forcedCard.essence),
+      reflection: t.reflection,
+      theme: input.forcedCard.theme,
+      fallback: true,
+    };
+  }
   let pool = FALLBACK[input.intent] ?? FALLBACK.general;
   if (input.intent === "question" && input.text) {
     const domain = QUESTION_DOMAINS.find((d) => d.pattern.test(input.text!));
@@ -212,6 +254,18 @@ function coerce(parsed: ReturnType<typeof parseCardJson>, input: GenInput): GenR
   if (!parsed) return null;
   const { opener, title, message, reflection } = parsed;
   if (!opener || !title || !message) return null;
+
+  // A server-drawn card is authoritative: the model only interprets it.
+  if (input.forcedCard) {
+    return {
+      opener,
+      title: input.forcedCard.title,
+      message,
+      reflection: reflection ?? "",
+      theme: input.forcedCard.theme,
+      fallback: false,
+    };
+  }
 
   // Keep titles on the fixed deck so cards recur and accrue meaning. If the
   // model chose a real deck card, trust its theme; otherwise snap the title
@@ -261,12 +315,24 @@ function getClient(): MessagesClient | null {
   return cachedClient;
 }
 
+// Fallbacks must never be silent again: every draw logs the deck size, the
+// chosen title, and — when degrading — the reason.
+function logDraw(input: GenInput, res: GenResult, reason?: string) {
+  const base = `[cards] intent=${input.intent} deck=${HALO_DECK.length} title="${res.title}" fallback=${res.fallback}`;
+  if (res.fallback) console.error(`${base} reason=${reason ?? "unknown"}`);
+  else console.log(base);
+}
+
 export async function generateCardText(
   input: GenInput,
   opts: { client?: MessagesClient | null; timeoutMs?: number } = {},
 ): Promise<GenResult> {
   const client = opts.client !== undefined ? opts.client : getClient();
-  if (!client) return fallbackCard(input);
+  if (!client) {
+    const res = fallbackCard(input);
+    logDraw(input, res, "no_api_key");
+    return res;
+  }
 
   const { anthropicModel } = getConfig();
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -286,10 +352,18 @@ export async function generateCardText(
 
     const text = result.content?.find((b) => b.type === "text")?.text ?? "";
     const coerced = coerce(parseCardJson(text), input);
-    return coerced ?? fallbackCard(input);
-  } catch {
+    if (coerced) {
+      logDraw(input, coerced);
+      return coerced;
+    }
+    const res = fallbackCard(input);
+    logDraw(input, res, `parse_failed raw=${JSON.stringify(text.slice(0, 200))}`);
+    return res;
+  } catch (err) {
     // Slow, unavailable, rate-limited, or malformed — degrade gracefully.
-    return fallbackCard(input);
+    const res = fallbackCard(input);
+    logDraw(input, res, `api_error ${(err as Error)?.message ?? String(err)}`);
+    return res;
   }
 }
 

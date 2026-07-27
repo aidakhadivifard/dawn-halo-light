@@ -61,6 +61,81 @@ export const Route = createFileRoute("/goal")({
 
 const RETENTION_DAYS = [1, 3, 7, 30];
 
+// The Witness — one chosen person who sees only the Day number, never the
+// goal or anything written. The invite works in a plain browser tab, so the
+// witness needs no app; every accepted invite is also the app's first
+// in-product growth loop.
+function WitnessRow() {
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const invite = async () => {
+    if (busy) return;
+    setBusy(true);
+    setFailed(false);
+    setCopied(false);
+    let url: string;
+    try {
+      const { api } = await import("@/lib/api");
+      ({ url } = await api.createWitnessInvite());
+      track("witness_invite_created");
+    } catch {
+      setFailed(true);
+      setBusy(false);
+      return;
+    }
+    const text = `Day by day, I'm holding on for something. I chose you to see it: ${url}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ text });
+        track("witness_invite_shared");
+      } else {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+      }
+    } catch {
+      // Share sheet dismissed — the invite still exists; offer the copy path.
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+      } catch {
+        /* ignore */
+      }
+    }
+    setBusy(false);
+  };
+
+  return (
+    <section className="mt-6">
+      <div className="p-5 bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl">
+        <p className="font-serif text-lg">A witness</p>
+        <p className="mt-1 text-xs text-dawn-ink/50 leading-relaxed">
+          One person you choose sees your day number — nothing else. Not your goal, not your
+          words. Just that you are still here, day after day.
+        </p>
+        <button
+          onClick={invite}
+          disabled={busy}
+          className="mt-3 w-full py-3 text-xs uppercase tracking-[0.2em] font-bold rounded-full border border-dawn-haze/30 text-dawn-ink/70 hover:bg-dawn-haze/10 disabled:opacity-50"
+        >
+          Choose your witness
+        </button>
+        {copied && (
+          <p className="mt-2 text-center text-xs text-dawn-ink/55">
+            Link copied — send it to the one you chose.
+          </p>
+        )}
+        {failed && (
+          <p className="mt-2 text-center text-xs text-dawn-rose/90">
+            Can't reach Dawnhalo right now — try again in a moment.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function Confetti() {
   const pieces = Array.from({ length: 18 });
   return (
@@ -913,6 +988,9 @@ function GoalHome({
           </div>
         )}
       </section>
+
+      {/* The Witness — one chosen person sees the day number, nothing else */}
+      <WitnessRow />
 
       {/* Quiet close ("I'm done" outside the honesty rhythm) */}
       <section className="mt-10 text-center">

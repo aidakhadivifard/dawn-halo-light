@@ -20,7 +20,7 @@ import { OracleCardView } from "@/components/OracleCard";
 import { shareJourneyImage } from "@/lib/shareImage";
 import { BottomNav } from "@/components/BottomNav";
 import { track } from "@/lib/analytics";
-import type { CheckinResult, CheckinState, GoalStatus, RitualType } from "@/lib/api";
+import { warmBackend, type CheckinResult, type CheckinState, type GoalStatus, type RitualType } from "@/lib/api";
 import {
   answerHonesty,
   checkin as postCheckin,
@@ -71,7 +71,10 @@ function formatDate(d: Date) {
 
 type Phase = "loading" | "checkin" | "transition" | "milestone" | "honesty" | "choose" | "drawing" | "open";
 
-const RITUAL_FLOOR_MS = 1100;
+// The deliberate "the reader is thinking" pause: reveals never land faster
+// than this. Network time counts toward it, so a slow backend adds nothing
+// on top — and the api layer caps requests at 15s so it can't run away.
+const RITUAL_FLOOR_MS = 5000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const RETENTION_DAYS = [1, 3, 7, 30];
 const DISCOVERY_KEY = "dawnhalo:discoveryShown";
@@ -191,6 +194,7 @@ function TodayPage() {
 
   useEffect(() => {
     let alive = true;
+    warmBackend(); // wake the free-plan backend before the user reaches the cards
     getCalendar().then(({ streak }) => alive && setStreak(streak));
     const phaseFallback = setTimeout(() => {
       setPhase((p) => (p === "loading" ? "choose" : p));
@@ -729,6 +733,11 @@ function TodayPage() {
         {phase === "open" && activeCard && (
           <div className="animate-card-rise">
             <OracleCardView key={activeCard.id} card={activeCard} journeyDay={goal?.day} />
+            {import.meta.env.DEV && activeCard.fallback && (
+              <p className="mt-2 text-center text-[10px] uppercase tracking-[0.18em] text-red-500/70">
+                dev: fallback card — check server logs
+              </p>
+            )}
           </div>
         )}
 

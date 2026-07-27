@@ -38,6 +38,8 @@ export type Card = {
   followUpUsed?: boolean;
   /** ISO timestamp. */
   createdAt?: string;
+  /** True when this card came from a fallback (offline mock or server degrade). */
+  fallback?: boolean;
 };
 
 export type DrawInput = { intent: "ask" | "feel"; text: string };
@@ -72,10 +74,14 @@ function apiToCard(c: ApiCard): Card {
     isCrisis: c.isCrisis,
     followUpUsed: c.followUpUsed,
     createdAt: c.createdAt,
+    fallback: c.fallback,
   };
 }
 
 function mockToCard(o: OracleCard): Card {
+  // A local mock card only ever appears when the backend was unreachable —
+  // make that loudly visible in dev instead of failing silently.
+  if (import.meta.env.DEV) console.warn(`[cards] serving OFFLINE mock card "${o.title}"`);
   return {
     id: o.id,
     opener: o.opener,
@@ -85,6 +91,7 @@ function mockToCard(o: OracleCard): Card {
     theme: o.theme,
     illustration: artForCard(o),
     createdAt: o.createdAt,
+    fallback: true,
   };
 }
 

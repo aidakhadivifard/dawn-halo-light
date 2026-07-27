@@ -1,6 +1,30 @@
 # Dawnhalo — Project Handoff
 
-_Last updated: July 23 2026 · newest work on branch `claude/flow-v3`_
+_Last updated: July 27 2026 · newest work on branch `claude/flow-v3`_
+
+## 0.1 July 27 changes (on `claude/flow-v3`)
+
+- **Daily-card bug fixed** ("The Morning Field" every day): the deck has only
+  ONE `daily_general` card, and the daily prompt let the model pick — it
+  converged on that card daily, and `snapToDeck` forced off-deck titles onto it
+  too. Now the SERVER cuts the deck (`service.getDailyCard`): seeded by
+  device+date, skipping the device's last 10 daily titles, and the model only
+  *reads* the drawn card (`forcedCard` through `anthropic.ts`/`prompt.ts`).
+  Fallbacks keep the drawn card via essence templates. Every draw now logs
+  pool size + chosen title; fallbacks log the reason (`[cards] … reason=…`);
+  dev builds show a red "fallback card" badge under the reading.
+- **Reveal timing**: the "reader is thinking" pause is a deliberate ~5s floor
+  (`RITUAL_FLOOR_MS`), API calls are capped at 15s (`api.ts`), and the app
+  pings `/api/health` on open so the free-plan backend wakes before the draw.
+- **The Witness (v1)** — one chosen person sees ONLY the Day number, returns
+  count, and showed-up-today; never the goal, states, or writings. Server:
+  `POST /api/goal/witness` (invite, reused per device), public
+  `GET /api/witness/:token`; table `witness_invites`. Frontend: "A witness"
+  row on `/goal`, public page `/witness/$token` (Day-number-as-hero, works
+  without the app — the invite link is the killer test of the growth loop).
+  The link uses `APP_BASE_URL`, so witness links only work in the wild once
+  the web frontend is deployed somewhere public. Tests: `witness.test.ts`
+  (253 green total).
 
 Dawnhalo is a daily oracle-card companion: draw a daily card, ask the oracle a
 question (or tell it a dream), get one warm card-reading back, save it, build a

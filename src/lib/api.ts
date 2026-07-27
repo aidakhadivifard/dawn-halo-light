@@ -133,10 +133,18 @@ function headers(extra: Record<string, string> = {}): HeadersInit {
   };
 }
 
+// Never let the ritual hang on a sleeping backend: cap every call so the
+// offline fallback takes over instead of an endless "thinking" screen.
+const REQUEST_TIMEOUT_MS = 15_000;
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}/api${path}`, {
     ...init,
     headers: headers((init?.headers as Record<string, string>) ?? {}),
+    signal:
+      typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+        ? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+        : undefined,
   });
   if (res.status === 402) {
     const body = await res.json().catch(() => ({}));
@@ -282,4 +290,28 @@ export const api = {
   async deck(): Promise<{ deck: { title: string; theme: string; essence: string }[] }> {
     return req(`/deck`);
   },
+
+  // ---- the Witness ----
+
+  async createWitnessInvite(): Promise<{ token: string; url: string }> {
+    return req(`/goal/witness`, { method: "POST", body: JSON.stringify({}) });
+  },
+  async getWitness(
+    token: string,
+  ): Promise<{ active: boolean; day?: number; checkinCount?: number; showedUpToday?: boolean }> {
+    return req(`/witness/${encodeURIComponent(token)}?date=${localDay()}`);
+  },
 };
+
+/**
+ * Fire-and-forget wake-up call. The free-plan backend sleeps after 15 min;
+ * pinging it the moment the app opens means it is usually warm by the time
+ * the user reaches the cards, instead of the draw eating the cold start.
+ */
+export function warmBackend(): void {
+  try {
+    fetch(`${BASE}/api/health`).catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}

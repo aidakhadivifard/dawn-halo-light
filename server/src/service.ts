@@ -9,6 +9,7 @@ import { classifyInput } from "./lib/classify";
 import { canDraw, snapshot, withinTrial, type QuotaState } from "./lib/entitlement";
 import { selectIllustration, NO_REPEAT_WINDOW_DAYS } from "./lib/illustrations";
 import { generateCardText, type MessagesClient } from "./lib/anthropic";
+import { HALO_DECK, type HaloCard } from "./lib/deck";
 import { buildReadingContext } from "./lib/readingContext";
 import { generateReflection } from "./lib/reflect";
 import { copyRuleViolations } from "./lib/copyrule";
@@ -276,10 +277,33 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         .find((d) => d.type === "daily" && d.local_date === localDate);
       if (existing) return toCard(existing);
 
+      // The SERVER cuts the deck for the daily card — deterministic per
+      // device+day, skipping this device's last 10 daily titles so the deck
+      // visibly rotates. (Letting the model choose repeated one title daily.)
+      const recentTitles = new Set(
+        db
+          .history(deviceId, 60)
+          .filter((d) => d.type === "daily")
+          .slice(0, 10)
+          .map((d) => d.title),
+      );
+      const pool = HALO_DECK.filter((c) => !recentTitles.has(c.title));
+      const drawPool = pool.length ? pool : HALO_DECK;
+      const seed = `${deviceId}:${localDate}`;
+      let h = 0;
+      for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+      const drawn: HaloCard = drawPool[Math.abs(h) % drawPool.length];
+      console.log(
+        `[daily] pool=${drawPool.length}/${HALO_DECK.length} drawn="${drawn.title}" date=${localDate}`,
+      );
+
       const goalContext = activeGoalContext(deviceId, localDate);
-      let gen = await generateCardText({ intent: "general", goalContext }, { client, timeoutMs });
+      let gen = await generateCardText(
+        { intent: "general", goalContext, forcedCard: drawn },
+        { client, timeoutMs },
+      );
       if (goalContext && copyRuleViolations(gen.message).length > 0) {
-        gen = await generateCardText({ intent: "general" }, { client: null });
+        gen = await generateCardText({ intent: "general", forcedCard: drawn }, { client: null });
       }
       const illustrationId = selectIllustration(gen.theme, recentIds(deviceId, gen.theme));
       const row = {
@@ -768,6 +792,42 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
           answer: h.answer,
           note: h.note ?? undefined,
         })),
+      };
+    },
+
+    /**
+     * The Witness: one chosen person who sees the Day number — nothing else.
+     * The invite link is the growth loop's cheapest killer test (does the
+     * holder send it at all?), so it must work in a plain browser tab.
+     */
+    createWitnessInvite(deviceId: string): { token: string } | null {
+      const goal = db.getActiveGoal(deviceId);
+      if (!goal) return null;
+      const existing = db.getWitnessInviteForDevice(deviceId);
+      if (existing) return { token: existing.token };
+      const token = `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+      db.putWitnessInvite({ token, device_id: deviceId, created_at: now().toISOString() });
+      return { token };
+    },
+
+    /**
+     * What a witness may see. Privacy is the feature: Day number, how many
+     * times they have returned, and whether they showed up today. Never the
+     * goal title, reward, check-in states, notes, or written entries.
+     */
+    witnessView(
+      token: string,
+      localDate: string,
+    ): { active: boolean; day?: number; checkinCount?: number; showedUpToday?: boolean } | null {
+      const invite = db.getWitnessInvite(token);
+      if (!invite) return null;
+      const goal = db.getActiveGoal(invite.device_id);
+      if (!goal) return { active: false };
+      return {
+        active: true,
+        day: daysSince(goal.start_date, localDate),
+        checkinCount: db.listCheckins(goal.id).length,
+        showedUpToday: !!db.getCheckin(goal.id, localDate),
       };
     },
 

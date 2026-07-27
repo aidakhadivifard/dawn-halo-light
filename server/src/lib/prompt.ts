@@ -91,6 +91,7 @@ export function buildUserPrompt(args: {
   text?: string;
   previous?: { title: string; message: string };
   goalContext?: string;
+  forcedCard?: { title: string; essence: string };
 }): string {
   const { intent, text, previous } = args;
   const goalCtx = args.goalContext ?? "";
@@ -98,6 +99,12 @@ export function buildUserPrompt(args: {
     return `Earlier you drew this card for them:\nCard: ${previous.title}\nReading: ${previous.message}\n\nThey want to go deeper: "${text ?? ""}"\n\nDraw the card from the deck that best meets this follow-up (it may be the same card revealing a new face, or a new one). Interpret it in light of both their original reading and this question. Same three-part structure and JSON format.${goalCtx}`;
   }
   if (!text) {
+    // The daily card is drawn by the SERVER (by chance, like a real deck cut).
+    // Left to choose, the model converges on the same on-the-nose title every
+    // day; a forced draw keeps the deck alive. The model only reads the card.
+    if (args.forcedCard) {
+      return `Today's daily card has already been cut from the deck by chance. The card that turned up:\n\n"${args.forcedCard.title}" — ${args.forcedCard.essence}\n\nRead THIS card as today's reading. Use its exact title verbatim in the "title" field. Sense the quiet emotional weather of an ordinary morning through this card's essence. Same three-part structure and JSON format.${goalCtx}`;
+    }
     return `Draw today's daily card from the deck — sense the quiet emotional weather of an ordinary morning and choose the card that meets it. Same three-part structure and JSON format.${goalCtx}`;
   }
   const anchors = intent === "dream" && text ? dreamAnchors(text) : "";

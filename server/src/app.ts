@@ -271,6 +271,22 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     res.json({ checkins: result.checkins, entries: result.entries, honesty: result.honesty });
   });
 
+  // --- The Witness (one chosen person sees the Day number, nothing else) ---
+  app.post("/api/goal/witness", requireDevice, (req, res) => {
+    const invite = svc.createWitnessInvite(req.deviceId!);
+    if (!invite) return res.status(404).json({ error: "no_active_goal" });
+    res.json({ token: invite.token, url: `${cfg.appBaseUrl}/witness/${invite.token}` });
+  });
+
+  // Public — the witness opens this in a plain browser, no app required.
+  app.get("/api/witness/:token", (req, res) => {
+    const q = String(req.query.date ?? "");
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : new Date().toISOString().slice(0, 10);
+    const view = svc.witnessView(req.params.token, date);
+    if (!view) return res.status(404).json({ error: "witness_not_found" });
+    res.json(view);
+  });
+
   // --- The deck (public content: titles + essences, for the Library) ---
   app.get("/api/deck", (_req, res) => {
     res.json({ deck: HALO_DECK.map((c) => ({ title: c.title, theme: c.theme, essence: c.essence })) });

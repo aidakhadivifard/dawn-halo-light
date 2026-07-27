@@ -193,6 +193,13 @@ CREATE TABLE IF NOT EXISTS honesty_checks (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_honesty_goal_created ON honesty_checks(goal_id, created_at);
+
+CREATE TABLE IF NOT EXISTS witness_invites (
+  token TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_witness_device ON witness_invites(device_id);
 `;
 
 export type DB = ReturnType<typeof createDb>;
@@ -274,6 +281,16 @@ export function createDb(path = ":memory:") {
        VALUES (@token, @theme, @illustration_id, @opener, @title, @message, @note, @created_at)`,
     ),
     getShare: sqlite.prepare<[string]>("SELECT * FROM shares WHERE token = ?"),
+
+    insertWitnessInvite: sqlite.prepare(
+      "INSERT INTO witness_invites (token, device_id, created_at) VALUES (@token, @device_id, @created_at)",
+    ),
+    getWitnessInvite: sqlite.prepare<[string]>(
+      "SELECT * FROM witness_invites WHERE token = ?",
+    ),
+    getWitnessInviteForDevice: sqlite.prepare<[string]>(
+      "SELECT * FROM witness_invites WHERE device_id = ? ORDER BY created_at DESC LIMIT 1",
+    ),
 
     insertGoal: sqlite.prepare(
       `INSERT INTO goals (id, device_id, title, reward, start_date, target_date, photo_url, ritual, status, created_at, closed_at)
@@ -473,6 +490,20 @@ export function createDb(path = ":memory:") {
     },
     listHonesty(goalId: string): HonestyRow[] {
       return stmts.listHonesty.all(goalId) as HonestyRow[];
+    },
+
+    putWitnessInvite(row: { token: string; device_id: string; created_at: string }) {
+      stmts.insertWitnessInvite.run(row);
+    },
+    getWitnessInvite(token: string) {
+      return stmts.getWitnessInvite.get(token) as
+        | { token: string; device_id: string; created_at: string }
+        | undefined;
+    },
+    getWitnessInviteForDevice(deviceId: string) {
+      return stmts.getWitnessInviteForDevice.get(deviceId) as
+        | { token: string; device_id: string; created_at: string }
+        | undefined;
     },
 
     putShare(row: {
