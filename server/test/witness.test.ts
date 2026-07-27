@@ -152,4 +152,28 @@ describe("witness (e2e)", () => {
   it("an unknown token 404s", async () => {
     await request(api).get("/api/witness/nope").expect(404);
   });
+
+  it("the invite url is served from the request host when APP_BASE_URL is unset", async () => {
+    await createGoal();
+    const res = await request(api).post("/api/goal/witness").set(headers).expect(200);
+    // supertest binds an ephemeral 127.0.0.1 host; localhost default must
+    // never leak a hardcoded localhost:3000 into a real link.
+    expect(res.body.url).toContain(`/witness/${res.body.token}`);
+    expect(res.body.url).not.toContain("localhost:3000");
+  });
+
+  it("serves a human-readable witness PAGE on the API host (no app needed)", async () => {
+    await createGoal();
+    await request(api).post("/api/goal/checkin").set(headers).send({ state: "strong" }).expect(200);
+    const { body: invite } = await request(api).post("/api/goal/witness").set(headers).expect(200);
+    const res = await request(api).get(`/witness/${invite.token}`).expect(200);
+    expect(res.headers["content-type"]).toContain("text/html");
+    expect(res.text).toContain("You are their witness");
+    expect(res.text).not.toContain("visa"); // goal title never reaches the page
+  });
+
+  it("the witness page 404s politely for unknown tokens", async () => {
+    const res = await request(api).get("/witness/nope").expect(404);
+    expect(res.text).toContain("This door is closed");
+  });
 });
