@@ -2,7 +2,19 @@
 
 _Last updated: July 27 2026 · newest work on branch `claude/flow-v3`_
 
-## 0.1 July 27 changes (on `claude/flow-v3`)
+## 0.1 July 27–28 changes (on `claude/flow-v3`)
+
+- **The live backend now serves flow-v3 code.** Render stays connected to
+  `claude/app-review-monetization-n9o6k8`, but that branch was fast-forwarded
+  onto `claude/flow-v3` (the flows stack, so this lost nothing). To restore
+  the old launch-branch tip: `git push origin launch-branch-tip-2026-07-27:claude/app-review-monetization-n9o6k8 --force`
+  (tag pushed to origin). All three APKs talk to the new backend; the old
+  clients ignore the added fields.
+- **The witness page is served by the API host itself**
+  (`https://dawnhalo-api.onrender.com/witness/<token>`): there is no deployed
+  web frontend yet, so invite links derive from the request host and the
+  backend renders the page (numbers/booleans only, no user text). Setting
+  `APP_BASE_URL` to a real web origin later takes precedence automatically.
 
 - **Daily-card bug fixed** ("The Morning Field" every day): the deck has only
   ONE `daily_general` card, and the daily prompt let the model pick — it
@@ -39,7 +51,7 @@ There are now **three** feature branches. They stack: each builds on the last.
 
 | Branch | What it is | Deployed? |
 |---|---|---|
-| `claude/app-review-monetization-n9o6k8` | The original launch branch. Backend goal layer + first goal UI (5-page onboarding, separate Goal tab, pre-card check-in). | **This is what Render + the live backend serve.** |
+| `claude/app-review-monetization-n9o6k8` | Was the original launch branch; **fast-forwarded to flow-v3 on July 28 2026** so Render deploys the new backend (old tip preserved as tag `launch-branch-tip-2026-07-27`). | **This is what Render + the live backend serve** — now identical to flow-v3. |
 | `claude/flow-v2` | Experiment: cards first, all questions after the reading. One-scroll goal creation. Nav Today/Journal/Library/Me. | branch only |
 | `claude/flow-v3` | **Newest / recommended.** Full product-flow spec (v3) + the "spec v2" pass: Reading Engine, Day-number-as-hero Today, one-primary-action reading, Journal/Library, "I need something now", Day-first share format. | branch only |
 
