@@ -75,34 +75,10 @@ function WitnessRow() {
     setBusy(true);
     setFailed(false);
     setCopied(false);
-    let url: string;
-    try {
-      const { api } = await import("@/lib/api");
-      ({ url } = await api.createWitnessInvite());
-      track("witness_invite_created");
-    } catch {
-      setFailed(true);
-      setBusy(false);
-      return;
-    }
-    const text = `Day by day, I'm holding on for something. I chose you to see it: ${url}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ text });
-        track("witness_invite_shared");
-      } else {
-        await navigator.clipboard.writeText(url);
-        setCopied(true);
-      }
-    } catch {
-      // Share sheet dismissed — the invite still exists; offer the copy path.
-      try {
-        await navigator.clipboard.writeText(url);
-        setCopied(true);
-      } catch {
-        /* ignore */
-      }
-    }
+    const { inviteWitness } = await import("@/lib/witness");
+    const out = await inviteWitness("goal_page");
+    if (out === "failed") setFailed(true);
+    if (out === "copied") setCopied(true);
     setBusy(false);
   };
 

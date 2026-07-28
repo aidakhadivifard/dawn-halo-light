@@ -69,6 +69,16 @@ export interface RitualEntryRow {
   created_at: string;
 }
 
+export interface WitnessInviteRow {
+  token: string;
+  device_id: string;
+  created_at: string;
+  /** Local date of the last "let them see this day" signal. */
+  signal_date?: string | null;
+  /** ISO timestamp of the witness's last page open. */
+  last_seen_at?: string | null;
+}
+
 export interface HonestyRow {
   id: string;
   goal_id: string;
@@ -214,6 +224,10 @@ export function createDb(path = ":memory:") {
     "ALTER TABLE draws ADD COLUMN reflection TEXT",
     "ALTER TABLE saved ADD COLUMN reflection TEXT",
     "ALTER TABLE honesty_checks ADD COLUMN note TEXT",
+    // The heavy-day signal: the local date the holder last let their witness
+    // see, and when the witness last opened the page.
+    "ALTER TABLE witness_invites ADD COLUMN signal_date TEXT",
+    "ALTER TABLE witness_invites ADD COLUMN last_seen_at TEXT",
   ]) {
     try {
       sqlite.exec(sql);
@@ -290,6 +304,12 @@ export function createDb(path = ":memory:") {
     ),
     getWitnessInviteForDevice: sqlite.prepare<[string]>(
       "SELECT * FROM witness_invites WHERE device_id = ? ORDER BY created_at DESC LIMIT 1",
+    ),
+    setWitnessSignal: sqlite.prepare(
+      "UPDATE witness_invites SET signal_date = @date WHERE token = @token",
+    ),
+    touchWitnessSeen: sqlite.prepare(
+      "UPDATE witness_invites SET last_seen_at = @at WHERE token = @token",
     ),
 
     insertGoal: sqlite.prepare(
@@ -496,14 +516,16 @@ export function createDb(path = ":memory:") {
       stmts.insertWitnessInvite.run(row);
     },
     getWitnessInvite(token: string) {
-      return stmts.getWitnessInvite.get(token) as
-        | { token: string; device_id: string; created_at: string }
-        | undefined;
+      return stmts.getWitnessInvite.get(token) as WitnessInviteRow | undefined;
     },
     getWitnessInviteForDevice(deviceId: string) {
-      return stmts.getWitnessInviteForDevice.get(deviceId) as
-        | { token: string; device_id: string; created_at: string }
-        | undefined;
+      return stmts.getWitnessInviteForDevice.get(deviceId) as WitnessInviteRow | undefined;
+    },
+    setWitnessSignal(token: string, date: string) {
+      stmts.setWitnessSignal.run({ token, date });
+    },
+    touchWitnessSeen(token: string, at: string) {
+      stmts.touchWitnessSeen.run({ token, at });
     },
 
     putShare(row: {

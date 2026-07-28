@@ -155,14 +155,29 @@ export const DISCOVERY_SOFT = [
 export const RETURNED_TIMES = (n: number) => `You have returned ${n} time${n === 1 ? "" : "s"}.`;
 
 export const NOW_LABEL = "I need something now";
-export const NOW_QUESTION = "What do you need?";
-export const NOW_OPTIONS = [
+
+// "I need something now" is not a content menu — it is a hand to squeeze.
+// One primary act (the witness signal); a card, writing, and a person stay
+// one quiet tap away. Never an imitation of a wellness library.
+export const SIGNAL_ACTION = "Let your witness see this day";
+export const SIGNAL_SENT = [
+  "Done. Their page now shows: today is heavy.",
+  "Nothing more was said. No reply is asked of them.",
+  "Being seen is enough.",
+] as const;
+export const SIGNAL_INVITE_PROMPT =
+  "Heavy days weigh more when no one sees them. One person could.";
+export const WITNESS_INVITE_ACTION = "Choose your witness";
+export const WITNESS_INVITE_NOTE =
+  "They will only ever see your day number. Not your goal, not your words.";
+export const WITNESS_LINK_COPIED = "Link copied — send it to the one you chose.";
+export const WITNESS_MILESTONE_PROMPT =
+  "Days like these deserve one witness — one person who sees the number grow.";
+export const WITNESS_SAW_TODAY = (day: number) => `Your witness saw Day ${day}.`;
+export const SIGNAL_STATE_ACTION = "Let them see this day";
+
+export const NOW_QUIET_OPTIONS = [
   { id: "card", label: "A card" },
-  { id: "clarity", label: "Clarity" },
-  { id: "courage", label: "Courage" },
-  { id: "calm", label: "Calm" },
-  { id: "motivation", label: "Motivation" },
-  { id: "goal", label: "Help with my goal" },
   { id: "write", label: "Write something down" },
   { id: "support", label: "Talk to a person" },
 ] as const;

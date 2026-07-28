@@ -32,7 +32,6 @@ import { localDay } from "@/lib/device";
 import {
   CALM_FLOW,
   CANT_RESPONSE,
-  CLARITY_FLOW,
   DISCOVERY_SOFT,
   EXHAUSTED_LEAD,
   HOLDING_QUESTION,
@@ -42,18 +41,27 @@ import {
   HONESTY_QUESTION,
   HONESTY_RESPONSES,
   NOW_LABEL,
-  NOW_OPTIONS,
-  NOW_QUESTION,
+  NOW_QUIET_OPTIONS,
   RETURNED_TIMES,
   RITUAL_CARD_PROMPTS,
+  SIGNAL_ACTION,
+  SIGNAL_INVITE_PROMPT,
+  SIGNAL_SENT,
+  SIGNAL_STATE_ACTION,
   SOFT_TRANSITION,
   STATE_OPTIONS,
   SUPPORT_INTRO,
   SUPPORT_RESOURCES,
   TRUTH_RESPONSE,
+  WITNESS_INVITE_ACTION,
+  WITNESS_INVITE_NOTE,
+  WITNESS_LINK_COPIED,
+  WITNESS_MILESTONE_PROMPT,
+  WITNESS_SAW_TODAY,
   WRITING_PROMPTS,
   smallActionFor,
 } from "@/lib/goalCopy";
+import { inviteWitness, sendWitnessSignal } from "@/lib/witness";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -185,9 +193,12 @@ function TodayPage() {
   const [honestyNote, setHonestyNote] = useState("");
   const [honestyDone, setHonestyDone] = useState(false);
 
-  // "I need something now" sheet.
+  // "I need something now" sheet — one primary act (the witness signal),
+  // everything else one quiet tap away.
   const [nowOpen, setNowOpen] = useState(false);
-  const [nowFlow, setNowFlow] = useState<null | "calm" | "clarity" | "support">(null);
+  const [nowFlow, setNowFlow] = useState<null | "support">(null);
+  const [signalState, setSignalState] = useState<null | "sent" | "failed">(null);
+  const [witnessNote, setWitnessNote] = useState<null | "shared" | "copied" | "failed">(null);
 
   // Soft discovery (no goal).
   const [discovery, setDiscovery] = useState(false);
@@ -380,7 +391,12 @@ function TodayPage() {
   const shareMilestone = async (message: string) => {
     if (!goal) return;
     try {
-      const outcome = await shareJourneyImage({ day: goal.day, card: activeCard, line: message });
+      const outcome = await shareJourneyImage({
+        day: goal.day,
+        card: activeCard,
+        line: message,
+        witnessed: goal.hasWitness,
+      });
       track("card_image_shared", { method: outcome, format: "milestone" });
     } catch {
       /* canvas/share unavailable — quietly do nothing */
@@ -423,27 +439,8 @@ function TodayPage() {
         if (phase === "open" && ritualAvailable) void runRitual("card");
         else setPhase("choose");
         break;
-      case "clarity":
-        setNowFlow("clarity");
-        break;
-      case "calm":
-        setNowFlow("calm");
-        break;
       case "support":
         setNowFlow("support");
-        break;
-      case "courage":
-        void askWith("I need courage today", "now_courage");
-        break;
-      case "motivation":
-        void askWith(
-          goal ? `I need help holding on for: ${goal.goal.title}` : "I need motivation today",
-          "now_motivation",
-        );
-        break;
-      case "goal":
-        setNowOpen(false);
-        navigate({ to: "/goal" });
         break;
       case "write":
         setNowOpen(false);
@@ -451,6 +448,26 @@ function TodayPage() {
         else navigate({ to: "/calendar" });
         break;
     }
+  };
+
+  // The witness moments: invite (milestones, hard days, the NOW sheet) and
+  // the heavy-day signal. No reply is ever asked of the witness.
+  const doInvite = async (source: string) => {
+    if (busy) return;
+    setBusy(true);
+    setWitnessNote(null);
+    const out = await inviteWitness(source);
+    setBusy(false);
+    setWitnessNote(out);
+    if (out !== "failed" && goal) setGoal({ ...goal, hasWitness: true });
+  };
+
+  const doSignal = async (source: string) => {
+    if (busy) return;
+    setBusy(true);
+    const ok = await sendWitnessSignal(source);
+    setBusy(false);
+    setSignalState(ok ? "sent" : "failed");
   };
 
   return (
@@ -569,6 +586,28 @@ function TodayPage() {
             >
               Share this milestone
             </button>
+
+            {/* The witness invitation lives in the proudest moments (day 3 and
+                7), never in settings — being seen is asked for at the peak. */}
+            {goal && !goal.hasWitness &&
+              (checkinResult.milestone.id === "day3" || checkinResult.milestone.id === "day7") && (
+                <div className="mt-8 p-5 bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl text-left animate-card-rise">
+                  <p className="font-serif italic text-base leading-relaxed text-dawn-ink/85">
+                    {WITNESS_MILESTONE_PROMPT}
+                  </p>
+                  <p className="mt-1 text-xs text-dawn-ink/50">{WITNESS_INVITE_NOTE}</p>
+                  <button
+                    onClick={() => void doInvite("milestone")}
+                    disabled={busy}
+                    className="mt-3 w-full py-3 text-xs uppercase tracking-[0.2em] font-bold rounded-full border border-dawn-rose/30 text-dawn-rose disabled:opacity-50"
+                  >
+                    {WITNESS_INVITE_ACTION}
+                  </button>
+                  {witnessNote === "copied" && (
+                    <p className="mt-2 text-center text-xs text-dawn-ink/55">{WITNESS_LINK_COPIED}</p>
+                  )}
+                </div>
+              )}
           </section>
         )}
 
@@ -738,6 +777,11 @@ function TodayPage() {
                 dev: fallback card — check server logs
               </p>
             )}
+            {goal?.witnessSawToday && (
+              <p className="mt-3 text-center text-xs text-dawn-ink/50 font-serif italic animate-card-rise">
+                {WITNESS_SAW_TODAY(goal.day)}
+              </p>
+            )}
           </div>
         )}
 
@@ -806,6 +850,35 @@ function TodayPage() {
                     >
                       Write what is heavy
                     </button>
+                    {goal?.hasWitness && signalState !== "sent" && (
+                      <button
+                        onClick={() => void doSignal("hard_day")}
+                        disabled={busy}
+                        className="w-full py-2 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 disabled:opacity-50"
+                      >
+                        {SIGNAL_STATE_ACTION}
+                      </button>
+                    )}
+                    {signalState === "sent" && (
+                      <p className="text-center text-xs text-dawn-ink/55 font-serif italic">
+                        {SIGNAL_SENT[0]}
+                      </p>
+                    )}
+                    {checkinResult?.suggestWitness && !goal?.hasWitness && (
+                      <div className="pt-2 text-center">
+                        <p className="text-sm font-serif italic text-dawn-ink/65">{SIGNAL_INVITE_PROMPT}</p>
+                        <button
+                          onClick={() => void doInvite("hard_days")}
+                          disabled={busy}
+                          className="mt-2 text-[11px] uppercase tracking-[0.18em] text-dawn-rose/80 hover:text-dawn-rose border-b border-dawn-rose/30 pb-0.5 disabled:opacity-50"
+                        >
+                          {WITNESS_INVITE_ACTION}
+                        </button>
+                        {witnessNote === "copied" && (
+                          <p className="mt-2 text-xs text-dawn-ink/55">{WITNESS_LINK_COPIED}</p>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
                 {state === "cant" && (
@@ -1001,9 +1074,49 @@ function TodayPage() {
               <div className="mt-4 p-5 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl text-left animate-card-rise">
                 {!nowFlow ? (
                   <>
-                    <p className="text-[10px] uppercase tracking-[0.2em] opacity-50 mb-3">{NOW_QUESTION}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {NOW_OPTIONS.map((opt) => (
+                    {/* The one primary act: a hand to squeeze, not a content menu. */}
+                    {goal && signalState === "sent" ? (
+                      <Lines lines={SIGNAL_SENT} className="space-y-1 text-dawn-ink/85 text-base" />
+                    ) : goal?.hasWitness ? (
+                      <>
+                        <button
+                          onClick={() => void doSignal("now")}
+                          disabled={busy}
+                          className="w-full py-3.5 bg-dawn-rose/15 border border-dawn-rose/30 text-dawn-rose text-xs uppercase tracking-[0.2em] font-bold rounded-full disabled:opacity-50"
+                        >
+                          {SIGNAL_ACTION}
+                        </button>
+                        {signalState === "failed" && (
+                          <p className="mt-2 text-center text-xs text-dawn-rose/90">
+                            Can't reach Dawnhalo right now — try again in a moment.
+                          </p>
+                        )}
+                      </>
+                    ) : goal ? (
+                      <>
+                        <p className="font-serif italic text-base leading-relaxed text-dawn-ink/85">
+                          {SIGNAL_INVITE_PROMPT}
+                        </p>
+                        <p className="mt-1 text-xs text-dawn-ink/50">{WITNESS_INVITE_NOTE}</p>
+                        <button
+                          onClick={() => void doInvite("now")}
+                          disabled={busy}
+                          className="mt-3 w-full py-3.5 bg-dawn-rose/15 border border-dawn-rose/30 text-dawn-rose text-xs uppercase tracking-[0.2em] font-bold rounded-full disabled:opacity-50"
+                        >
+                          {WITNESS_INVITE_ACTION}
+                        </button>
+                        {witnessNote === "copied" && (
+                          <p className="mt-2 text-center text-xs text-dawn-ink/55">{WITNESS_LINK_COPIED}</p>
+                        )}
+                        {witnessNote === "failed" && (
+                          <p className="mt-2 text-center text-xs text-dawn-rose/90">
+                            Can't reach Dawnhalo right now — try again in a moment.
+                          </p>
+                        )}
+                      </>
+                    ) : null}
+                    <div className={"flex flex-wrap gap-2 " + (goal ? "mt-4 justify-center" : "")}>
+                      {NOW_QUIET_OPTIONS.filter((opt) => opt.id !== "write" || !!goal).map((opt) => (
                         <button
                           key={opt.id}
                           onClick={() => nowRoute(opt.id)}
@@ -1038,20 +1151,7 @@ function TodayPage() {
                       Close
                     </button>
                   </div>
-                ) : (
-                  <div>
-                    <Lines
-                      lines={nowFlow === "calm" ? CALM_FLOW : CLARITY_FLOW}
-                      className="space-y-3 text-dawn-ink/85 text-base"
-                    />
-                    <button
-                      onClick={() => setNowOpen(false)}
-                      className="mt-4 w-full py-2 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40"
-                    >
-                      Close
-                    </button>
-                  </div>
-                )}
+                ) : null}
               </div>
             )}
           </div>

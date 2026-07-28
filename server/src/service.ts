@@ -72,6 +72,10 @@ export interface GoalStatusPayload {
   benchmark: BenchmarkLine | null;
   honestyDue: boolean;
   honestyPrompt: string;
+  /** A witness invite exists for this device. */
+  hasWitness: boolean;
+  /** The witness opened their page today (their local ISO date ≈ ours). */
+  witnessSawToday: boolean;
 }
 
 export interface CheckinPayload {
@@ -88,6 +92,8 @@ export interface CheckinPayload {
   honestyOffer?: string;
   milestone: { id: MilestoneId; message: string } | null;
   summary?: GoalSummary;
+  /** Two+ hard days in a row and no witness yet — the oracle may suggest one. */
+  suggestWitness: boolean;
 }
 
 export interface GoalSummary {
@@ -207,7 +213,10 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     const checkins = db.listCheckins(goal.id);
     const today = db.getCheckin(goal.id, localDate);
     const lastHonesty = db.lastHonesty(goal.id);
+    const invite = db.getWitnessInviteForDevice(goal.device_id);
     return {
+      hasWitness: !!invite,
+      witnessSawToday: (invite?.last_seen_at ?? "").slice(0, 10) === localDate,
       goal: toGoal(goal),
       day,
       totalDays: totalDays(goal.start_date, goal.target_date),
@@ -597,6 +606,10 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
             ? { id: milestoneId, message: MILESTONE_MESSAGES[milestoneId](day) }
             : null,
           summary,
+          suggestWitness:
+            (support || gentle) &&
+            lowStateRun(checkins, localDate) >= 2 &&
+            !db.getWitnessInviteForDevice(deviceId),
         },
       };
     },
@@ -811,16 +824,38 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     },
 
     /**
+     * The heavy-day signal: the holder lets their witness see that TODAY is
+     * heavy — one dated flag, no words, no reply expected. The only way to
+     * ask for presence that costs the sender nothing in shame.
+     */
+    witnessSignal(deviceId: string, localDate: string): { ok: true } | null {
+      const goal = db.getActiveGoal(deviceId);
+      if (!goal) return null;
+      const invite = db.getWitnessInviteForDevice(deviceId);
+      if (!invite) return null;
+      db.setWitnessSignal(invite.token, localDate);
+      return { ok: true };
+    },
+
+    /**
      * What a witness may see. Privacy is the feature: Day number, how many
-     * times they have returned, and whether they showed up today. Never the
-     * goal title, reward, check-in states, notes, or written entries.
+     * times they have returned, whether they showed up today, and — only when
+     * the holder chose to send it — that today is heavy. Never the goal
+     * title, reward, check-in states, notes, or written entries.
      */
     witnessView(
       token: string,
       localDate: string,
-    ): { active: boolean; day?: number; checkinCount?: number; showedUpToday?: boolean } | null {
+    ): {
+      active: boolean;
+      day?: number;
+      checkinCount?: number;
+      showedUpToday?: boolean;
+      heavyToday?: boolean;
+    } | null {
       const invite = db.getWitnessInvite(token);
       if (!invite) return null;
+      db.touchWitnessSeen(invite.token, now().toISOString());
       const goal = db.getActiveGoal(invite.device_id);
       if (!goal) return { active: false };
       return {
@@ -828,6 +863,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         day: daysSince(goal.start_date, localDate),
         checkinCount: db.listCheckins(goal.id).length,
         showedUpToday: !!db.getCheckin(goal.id, localDate),
+        heavyToday: invite.signal_date === localDate,
       };
     },
 

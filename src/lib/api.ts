@@ -82,6 +82,8 @@ export interface GoalStatus {
   benchmark: BenchmarkLine | null;
   honestyDue: boolean;
   honestyPrompt: string;
+  hasWitness?: boolean;
+  witnessSawToday?: boolean;
 }
 
 export interface GoalSummary {
@@ -112,6 +114,7 @@ export interface CheckinResult {
   honestyOffer?: string;
   milestone: { id: string; message: string } | null;
   summary?: GoalSummary;
+  suggestWitness?: boolean;
 }
 
 export type CheckinResponse =
@@ -296,9 +299,16 @@ export const api = {
   async createWitnessInvite(): Promise<{ token: string; url: string }> {
     return req(`/goal/witness`, { method: "POST", body: JSON.stringify({}) });
   },
-  async getWitness(
-    token: string,
-  ): Promise<{ active: boolean; day?: number; checkinCount?: number; showedUpToday?: boolean }> {
+  async sendWitnessSignal(): Promise<{ ok: true }> {
+    return req(`/goal/witness/signal`, { method: "POST", body: JSON.stringify({}) });
+  },
+  async getWitness(token: string): Promise<{
+    active: boolean;
+    day?: number;
+    checkinCount?: number;
+    showedUpToday?: boolean;
+    heavyToday?: boolean;
+  }> {
     return req(`/witness/${encodeURIComponent(token)}?date=${localDay()}`);
   },
 };

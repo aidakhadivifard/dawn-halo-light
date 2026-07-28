@@ -177,3 +177,86 @@ describe("witness (e2e)", () => {
     expect(res.text).toContain("This door is closed");
   });
 });
+
+describe("heavy-day signal + discovery (e2e)", () => {
+  let db: DB;
+  let api: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    db = createDb(":memory:");
+    api = createApp(db, { client: null, now: () => new Date("2026-07-10T12:00:00Z") });
+  });
+
+  const headers = { "x-device-id": DEVICE, "x-local-date": "2026-07-10" };
+
+  async function createGoal() {
+    await request(api)
+      .post("/api/goal")
+      .set(headers)
+      .send({ title: "hold on", reward: "rest", targetDate: "2026-12-01" })
+      .expect(200);
+  }
+
+  it("signal 404s without a witness invite", async () => {
+    await createGoal();
+    await request(api).post("/api/goal/witness/signal").set(headers).expect(404);
+  });
+
+  it("signal marks TODAY heavy on the witness page — and only today", async () => {
+    await createGoal();
+    const { body: invite } = await request(api).post("/api/goal/witness").set(headers).expect(200);
+    await request(api).post("/api/goal/witness/signal").set(headers).expect(200);
+
+    const today = await request(api).get(`/api/witness/${invite.token}?date=2026-07-10`).expect(200);
+    expect(today.body.heavyToday).toBe(true);
+
+    const tomorrow = await request(api).get(`/api/witness/${invite.token}?date=2026-07-11`).expect(200);
+    expect(tomorrow.body.heavyToday).toBe(false);
+
+    const page = await request(api).get(`/witness/${invite.token}`).expect(200);
+    expect(page.text).toContain("Today is heavy for them");
+  });
+
+  it("goal status exposes hasWitness and witnessSawToday", async () => {
+    await createGoal();
+    const before = await request(api).get("/api/goal").set(headers).expect(200);
+    expect(before.body.status.hasWitness).toBe(false);
+    expect(before.body.status.witnessSawToday).toBe(false);
+
+    const { body: invite } = await request(api).post("/api/goal/witness").set(headers).expect(200);
+    // The witness opens their page → the holder quietly learns they were seen.
+    await request(api).get(`/api/witness/${invite.token}`).expect(200);
+
+    const after = await request(api).get("/api/goal").set(headers).expect(200);
+    expect(after.body.status.hasWitness).toBe(true);
+    expect(after.body.status.witnessSawToday).toBe(true);
+  });
+
+  it("two hard days in a row without a witness → suggestWitness", async () => {
+    await createGoal();
+    // "barely" alone never triggers — the run counts cant/exhausted only,
+    // matching the honesty check's deliberate calibration.
+    const d1 = await request(api)
+      .post("/api/goal/checkin")
+      .set(headers)
+      .send({ state: "exhausted" })
+      .expect(200);
+    expect(d1.body.checkin.suggestWitness).toBe(false); // one day is not a pattern
+
+    const d2 = await request(api)
+      .post("/api/goal/checkin")
+      .set({ ...headers, "x-local-date": "2026-07-11" })
+      .send({ state: "exhausted" })
+      .expect(200);
+    expect(d2.body.checkin.suggestWitness).toBe(true);
+
+    // With a witness the suggestion never appears.
+    await request(api).post("/api/goal/witness").set(headers).expect(200);
+    const d3 = await request(api)
+      .post("/api/goal/checkin")
+      .set({ ...headers, "x-local-date": "2026-07-12" })
+      .send({ state: "exhausted" })
+      .expect(200);
+    expect(d3.body.checkin.suggestWitness).toBe(false);
+  });
+});

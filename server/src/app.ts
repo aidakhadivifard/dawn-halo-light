@@ -20,6 +20,7 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   const app = express();
   const svc = createService(db, opts);
   const cfg = getConfig();
+  const nowFn = opts.now ?? (() => new Date());
 
   app.use(
     cors({
@@ -291,10 +292,17 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     res.json({ token: invite.token, url: `${publicBase(req)}/witness/${invite.token}` });
   });
 
+  // The heavy-day signal — one dated flag, no words, no reply expected.
+  app.post("/api/goal/witness/signal", requireDevice, resolveLocalDate, (req, res) => {
+    const result = svc.witnessSignal(req.deviceId!, req.localDate!);
+    if (!result) return res.status(404).json({ error: "no_witness" });
+    res.json({ ok: true });
+  });
+
   // Public — the witness opens this in a plain browser, no app required.
   app.get("/api/witness/:token", (req, res) => {
     const q = String(req.query.date ?? "");
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : new Date().toISOString().slice(0, 10);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : nowFn().toISOString().slice(0, 10);
     const view = svc.witnessView(req.params.token, date);
     if (!view) return res.status(404).json({ error: "witness_not_found" });
     res.json(view);
@@ -303,7 +311,7 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   // The server-rendered witness page (all values are numbers/booleans — no
   // user text ever reaches this HTML, by design).
   app.get("/witness/:token", (req, res) => {
-    const date = new Date().toISOString().slice(0, 10);
+    const date = nowFn().toISOString().slice(0, 10);
     const view = svc.witnessView(req.params.token, date);
     const page = (body: string) =>
       `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>You are their witness — Dawnhalo</title><style>body{margin:0;background:#fdfcfb;color:#2d2a2e;font-family:Georgia,'Times New Roman',serif;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center}main{max-width:26rem;padding:3rem 1.5rem}.k{font-family:system-ui,sans-serif;font-size:.62rem;letter-spacing:.22em;text-transform:uppercase;opacity:.5}.day{font-size:6rem;font-weight:300;line-height:1;margin:.5rem 0 0}.card{background:#fff;border:1px solid rgba(45,42,46,.07);border-radius:1.25rem;padding:2.5rem 1.75rem;margin:2rem 0;box-shadow:0 30px 60px -30px rgba(45,42,46,.18)}.soft{opacity:.65;font-style:italic}.note{font-size:.9rem;line-height:1.6;opacity:.6}</style></head><body><main>${body}</main></body></html>`;
@@ -319,9 +327,12 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     }
     const returned =
       view.checkinCount === 1 ? "Once, they have returned." : `${view.checkinCount} times, they have returned.`;
+    const heavy = view.heavyToday
+      ? `<p style="color:#bd5c78;font-style:italic;margin-top:.75rem">Today is heavy for them.<br><span style="font-size:.8rem;opacity:.7">They chose to let you see that. No reply is expected — being seen is enough.</span></p>`
+      : "";
     res.send(
       page(
-        `<p class="k">You are their witness</p><p class="soft">Someone chose you to see their days.</p><div class="card"><p class="k">Day</p><p class="day">${view.day}</p><p class="soft" style="margin-top:1.5rem">${returned}</p>${view.showedUpToday ? '<p class="note">They showed up today.</p>' : ""}</div><p class="note">You don't need to push them, or ask how it's going. Being seen is the whole gift — and you are the one they trusted to see.</p><p class="k" style="margin-top:2rem">Dawnhalo · a little light for your next step</p>`,
+        `<p class="k">You are their witness</p><p class="soft">Someone chose you to see their days.</p><div class="card"><p class="k">Day</p><p class="day">${view.day}</p><p class="soft" style="margin-top:1.5rem">${returned}</p>${view.showedUpToday ? '<p class="note">They showed up today.</p>' : ""}${heavy}</div><p class="note">You don't need to push them, or ask how it's going. Being seen is the whole gift — and you are the one they trusted to see.</p><p class="k" style="margin-top:2rem">Dawnhalo · a little light for your next step</p>`,
       ),
     );
   });

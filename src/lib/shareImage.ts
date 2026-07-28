@@ -169,6 +169,8 @@ async function renderJourneyImage(args: {
   card?: Card | null;
   line: string;
   goalTitle?: string;
+  /** When a witness exists: the quiet claim no other app can make. */
+  witnessed?: boolean;
 }): Promise<Blob> {
   try {
     await Promise.all([
@@ -258,6 +260,12 @@ async function renderJourneyImage(args: {
     y += 62;
   }
 
+  if (args.witnessed) {
+    ctx.fillStyle = "rgba(45,42,46,0.5)";
+    ctx.font = '400 34px "Inter", -apple-system, sans-serif';
+    ctx.fillText(`${args.day} days, witnessed.`, W / 2, H - 170);
+  }
+
   ctx.fillStyle = ROSE;
   ctx.font = '700 30px "Inter", -apple-system, sans-serif';
   ctx.fillText("D A W N H A L O", W / 2, H - 100);
@@ -286,6 +294,7 @@ export async function shareJourneyImage(args: {
   card?: Card | null;
   line: string;
   goalTitle?: string;
+  witnessed?: boolean;
 }): Promise<ShareImageOutcome> {
   return shareBlob(await renderJourneyImage(args));
 }
