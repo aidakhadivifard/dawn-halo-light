@@ -10,6 +10,15 @@ _Last updated: July 27 2026 · newest work on branch `claude/flow-v3`_
   the old launch-branch tip: `git push origin launch-branch-tip-2026-07-27:claude/app-review-monetization-n9o6k8 --force`
   (tag pushed to origin). All three APKs talk to the new backend; the old
   clients ignore the added fields.
+- **The heavy-day signal + witness discovery (July 28).** "I need something
+  now" is one primary act — let your witness see that today is heavy (a dated
+  flag, no words, `POST /api/goal/witness/signal`) — with card/writing/person
+  one quiet tap away; the imitation-Calm content chips are gone. Discovery is
+  woven into moments, never banners: invite at day-3/7 milestones and after
+  two cant/exhausted days (`suggestWitness` on checkin), "Let them see this
+  day" on hard-day states, "Your witness saw Day N" under the reading
+  (`hasWitness`/`witnessSawToday` on goal status), "N days, witnessed." on
+  milestone share images.
 - **The witness page is served by the API host itself**
   (`https://dawnhalo-api.onrender.com/witness/<token>`): there is no deployed
   web frontend yet, so invite links derive from the request host and the
