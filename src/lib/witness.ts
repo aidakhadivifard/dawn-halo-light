@@ -38,11 +38,19 @@ export async function inviteWitness(source: string): Promise<InviteOutcome> {
 
 /** Mark today as heavy on the witness page. Returns false when unreachable. */
 export async function sendWitnessSignal(source: string): Promise<boolean> {
+  let url: string | undefined;
   try {
-    await api.sendWitnessSignal();
+    ({ url } = await api.sendWitnessSignal());
     track("witness_signal_sent", { source });
-    return true;
   } catch {
     return false;
   }
+  // v1 has no push: delivery is the holder's one extra tap. The message stays
+  // wordless — a candle and the page — so asking costs nothing in shame.
+  try {
+    if (url && navigator.share) await navigator.share({ text: `🕯 ${url}` });
+  } catch {
+    /* share sheet dismissed — the page is updated either way */
+  }
+  return true;
 }

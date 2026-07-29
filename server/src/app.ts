@@ -292,11 +292,14 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     res.json({ token: invite.token, url: `${publicBase(req)}/witness/${invite.token}` });
   });
 
-  // The heavy-day signal — one dated flag, no words, no reply expected.
+  // The heavy-day signal — one dated flag, no words, no reply expected. The
+  // url comes back so the client can hand it to the share sheet: v1 has no
+  // push, so delivery IS the holder's one extra tap.
   app.post("/api/goal/witness/signal", requireDevice, resolveLocalDate, (req, res) => {
     const result = svc.witnessSignal(req.deviceId!, req.localDate!);
     if (!result) return res.status(404).json({ error: "no_witness" });
-    res.json({ ok: true });
+    const invite = svc.createWitnessInvite(req.deviceId!);
+    res.json({ ok: true, url: invite ? `${publicBase(req)}/witness/${invite.token}` : undefined });
   });
 
   // Public — the witness opens this in a plain browser, no app required.
@@ -332,7 +335,7 @@ export function createApp(db: DB, opts: AppOptions = {}) {
       : "";
     res.send(
       page(
-        `<p class="k">You are their witness</p><p class="soft">Someone chose you to see their days.</p><div class="card"><p class="k">Day</p><p class="day">${view.day}</p><p class="soft" style="margin-top:1.5rem">${returned}</p>${view.showedUpToday ? '<p class="note">They showed up today.</p>' : ""}${heavy}</div><p class="note">You don't need to push them, or ask how it's going. Being seen is the whole gift — and you are the one they trusted to see.</p><p class="k" style="margin-top:2rem">Dawnhalo · a little light for your next step</p>`,
+        `<p class="k">You are their witness</p><p class="soft">Someone chose you to see their days.</p><div class="card"><p class="k">Day</p><p class="day">${view.day}</p><p class="soft" style="margin-top:1.5rem">${returned}</p>${view.showedUpToday ? '<p class="note">They showed up today.</p>' : ""}${heavy}</div><p class="note">You don't need to push them, or ask how it's going. Being seen is the whole gift — and you are the one they trusted to see.</p><p class="note" style="margin-top:1rem">Keep this page — the number grows, and some days will ask to be seen.</p><p class="k" style="margin-top:2rem">Dawnhalo · a little light for your next step</p>`,
       ),
     );
   });

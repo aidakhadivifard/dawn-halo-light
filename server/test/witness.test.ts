@@ -205,7 +205,9 @@ describe("heavy-day signal + discovery (e2e)", () => {
   it("signal marks TODAY heavy on the witness page — and only today", async () => {
     await createGoal();
     const { body: invite } = await request(api).post("/api/goal/witness").set(headers).expect(200);
-    await request(api).post("/api/goal/witness/signal").set(headers).expect(200);
+    const sig = await request(api).post("/api/goal/witness/signal").set(headers).expect(200);
+    // Delivery is a share-sheet tap: the response must carry the page url.
+    expect(sig.body.url).toContain(`/witness/${invite.token}`);
 
     const today = await request(api).get(`/api/witness/${invite.token}?date=2026-07-10`).expect(200);
     expect(today.body.heavyToday).toBe(true);

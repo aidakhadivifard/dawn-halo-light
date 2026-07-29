@@ -299,7 +299,7 @@ export const api = {
   async createWitnessInvite(): Promise<{ token: string; url: string }> {
     return req(`/goal/witness`, { method: "POST", body: JSON.stringify({}) });
   },
-  async sendWitnessSignal(): Promise<{ ok: true }> {
+  async sendWitnessSignal(): Promise<{ ok: true; url?: string }> {
     return req(`/goal/witness/signal`, { method: "POST", body: JSON.stringify({}) });
   },
   async getWitness(token: string): Promise<{
