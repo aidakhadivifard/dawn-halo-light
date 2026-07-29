@@ -6,6 +6,7 @@ import type { DB, GoalRow } from "./db";
 import type { Card, CardTheme } from "./types";
 import { detectCrisis, CRISIS_RESOURCES } from "./lib/crisis";
 import { classifyInput } from "./lib/classify";
+import { detectEnduranceSeed } from "./lib/endurance";
 import { canDraw, snapshot, withinTrial, type QuotaState } from "./lib/entitlement";
 import { selectIllustration, NO_REPEAT_WINDOW_DAYS } from "./lib/illustrations";
 import { generateCardText, type MessagesClient } from "./lib/anthropic";
@@ -44,7 +45,16 @@ export interface ServiceDeps {
 export type DrawResult =
   | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
   | { kind: "paywall"; reason: string }
-  | { kind: "card"; card: Card };
+  | {
+      kind: "card";
+      card: Card;
+      /**
+       * The user's own words when their question was really about enduring
+       * something and they have no goal yet — the reading may end with
+       * "give it a day count", prefilled with this seed.
+       */
+      goalSeed?: string;
+    };
 
 export interface GoalPayload {
   id: string;
@@ -379,7 +389,10 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         created_at: now().toISOString(),
       };
       db.insertDraw(row);
-      return { kind: "card", card: toCard(row) };
+      // The oracle notices the goal inside the question: no active goal +
+      // endurance-shaped text → the reading may end with "Begin Day 1".
+      const goalSeed = goalContext ? null : detectEnduranceSeed(text);
+      return { kind: "card", card: toCard(row), ...(goalSeed ? { goalSeed } : {}) };
     },
 
     async askFollowUp(

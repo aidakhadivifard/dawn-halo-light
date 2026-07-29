@@ -6,7 +6,7 @@
 // current one is complete.
 
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   getDailyWithEntitlement,
   drawCardEx,
@@ -41,17 +41,16 @@ import {
   HONESTY_QUESTION,
   HONESTY_RESPONSES,
   NOW_LABEL,
-  NOW_QUIET_OPTIONS,
   RETURNED_TIMES,
   RITUAL_CARD_PROMPTS,
   SIGNAL_ACTION,
   SIGNAL_INVITE_PROMPT,
   SIGNAL_SENT,
   SIGNAL_STATE_ACTION,
+  SEED_CTA,
+  SEED_LINES,
   SOFT_TRANSITION,
   STATE_OPTIONS,
-  SUPPORT_INTRO,
-  SUPPORT_RESOURCES,
   TRUTH_RESPONSE,
   WITNESS_INVITE_ACTION,
   WITNESS_INVITE_NOTE,
@@ -196,12 +195,15 @@ function TodayPage() {
   // "I need something now" sheet — one primary act (the witness signal),
   // everything else one quiet tap away.
   const [nowOpen, setNowOpen] = useState(false);
-  const [nowFlow, setNowFlow] = useState<null | "support">(null);
   const [signalState, setSignalState] = useState<null | "sent" | "failed">(null);
   const [witnessNote, setWitnessNote] = useState<null | "shared" | "copied" | "failed">(null);
 
   // Soft discovery (no goal).
   const [discovery, setDiscovery] = useState(false);
+
+  // The oracle noticed a road inside their question (server-detected).
+  const [goalSeed, setGoalSeed] = useState<string | null>(null);
+  const goalSeedRef = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -248,11 +250,16 @@ function TodayPage() {
     track("card_drawn", { mode });
     setActiveCard(out.card);
     if (out.entitlement) setEntitlement(out.entitlement);
+    if (!goal && out.goalSeed) {
+      setGoalSeed(out.goalSeed);
+      goalSeedRef.current = out.goalSeed;
+      track("goal_prompt_shown", { source: "reading_seed" });
+    }
     return true;
   };
 
   const maybeDiscover = () => {
-    if (goal) return;
+    if (goal || goalSeedRef.current) return;
     try {
       const last = localStorage.getItem(DISCOVERY_KEY);
       const today3 = new Date(Date.now() - 3 * 86_400_000).toLocaleDateString("en-CA");
@@ -430,25 +437,6 @@ function TodayPage() {
     !gentle && (checkinResult?.benchmark ?? (state && state !== "strong" ? goal?.benchmark : goal?.benchmark)) || null;
   const showEndurance = phase === "open" && !!goal && !!state && !finished;
   const ritualAvailable = !!goal && !goal.ritualDoneToday && !ritualCard && !reflection;
-
-  const nowRoute = (id: string) => {
-    setNowFlow(null);
-    switch (id) {
-      case "card":
-        setNowOpen(false);
-        if (phase === "open" && ritualAvailable) void runRitual("card");
-        else setPhase("choose");
-        break;
-      case "support":
-        setNowFlow("support");
-        break;
-      case "write":
-        setNowOpen(false);
-        if (goal && phase === "open") setWritingOpen(true);
-        else navigate({ to: "/calendar" });
-        break;
-    }
-  };
 
   // The witness moments: invite (milestones, hard days, the NOW sheet) and
   // the heavy-day signal. No reply is ever asked of the witness.
@@ -785,6 +773,28 @@ function TodayPage() {
           </div>
         )}
 
+        {/* The oracle noticed a road inside their question — the one moment
+            a goal is offered to a card-drawing user, in their own words. */}
+        {phase === "open" && !goal && goalSeed && (
+          <section className="mt-6 p-5 bg-dawn-surface/60 border border-dawn-haze/15 rounded-2xl text-center animate-card-rise">
+            <Lines lines={SEED_LINES} className="space-y-1 text-dawn-ink/85" />
+            <button
+              onClick={() => {
+                try {
+                  sessionStorage.setItem("dawnhalo:goalSeed", goalSeed);
+                } catch {
+                  /* ignore */
+                }
+                track("goal_prompt_accepted", { source: "reading_seed" });
+                navigate({ to: "/goal" });
+              }}
+              className="mt-4 w-full py-3.5 bg-dawn-rose text-dawn-sky text-xs uppercase tracking-[0.2em] font-bold rounded-full"
+            >
+              {SEED_CTA}
+            </button>
+          </section>
+        )}
+
         {/* Personalized endurance response — after the reading. */}
         {showEndurance && (
           <section className="mt-8 space-y-4">
@@ -1058,100 +1068,72 @@ function TodayPage() {
             lives one tap away inside "I need something now", and appears
             prominently only when crisis detection triggers. */}
 
-        {/* "I need something now" — always reachable, never loud. */}
-        {(phase === "choose" || phase === "open") && (
+        {/* "I need something now" — goal-holders only: the witness signal,
+            with writing one quiet tap away. Without a goal the cards ARE the
+            page. Crisis support is never parked here — deterministic crisis
+            detection fires on every text path and routes to /support. */}
+        {goal && (phase === "choose" || phase === "open") && (
           <div className="mt-10 text-center">
             <button
-              onClick={() => {
-                setNowOpen((v) => !v);
-                setNowFlow(null);
-              }}
+              onClick={() => setNowOpen((v) => !v)}
               className="text-[11px] uppercase tracking-[0.2em] text-dawn-ink/40 hover:text-dawn-ink/70 border-b border-dawn-haze/20 pb-0.5"
             >
               {NOW_LABEL}
             </button>
             {nowOpen && (
               <div className="mt-4 p-5 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl text-left animate-card-rise">
-                {!nowFlow ? (
+                {/* One primary act — a hand to squeeze, never a menu. */}
+                {signalState === "sent" ? (
+                  <Lines lines={SIGNAL_SENT} className="space-y-1 text-dawn-ink/85 text-base" />
+                ) : goal?.hasWitness ? (
                   <>
-                    {/* The one primary act: a hand to squeeze, not a content menu. */}
-                    {goal && signalState === "sent" ? (
-                      <Lines lines={SIGNAL_SENT} className="space-y-1 text-dawn-ink/85 text-base" />
-                    ) : goal?.hasWitness ? (
-                      <>
-                        <button
-                          onClick={() => void doSignal("now")}
-                          disabled={busy}
-                          className="w-full py-3.5 bg-dawn-rose/15 border border-dawn-rose/30 text-dawn-rose text-xs uppercase tracking-[0.2em] font-bold rounded-full disabled:opacity-50"
-                        >
-                          {SIGNAL_ACTION}
-                        </button>
-                        {signalState === "failed" && (
-                          <p className="mt-2 text-center text-xs text-dawn-rose/90">
-                            Can't reach Dawnhalo right now — try again in a moment.
-                          </p>
-                        )}
-                      </>
-                    ) : goal ? (
-                      <>
-                        <p className="font-serif italic text-base leading-relaxed text-dawn-ink/85">
-                          {SIGNAL_INVITE_PROMPT}
-                        </p>
-                        <p className="mt-1 text-xs text-dawn-ink/50">{WITNESS_INVITE_NOTE}</p>
-                        <button
-                          onClick={() => void doInvite("now")}
-                          disabled={busy}
-                          className="mt-3 w-full py-3.5 bg-dawn-rose/15 border border-dawn-rose/30 text-dawn-rose text-xs uppercase tracking-[0.2em] font-bold rounded-full disabled:opacity-50"
-                        >
-                          {WITNESS_INVITE_ACTION}
-                        </button>
-                        {witnessNote === "copied" && (
-                          <p className="mt-2 text-center text-xs text-dawn-ink/55">{WITNESS_LINK_COPIED}</p>
-                        )}
-                        {witnessNote === "failed" && (
-                          <p className="mt-2 text-center text-xs text-dawn-rose/90">
-                            Can't reach Dawnhalo right now — try again in a moment.
-                          </p>
-                        )}
-                      </>
-                    ) : null}
-                    <div className={"flex flex-wrap gap-2 " + (goal ? "mt-4 justify-center" : "")}>
-                      {NOW_QUIET_OPTIONS.filter((opt) => opt.id !== "write" || !!goal).map((opt) => (
-                        <button
-                          key={opt.id}
-                          onClick={() => nowRoute(opt.id)}
-                          className="text-[12px] px-4 py-2.5 rounded-full border border-dawn-haze/20 text-dawn-ink/75 hover:bg-dawn-haze/10"
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                ) : nowFlow === "support" ? (
-                  <div>
-                    <p className="font-serif italic text-base leading-relaxed text-dawn-ink/85">
-                      {SUPPORT_INTRO}
-                    </p>
-                    <div className="mt-4 space-y-2">
-                      {SUPPORT_RESOURCES.map((r) => (
-                        <a
-                          key={r.region}
-                          href={`tel:${r.tel}`}
-                          className="block p-4 bg-dawn-sky/50 border border-dawn-haze/15 rounded-xl"
-                        >
-                          <p className="font-serif text-base text-dawn-ink">{r.label}</p>
-                          <p className="text-xs text-dawn-ink/55">{r.detail}</p>
-                        </a>
-                      ))}
-                    </div>
                     <button
-                      onClick={() => setNowOpen(false)}
-                      className="mt-4 w-full py-2 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40"
+                      onClick={() => void doSignal("now")}
+                      disabled={busy}
+                      className="w-full py-3.5 bg-dawn-rose/15 border border-dawn-rose/30 text-dawn-rose text-xs uppercase tracking-[0.2em] font-bold rounded-full disabled:opacity-50"
                     >
-                      Close
+                      {SIGNAL_ACTION}
                     </button>
-                  </div>
-                ) : null}
+                    {signalState === "failed" && (
+                      <p className="mt-2 text-center text-xs text-dawn-rose/90">
+                        Can't reach Dawnhalo right now — try again in a moment.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="font-serif italic text-base leading-relaxed text-dawn-ink/85">
+                      {SIGNAL_INVITE_PROMPT}
+                    </p>
+                    <p className="mt-1 text-xs text-dawn-ink/50">{WITNESS_INVITE_NOTE}</p>
+                    <button
+                      onClick={() => void doInvite("now")}
+                      disabled={busy}
+                      className="mt-3 w-full py-3.5 bg-dawn-rose/15 border border-dawn-rose/30 text-dawn-rose text-xs uppercase tracking-[0.2em] font-bold rounded-full disabled:opacity-50"
+                    >
+                      {WITNESS_INVITE_ACTION}
+                    </button>
+                    {witnessNote === "copied" && (
+                      <p className="mt-2 text-center text-xs text-dawn-ink/55">{WITNESS_LINK_COPIED}</p>
+                    )}
+                    {witnessNote === "failed" && (
+                      <p className="mt-2 text-center text-xs text-dawn-rose/90">
+                        Can't reach Dawnhalo right now — try again in a moment.
+                      </p>
+                    )}
+                  </>
+                )}
+                {phase === "open" && (
+                  <button
+                    onClick={() => {
+                      setNowOpen(false);
+                      setWritingOpen(true);
+                    }}
+                    className="mt-3 w-full py-2 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70"
+                  >
+                    Write something down
+                  </button>
+                )}
               </div>
             )}
           </div>

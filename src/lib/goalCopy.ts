@@ -147,6 +147,14 @@ export const CREATION_BEGIN = "Begin Day 1";
 export const CREATION_EDIT = "Edit journey";
 export const RITUAL_EACH_DAY = "Decide each day";
 
+// The oracle notices the goal inside the question (event-driven — appears
+// only when their own words were about enduring/waiting for something).
+export const SEED_LINES = [
+  "This is not a question for one card — it is a road.",
+  "Let the days be counted.",
+] as const;
+export const SEED_CTA = "Begin Day 1";
+
 export const DISCOVERY_SOFT = [
   "It sounds like you are carrying this for more than one day.",
   "Dawnhalo can stay with you through it, one day at a time.",
@@ -157,8 +165,10 @@ export const RETURNED_TIMES = (n: number) => `You have returned ${n} time${n ===
 export const NOW_LABEL = "I need something now";
 
 // "I need something now" is not a content menu — it is a hand to squeeze.
-// One primary act (the witness signal); a card, writing, and a person stay
-// one quiet tap away. Never an imitation of a wellness library.
+// It exists ONLY for goal-holders: the witness signal as the one primary
+// act, writing one quiet tap away. Without a goal the row does not render —
+// the cards are the page. Crisis support is never parked here: deterministic
+// crisis detection fires on every text path and routes to /support.
 export const SIGNAL_ACTION = "Let your witness see this day";
 export const SIGNAL_SENT = [
   "Done. Their page now shows: today is heavy.",
@@ -175,12 +185,6 @@ export const WITNESS_MILESTONE_PROMPT =
   "Days like these deserve one witness — one person who sees the number grow.";
 export const WITNESS_SAW_TODAY = (day: number) => `Your witness saw Day ${day}.`;
 export const SIGNAL_STATE_ACTION = "Let them see this day";
-
-export const NOW_QUIET_OPTIONS = [
-  { id: "card", label: "A card" },
-  { id: "write", label: "Write something down" },
-  { id: "support", label: "Talk to a person" },
-] as const;
 
 // Support is one tap away here (spec §10) — never permanently on the reading.
 export const SUPPORT_INTRO =

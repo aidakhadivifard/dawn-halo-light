@@ -298,7 +298,17 @@ function Onboarding({
   const navigate = useNavigate();
   const [intro, setIntro] = useState(true);
   const [review, setReview] = useState(false);
-  const [title, setTitle] = useState("");
+  // "Begin Day 1" from a reading arrives with the user's own words as the
+  // seed — their question becomes the goal title, one tap from Day 1.
+  const [title, setTitle] = useState(() => {
+    try {
+      const seed = sessionStorage.getItem("dawnhalo:goalSeed") ?? "";
+      sessionStorage.removeItem("dawnhalo:goalSeed");
+      return seed;
+    } catch {
+      return "";
+    }
+  });
   const [reward, setReward] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [ritual, setRitual] = useState<RitualType>("card");

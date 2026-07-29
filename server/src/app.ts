@@ -408,5 +408,9 @@ function respondDraw(
   if (result.kind === "paywall") {
     return res.status(402).json({ paywall: true, reason: result.reason, entitlement });
   }
-  return res.json({ card: result.card, entitlement });
+  return res.json({
+    card: result.card,
+    entitlement,
+    ...(result.goalSeed ? { goalSeed: result.goalSeed } : {}),
+  });
 }

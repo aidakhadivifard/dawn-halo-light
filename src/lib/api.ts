@@ -40,7 +40,7 @@ export interface CrisisPayload {
 }
 
 export type DrawResponse =
-  | { kind: "card"; card: ApiCard; entitlement: Entitlement }
+  | { kind: "card"; card: ApiCard; entitlement: Entitlement; goalSeed?: string }
   | { kind: "crisis"; payload: CrisisPayload }
   | { kind: "paywall"; reason: string; entitlement?: Entitlement };
 
@@ -180,7 +180,7 @@ export const api = {
     );
     if (body.paywall) return { kind: "paywall", reason: body.reason, entitlement: body.entitlement };
     if (body.isCrisis) return { kind: "crisis", payload: body };
-    return { kind: "card", card: body.card, entitlement: body.entitlement };
+    return { kind: "card", card: body.card, entitlement: body.entitlement, goalSeed: body.goalSeed };
   },
   async followUp(input: { previousCardId: string; text: string }): Promise<DrawResponse> {
     const body = await req<any>(`/cards/follow-up`, {

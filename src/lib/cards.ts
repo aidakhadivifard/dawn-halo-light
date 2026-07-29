@@ -46,7 +46,7 @@ export type DrawInput = { intent: "ask" | "feel"; text: string };
 export type FollowUpInput = { previous: Card; text: string };
 
 export type DrawOutcome =
-  | { kind: "card"; card: Card; entitlement?: Entitlement }
+  | { kind: "card"; card: Card; entitlement?: Entitlement; goalSeed?: string }
   | { kind: "crisis"; message: string; resources: { region: string; label: string; detail: string }[] }
   | { kind: "paywall"; reason: string };
 
@@ -129,7 +129,7 @@ export async function drawCardEx(input: DrawInput): Promise<DrawOutcome> {
     if (res.kind === "crisis")
       return { kind: "crisis", message: res.payload.message, resources: res.payload.resources };
     if (res.kind === "paywall") return { kind: "paywall", reason: res.reason };
-    return { kind: "card", card: apiToCard(res.card), entitlement: res.entitlement };
+    return { kind: "card", card: apiToCard(res.card), entitlement: res.entitlement, goalSeed: res.goalSeed };
   } catch (e) {
     if (e instanceof PaywallError) return { kind: "paywall", reason: e.reason };
     // Offline fallback: still enforce crisis safety deterministically.
