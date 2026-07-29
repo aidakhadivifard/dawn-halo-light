@@ -208,20 +208,29 @@ function TodayPage() {
   useEffect(() => {
     let alive = true;
     warmBackend(); // wake the free-plan backend before the user reaches the cards
-    getCalendar().then(({ streak }) => alive && setStreak(streak));
     const phaseFallback = setTimeout(() => {
       setPhase((p) => (p === "loading" ? "choose" : p));
     }, 2500);
-    getGoalStatus().then((g) => {
+    // The three face-down cards are a real choice only ONCE per day: the
+    // daily card is idempotent server-side, so re-offering the pick after
+    // today's reading exists would be theater that lies. If today already
+    // has a reading, open on it.
+    Promise.all([
+      getCalendar().catch(() => ({ byDay: {} as Record<string, Card[]>, streak: 0 })),
+      getGoalStatus(),
+    ]).then(([cal, g]) => {
       if (!alive) return;
       clearTimeout(phaseFallback);
+      setStreak(cal.streak);
+      const drawn = (cal.byDay[localDay()] ?? [])[0] ?? null;
+      if (drawn) setActiveCard(drawn);
       setGoal(g);
       if (g) setGoalPhotoState(getGoalPhoto());
       setPhase((p) => {
         if (p !== "loading") return p;
         if (g && !g.checkedInToday) return "checkin";
         if (g && g.honestyDue) return "honesty";
-        return "choose";
+        return drawn ? "open" : "choose";
       });
     });
     setDateLabel(formatDate(today));
@@ -347,7 +356,9 @@ function TodayPage() {
     await sleep(1200);
     if (c.milestone) setPhase("milestone");
     else if (c.honestyDue) setPhase("honesty");
-    else setPhase("choose");
+    // If today's reading already happened (drawn before the check-in), the
+    // cards must not be re-offered — the pick is real only once per day.
+    else setPhase(activeCard ? "open" : "choose");
   };
 
   const submitHonesty = async (answer: "continue" | "adjust" | "thinking" | "done") => {
@@ -562,7 +573,9 @@ function TodayPage() {
               {checkinResult.milestone.message}
             </p>
             <button
-              onClick={() => setPhase(checkinResult.honestyDue ? "honesty" : "choose")}
+              onClick={() =>
+                setPhase(checkinResult.honestyDue ? "honesty" : activeCard ? "open" : "choose")
+              }
               className="mt-10 w-full py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full"
             >
               Continue to today's card
@@ -641,7 +654,7 @@ function TodayPage() {
                   </Link>
                 ) : (
                   <button
-                    onClick={() => setPhase("choose")}
+                    onClick={() => setPhase(activeCard ? "open" : "choose")}
                     className="mt-8 w-full py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full"
                   >
                     Draw today's card
