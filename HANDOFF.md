@@ -261,10 +261,14 @@ journal. Key facts:
    web build.
 4. **`VITE_APP_URL`**: set to the public web origin at build time for correct
    social previews.
-5. **Render**: upgrade to the $7 plan before any marketing (free plan sleeps
-   after 15 min; first request takes ~30–50 s). This cold start is also why
-   Today/Goal show a 2.5s fallback before real data arrives — a paid plan
-   removes the wait.
+5. **Render**: upgrade to the $7 plan before any marketing — TWO reasons.
+   (a) The free plan sleeps after 15 min; first request takes ~30–50 s (why
+   Today/Goal show a 2.5s fallback before real data arrives). (b) **The free
+   plan has no persistent disk: the SQLite database is WIPED on every deploy
+   or restart** — goals, day counts, witness invites, everything (confirmed
+   July 29 2026: a deploy killed all live data). Until the paid plan (attach
+   a persistent disk and point DATABASE_URL at it), every deploy erases every
+   real user. Do not launch — not even the influencer test — before this.
 6. iOS later: Apple Developer ($99/yr) + a Mac; integrate RevenueCat/StoreKit
    before enabling purchases on iOS.
 
