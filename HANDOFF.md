@@ -1,6 +1,51 @@
 # Dawnhalo — Project Handoff
 
-_Last updated: July 27 2026 · newest work on branch `claude/flow-v3`_
+_Last updated: August 3 2026 · newest work on branch `claude/flow-v3`_
+
+## 0.0 Working phone-only (the owner's preferred mode)
+
+Aida drives this project from her phone (metro, before sleep) — nothing here
+needs a laptop:
+
+- **Sessions**: Claude mobile app → Code tab → repo `dawn-halo-light` →
+  new cloud session on branch `claude/flow-v3`. Read THIS file first — it is
+  the whole memory of the project. Keep replies short and visual; she reads
+  on mobile. Design decisions: present compact, confirm, then build
+  ("اول فکر کن بعد اجرا کن").
+- **Deploy**: push to `claude/app-review-monetization-n9o6k8` (fast-forward
+  from flow-v3) → Render auto-deploys. ⚠️ Free plan wipes the SQLite DB on
+  EVERY deploy (see §4.5) — push to that branch only for server changes.
+- **APK**: Actions → "Build Android app (.apk)" on `claude/flow-v3` with
+  `api_url=https://dawnhalo-api.onrender.com`. To hand her the file
+  phone-friendly, attach it to a GitHub Release (`gh release create
+  test-<date> <apk> --prerelease`) — artifact downloads need desktop login,
+  release assets don't.
+- The disruptive-thinking algorithm she applies to features: six steps —
+  cross out the commodity axis; hunt night-fears, not needs; formalize the
+  market's existing informal hack; invert your cost center into the product;
+  change the unit of growth; keep only ideas rivals are STRUCTURALLY unable
+  to copy. Final test: someone must lose. Always start with the cheapest
+  killer test.
+
+## 0.2 July 29 changes (on `claude/flow-v3`)
+
+- **Signal delivery**: after "Let your witness see this day", the share sheet
+  opens with a wordless message (🕯 + page link) — v1 has no push, delivery is
+  the holder's one extra tap. Signal response now returns the page `url`.
+- **The pick is real only once per day**: the daily card is idempotent by
+  design, so Today now opens ON today's reading whenever one exists (restored
+  from the calendar); the three-card choose theater never re-appears within a
+  day. All post-check-in/milestone/honesty paths land on the reading too.
+- **"The oracle notices" conversion**: endurance-shaped questions from
+  goal-less users ("when will my visa come") get `goalSeed` back on the draw
+  (`server/src/lib/endurance.ts`, deterministic) → "Begin Day 1" invitation
+  under the reading → goal title prefilled with their own words. Ordinary and
+  longing questions never trigger it.
+- **"I need something now" is goal-holders-only** now: one primary act (the
+  signal, or choose-your-witness), writing one quiet tap away after the
+  reading. No content chips, no parked crisis support (deterministic crisis
+  detection on every text path already routes to /support). Without a goal
+  the row does not render — the cards are the page.
 
 ## 0.1 July 27–28 changes (on `claude/flow-v3`)
 
