@@ -205,6 +205,9 @@ function TodayPage() {
   const [goalSeed, setGoalSeed] = useState<string | null>(null);
   const goalSeedRef = useRef<string | null>(null);
 
+  // The arrival invitation is an impression, counted once per session.
+  const journeyChipSeen = useRef(false);
+
   useEffect(() => {
     let alive = true;
     warmBackend(); // wake the free-plan backend before the user reaches the cards
@@ -244,6 +247,17 @@ function TodayPage() {
       clearTimeout(phaseFallback);
     };
   }, [today]);
+
+  // Until now a journey could only be found by accident — the oracle noticing
+  // endurance inside a question, or the rare soft discovery. Someone who
+  // simply knows they want to begin something had nowhere to say so. The
+  // invitation now sits among the intentions; count the impression so the
+  // funnel has a denominator.
+  useEffect(() => {
+    if (phase !== "choose" || goal || journeyChipSeen.current) return;
+    journeyChipSeen.current = true;
+    track("goal_prompt_shown", { source: "arrival_chip" });
+  }, [phase, goal]);
 
   const handleOutcome = (out: Awaited<ReturnType<typeof drawCardEx>>, mode: string) => {
     if (out.kind === "crisis") {
@@ -719,6 +733,15 @@ function TodayPage() {
                   >
                     Ask something else
                   </button>
+                  {/* Not an intention for today's card — a road. Tinted so the
+                      eye reads it as a different kind of act before the tap. */}
+                  <Link
+                    to="/goal"
+                    onClick={() => track("goal_prompt_accepted", { source: "arrival_chip" })}
+                    className="text-[12px] px-4 py-2.5 rounded-full border border-dawn-rose/40 text-dawn-rose/90 hover:bg-dawn-rose/10 transition-colors"
+                  >
+                    I want to start a new journey
+                  </Link>
                 </div>
                 {inputMode && (
                   <input

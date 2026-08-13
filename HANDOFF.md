@@ -27,6 +27,23 @@ needs a laptop:
   to copy. Final test: someone must lose. Always start with the cheapest
   killer test.
 
+## 0.3 August 13 changes (on `claude/handoff-review-update-5mb1kt`)
+
+- **A journey can now be started on purpose.** Until now the endurance layer
+  had only accidental entrances: the oracle noticing endurance inside a
+  question (`goalSeed`) or the rare soft discovery after a reading. Someone who
+  simply knew they wanted to begin something had nowhere to say so. The arrival
+  screen's intention row (no-goal state, `src/routes/index.tsx`) now carries a
+  sixth chip — **"I want to start a new journey"** → `/goal`. It is tinted rose
+  (`border-dawn-rose/40`), because unlike the other five it does not end in a
+  reading: it leaves the screen for goal setup. Analytics:
+  `goal_prompt_shown`/`goal_prompt_accepted` with `source: "arrival_chip"`, so
+  the new entrance can be compared against `reading_seed` and `soft_discovery`.
+- Deliberate copy split, worth keeping: **"holding on for something"** is
+  recognition (used where the user has already revealed hardship — the
+  post-reading seed); **"start a new journey"** is invitation (used on arrival,
+  where nothing has been revealed and assuming hardship would be wrong).
+
 ## 0.2 July 29 changes (on `claude/flow-v3`)
 
 - **Signal delivery**: after "Let your witness see this day", the share sheet
