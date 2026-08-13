@@ -29,6 +29,8 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # to attach the .apk to a prerelease
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,3 +80,32 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      # Artifact downloads require a desktop GitHub login, which makes them
+      # useless to someone driving this project from a phone. Release assets
+      # download with a plain tap, so every hand-run build also lands on a
+      # prerelease.
+      - name: Attach the APK to a prerelease
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+          API_URL: ${{ github.event.inputs.api_url }}
+        run: |
+          set -euo pipefail
+          tag="apk-$(date -u +%Y%m%d-%H%M)"
+          {
+            echo "Debug APK built from \`$BRANCH\` (\`${GITHUB_SHA:0:7}\`)."
+            echo
+            echo "Backend: \`${API_URL:-offline}\`"
+            echo
+            echo "Open this page on your phone and tap \`app-debug.apk\` to install."
+          } > release-notes.md
+          gh release create "$tag" \
+            android/app/build/outputs/apk/debug/app-debug.apk \
+            --prerelease \
+            --title "Dawnhalo test build $tag" \
+            --notes-file release-notes.md
+          url="$(gh release view "$tag" --json url -q .url)"
+          echo "### 📱 Install on your phone" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
