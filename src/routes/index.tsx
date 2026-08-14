@@ -26,8 +26,20 @@ import {
   checkin as postCheckin,
   doRitual,
   getGoalPhoto,
-  getGoalStatus,
+  getGoalStatuses,
 } from "@/lib/goalStore";
+
+// With several journeys, focus goes to the heaviest of today (a hard day
+// outranks a good one); with none checked in, the newest journey leads.
+const STATE_WEIGHT: Record<string, number> = { cant: 3, exhausted: 2, barely: 1, strong: 0 };
+function focusOf(list: GoalStatus[]): GoalStatus | null {
+  if (list.length === 0) return null;
+  const checked = list.filter((s) => s.todayState);
+  if (checked.length === 0) return list[list.length - 1];
+  return [...checked].sort(
+    (a, b) => (STATE_WEIGHT[b.todayState ?? ""] ?? 0) - (STATE_WEIGHT[a.todayState ?? ""] ?? 0),
+  )[0];
+}
 import { localDay } from "@/lib/device";
 import {
   CALM_FLOW,
@@ -175,6 +187,10 @@ function TodayPage() {
   const [inputMode, setInputMode] = useState<null | "dream" | "ask">(null);
 
   // Goal layer.
+  // Several roads at once: `goals` is every active journey (oldest first);
+  // `goal` is the one in focus — the journey being checked in right now, or
+  // the heaviest of today once check-ins are done.
+  const [goals, setGoals] = useState<GoalStatus[]>([]);
   const [goal, setGoal] = useState<GoalStatus | null>(null);
   const [goalPhoto, setGoalPhotoState] = useState<string | null>(null);
   const [checkinResult, setCheckinResult] = useState<CheckinResult | null>(null);
@@ -221,18 +237,23 @@ function TodayPage() {
     // has a reading, open on it.
     Promise.all([
       getCalendar().catch(() => ({ byDay: {} as Record<string, Card[]>, streak: 0 })),
-      getGoalStatus(),
-    ]).then(([cal, g]) => {
+      getGoalStatuses(),
+    ]).then(([cal, list]) => {
       if (!alive) return;
       clearTimeout(phaseFallback);
       setStreak(cal.streak);
       const drawn = (cal.byDay[localDay()] ?? [])[0] ?? null;
       if (drawn) setActiveCard(drawn);
+      setGoals(list);
+      // Focus: the first journey still waiting for its check-in; otherwise
+      // the heaviest of today; otherwise the newest.
+      const pending = list.find((s) => !s.checkedInToday);
+      const g = pending ?? focusOf(list);
       setGoal(g);
       if (g) setGoalPhotoState(getGoalPhoto());
       setPhase((p) => {
         if (p !== "loading") return p;
-        if (g && !g.checkedInToday) return "checkin";
+        if (pending) return "checkin";
         if (g && g.honestyDue) return "honesty";
         return drawn ? "open" : "choose";
       });
@@ -332,12 +353,14 @@ function TodayPage() {
     [busy, today, intent, freeText, inputMode, goal],
   );
 
-  // One-tap check-in → soft transition → (milestone/honesty) → cards.
+  // One-tap check-in → soft transition → (next journey's check-in) →
+  // (milestone/honesty) → cards. With several journeys the check-ins run in
+  // sequence, each one tap; the cards come once, for the day.
   const submitCheckin = async (state: CheckinState) => {
-    if (busy) return;
+    if (busy || !goal) return;
     setBusy(true);
     setOfflineNote(false);
-    const res = await postCheckin({ state });
+    const res = await postCheckin({ state, goalId: goal.goal.id });
     setBusy(false);
     if (res.kind === "offline") {
       setOfflineNote(true);
@@ -352,16 +375,17 @@ function TodayPage() {
     track("checkin_completed", { state: c.state, day: c.day, source: "today" });
     if (!c.already && RETENTION_DAYS.includes(c.day)) track("dN_retention", { day: c.day });
     setCheckinResult(c);
-    if (goal) {
-      setGoal({
-        ...goal,
-        checkedInToday: true,
-        todayState: c.state,
-        day: c.day,
-        streak: c.streak,
-        checkinCount: (goal.checkinCount ?? 0) + (c.already ? 0 : 1),
-      });
-    }
+    const updated: GoalStatus = {
+      ...goal,
+      checkedInToday: true,
+      todayState: c.state,
+      day: c.day,
+      streak: c.streak,
+      checkinCount: (goal.checkinCount ?? 0) + (c.already ? 0 : 1),
+    };
+    const nextGoals = goals.map((s) => (s.goal.id === goal.goal.id ? updated : s));
+    setGoals(nextGoals);
+    setGoal(updated);
     if (c.summary) {
       track("goal_completed", { daysHeld: c.summary.daysHeld });
       navigate({ to: "/goal" });
@@ -369,17 +393,24 @@ function TodayPage() {
     }
     setPhase("transition");
     await sleep(1200);
+    const pending = nextGoals.find((s) => !s.checkedInToday);
     if (c.milestone) setPhase("milestone");
-    else if (c.honestyDue) setPhase("honesty");
+    else if (pending) {
+      setGoal(pending);
+      setPhase("checkin");
+    } else if (c.honestyDue) setPhase("honesty");
     // If today's reading already happened (drawn before the check-in), the
     // cards must not be re-offered — the pick is real only once per day.
-    else setPhase(activeCard ? "open" : "choose");
+    else {
+      setGoal(focusOf(nextGoals) ?? updated);
+      setPhase(activeCard ? "open" : "choose");
+    }
   };
 
   const submitHonesty = async (answer: "continue" | "adjust" | "thinking" | "done") => {
     if (busy) return;
     setBusy(true);
-    const res = await answerHonesty(answer, honestyNote);
+    const res = await answerHonesty(answer, honestyNote, goal?.goal.id);
     setBusy(false);
     if (res.kind === "offline") {
       setOfflineNote(true);
@@ -391,7 +422,9 @@ function TodayPage() {
     if (goal) setGoal({ ...goal, honestyDue: false });
     if (answer === "done" && res.summary) {
       track("goal_abandoned", { daysHeld: res.summary.daysHeld });
-      setGoal(null);
+      const remaining = goals.filter((s) => s.goal.id !== goal?.goal.id);
+      setGoals(remaining);
+      setGoal(focusOf(remaining));
     }
   };
 
@@ -400,7 +433,11 @@ function TodayPage() {
     if (type === "writing" && !writingText.trim()) return;
     setBusy(true);
     setOfflineNote(false);
-    const res = await doRitual({ type, text: type === "writing" ? writingText : undefined });
+    const res = await doRitual({
+      type,
+      text: type === "writing" ? writingText : undefined,
+      goalId: goal?.goal.id,
+    });
     setBusy(false);
     if (res.kind === "offline") {
       setOfflineNote(true);
@@ -544,6 +581,21 @@ function TodayPage() {
                 {RETURNED_TIMES(goal.checkinCount)}
               </span>
             )}
+            {/* The other roads, quiet under the hero — one line each. */}
+            {goals.length > 1 && (
+              <span className="mt-3 flex flex-wrap justify-center gap-2">
+                {goals
+                  .filter((s) => s.goal.id !== goal.goal.id)
+                  .map((s) => (
+                    <span
+                      key={s.goal.id}
+                      className="text-[10px] px-3 py-1.5 rounded-full border border-dawn-haze/15 text-dawn-ink/55"
+                    >
+                      Day {s.day} · {s.goal.title.length > 18 ? `${s.goal.title.slice(0, 18)}…` : s.goal.title}
+                    </span>
+                  ))}
+              </span>
+            )}
           </Link>
         )}
 
@@ -552,6 +604,12 @@ function TodayPage() {
         {/* One-tap check-in, before anything asks for attention. */}
         {phase === "checkin" && (
           <section className="py-6 animate-card-rise">
+            {/* Which road this check-in belongs to — only when there are several. */}
+            {goals.length > 1 && goal && (
+              <p className="mb-2 text-center text-[10px] uppercase tracking-[0.22em] text-dawn-rose/70">
+                {goal.goal.title}
+              </p>
+            )}
             <h2 className="text-2xl font-serif font-light italic text-center text-balance">{HOLDING_QUESTION}</h2>
             <div className="mt-6 space-y-3">
               {STATE_OPTIONS.map((opt) => (
@@ -588,9 +646,13 @@ function TodayPage() {
               {checkinResult.milestone.message}
             </p>
             <button
-              onClick={() =>
-                setPhase(checkinResult.honestyDue ? "honesty" : activeCard ? "open" : "choose")
-              }
+              onClick={() => {
+                const pending = goals.find((s) => !s.checkedInToday);
+                if (pending) {
+                  setGoal(pending);
+                  setPhase("checkin");
+                } else setPhase(checkinResult.honestyDue ? "honesty" : activeCard ? "open" : "choose");
+              }}
               className="mt-10 w-full py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full"
             >
               Continue to today's card
@@ -669,7 +731,13 @@ function TodayPage() {
                   </Link>
                 ) : (
                   <button
-                    onClick={() => setPhase(activeCard ? "open" : "choose")}
+                    onClick={() => {
+                      const pending = goals.find((s) => !s.checkedInToday);
+                      if (pending) {
+                        setGoal(pending);
+                        setPhase("checkin");
+                      } else setPhase(activeCard ? "open" : "choose");
+                    }}
                     className="mt-8 w-full py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full"
                   >
                     Draw today's card

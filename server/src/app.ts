@@ -169,7 +169,13 @@ export function createApp(db: DB, opts: AppOptions = {}) {
 
   // --- Endurance goal ("what you're holding on for") ---
   app.get("/api/goal", requireDevice, resolveLocalDate, (req, res) => {
-    res.json({ status: svc.goalStatus(req.deviceId!, req.localDate!) });
+    const goalId = req.query?.goalId ? String(req.query.goalId) : undefined;
+    res.json({ status: svc.goalStatus(req.deviceId!, req.localDate!, goalId) });
+  });
+
+  // Multi-journey contract: every active journey, oldest first.
+  app.get("/api/goals", requireDevice, resolveLocalDate, (req, res) => {
+    res.json({ goals: svc.goalStatusAll(req.deviceId!, req.localDate!) });
   });
 
   app.post("/api/goal", requireDevice, resolveLocalDate, (req, res) => {
@@ -195,14 +201,23 @@ export function createApp(db: DB, opts: AppOptions = {}) {
             : req.body.photoUrl.toString()
           : undefined,
       ritual: req.body?.ritual !== undefined ? req.body.ritual.toString() : undefined,
+      goalId: req.body?.goalId ? req.body.goalId.toString() : undefined,
     });
     if (result.kind === "no_goal") return res.status(404).json({ error: "no_active_goal" });
-    res.json({ ok: true, status: svc.goalStatus(req.deviceId!, req.localDate!) });
+    res.json({
+      ok: true,
+      status: svc.goalStatus(
+        req.deviceId!,
+        req.localDate!,
+        req.body?.goalId ? req.body.goalId.toString() : undefined,
+      ),
+    });
   });
 
   app.post("/api/goal/close", requireDevice, resolveLocalDate, (req, res) => {
     const reason = req.body?.reason === "completed" ? "completed" : "abandoned";
-    const result = svc.closeGoal(req.deviceId!, req.localDate!, reason);
+    const goalId = req.body?.goalId ? req.body.goalId.toString() : undefined;
+    const result = svc.closeGoal(req.deviceId!, req.localDate!, reason, goalId);
     if (result.kind === "no_goal") return res.status(404).json({ error: "no_active_goal" });
     if (result.kind === "target_not_reached")
       return res.status(400).json({ error: "target_not_reached" });
@@ -213,6 +228,7 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     const result = svc.checkin(req.deviceId!, req.localDate!, {
       state: (req.body?.state ?? "").toString(),
       note: (req.body?.note ?? "").toString(),
+      goalId: req.body?.goalId ? req.body.goalId.toString() : undefined,
     });
     if (result.kind === "crisis") {
       return res
@@ -229,7 +245,11 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     const text = (req.body?.text ?? "").toString();
     if (type === "writing" && !text.trim())
       return res.status(400).json({ error: "missing_text" });
-    const result = await svc.ritual(req.deviceId!, req.localDate!, { type, text });
+    const result = await svc.ritual(req.deviceId!, req.localDate!, {
+      type,
+      text,
+      goalId: req.body?.goalId ? req.body.goalId.toString() : undefined,
+    });
     if (result.kind === "crisis") {
       return res
         .status(200)
@@ -257,6 +277,7 @@ export function createApp(db: DB, opts: AppOptions = {}) {
       req.localDate!,
       (req.body?.answer ?? "").toString(),
       (req.body?.note ?? "").toString(),
+      req.body?.goalId ? req.body.goalId.toString() : undefined,
     );
     if (result.kind === "no_goal") return res.status(404).json({ error: "no_active_goal" });
     if (result.kind === "invalid") return res.status(400).json({ error: result.reason });
@@ -264,7 +285,11 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   });
 
   app.get("/api/goal/history", requireDevice, resolveLocalDate, (req, res) => {
-    const result = svc.goalHistory(req.deviceId!, req.localDate!);
+    const result = svc.goalHistory(
+      req.deviceId!,
+      req.localDate!,
+      req.query?.goalId ? String(req.query.goalId) : undefined,
+    );
     if (result.kind === "no_goal") return res.status(404).json({ error: "no_active_goal" });
     if (result.kind === "paywall") {
       return res.status(402).json({

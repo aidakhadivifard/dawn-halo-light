@@ -68,6 +68,42 @@ export async function getGoalStatus(): Promise<GoalStatus | null> {
   }
 }
 
+const LIST_CACHE_KEY = "dawnhalo:goalStatuses";
+
+/** Every active journey, oldest first. Offline falls back to the cached list
+ *  with locally recomputed day counts (server-only flags dropped). */
+export async function getGoalStatuses(): Promise<GoalStatus[]> {
+  try {
+    const { goals } = await api.getGoals();
+    try {
+      localStorage.setItem(LIST_CACHE_KEY, JSON.stringify(goals));
+    } catch {
+      /* storage full/blocked */
+    }
+    if (goals.length > 0) writeCache(goals[goals.length - 1]);
+    return goals;
+  } catch {
+    try {
+      const raw = localStorage.getItem(LIST_CACHE_KEY);
+      const cached = raw ? (JSON.parse(raw) as GoalStatus[]) : [];
+      return cached.map((c) => {
+        const day = localDaysSince(c.goal.startDate);
+        return {
+          ...c,
+          day,
+          progress: Math.min(1, day / Math.max(1, c.totalDays)),
+          checkedInToday: false,
+          todayState: null,
+          ritualDoneToday: false,
+          honestyDue: false,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+}
+
 export async function createGoal(input: {
   title: string;
   reward: string;
@@ -87,6 +123,7 @@ export async function createGoal(input: {
 export async function updateGoal(patch: {
   title?: string;
   ritual?: RitualType;
+  goalId?: string;
 }): Promise<GoalStatus | null> {
   try {
     const { status } = await api.updateGoal(patch);
@@ -100,6 +137,7 @@ export async function updateGoal(patch: {
 export async function checkin(input: {
   state: CheckinState;
   note?: string;
+  goalId?: string;
 }): Promise<CheckinResponse | { kind: "offline" }> {
   try {
     const res = await api.checkin(input);
@@ -125,6 +163,7 @@ export async function checkin(input: {
 export async function doRitual(input: {
   type: RitualType;
   text?: string;
+  goalId?: string;
 }): Promise<RitualResponse | { kind: "offline" }> {
   try {
     return await api.ritual(input);
@@ -137,9 +176,10 @@ export async function doRitual(input: {
 export async function answerHonesty(
   answer: "continue" | "adjust" | "thinking" | "done",
   note?: string,
+  goalId?: string,
 ): Promise<{ kind: "ok"; summary?: GoalSummary } | { kind: "offline" }> {
   try {
-    const res = await api.honesty(answer, note);
+    const res = await api.honesty(answer, note, goalId);
     if (answer === "done") writeCache(null);
     return { kind: "ok", summary: res.summary };
   } catch {
@@ -149,9 +189,10 @@ export async function answerHonesty(
 
 export async function closeGoal(
   reason: "completed" | "abandoned",
+  goalId?: string,
 ): Promise<{ kind: "ok"; summary: GoalSummary } | { kind: "offline" }> {
   try {
-    const { summary } = await api.closeGoal(reason);
+    const { summary } = await api.closeGoal(reason, goalId);
     writeCache(null);
     return { kind: "ok", summary };
   } catch {

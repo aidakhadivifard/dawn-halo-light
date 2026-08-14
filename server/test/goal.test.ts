@@ -75,16 +75,35 @@ describe("endurance goal (e2e)", () => {
     expect(res.body.status).toBeNull();
   });
 
-  it("creates ONE active goal; a second is rejected; bad target date rejected", async () => {
+  it("allows up to three active journeys; a fourth is rejected; bad target date rejected", async () => {
     const created = await createGoal();
     expect(created.status).toBe(200);
     expect(created.body.status.day).toBe(1);
     expect(created.body.status.goal.title).toBe("fit into the corset");
     expect(created.body.status.benchmark.sourceUrl).toMatch(/^https:\/\//);
 
-    const dup = await createGoal();
-    expect(dup.status).toBe(409);
-    expect(dup.body.error).toBe("goal_already_active");
+    // Several roads may be held at once — but only three.
+    expect((await createGoal()).status).toBe(200);
+    expect((await createGoal()).status).toBe(200);
+    const fourth = await createGoal();
+    expect(fourth.status).toBe(409);
+    expect(fourth.body.error).toBe("goal_already_active");
+
+    // The multi-journey list shows all three, oldest first.
+    const list = await h(request(api).get("/api/goals"));
+    expect(list.status).toBe(200);
+    expect(list.body.goals).toHaveLength(3);
+
+    // A per-journey check-in touches only the named journey.
+    const target = list.body.goals[0].goal.id;
+    const chk = await h(request(api).post("/api/goal/checkin")).send({
+      state: "strong",
+      goalId: target,
+    });
+    expect(chk.status).toBe(200);
+    const after = await h(request(api).get("/api/goals"));
+    expect(after.body.goals.filter((g: any) => g.checkedInToday)).toHaveLength(1);
+    expect(after.body.goals[0].checkedInToday).toBe(true);
 
     const db2 = createDb(":memory:");
     const api2 = app(db2);

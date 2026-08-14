@@ -27,6 +27,32 @@ needs a laptop:
   to copy. Final test: someone must lose. Always start with the cheapest
   killer test.
 
+## 0.5 August 14 — several journeys at once (on `claude/handoff-review-update-5mb1kt`)
+
+The owner asked to hold more than one road. Chosen design (option ج, her
+call): full concurrent journeys, each with its own day count, check-in,
+milestones, honesty check and history — capped at **3** (`MAX_ACTIVE_GOALS`
+in service.ts; past that the companion becomes a dashboard).
+
+- **Server**: `GET /api/goals` lists every active journey (oldest first).
+  Every goal endpoint takes an optional `goalId` (body or query); without it
+  it resolves to the NEWEST active goal — exactly what single-journey clients
+  always operated on, so old APKs are untouched. `resolveGoal` in service.ts
+  is the gatekeeper (device + active checks).
+- **Reading Engine**: the payload now carries all journeys — full detail for
+  the focus journey (heaviest today, else newest), one "Also holding:" line
+  each for the rest; the TONE line turns gentle if ANY check-in is heavy.
+- **Today**: check-ins run in sequence (one tap each) when several journeys
+  await, with the journey's title above the question; the Day hero shows the
+  focus journey (heaviest of today) with quiet `Day N · title` chips for the
+  others; the cards still come ONCE, for the day — the one-card rule holds.
+- **Goal page**: journey switcher chips + "+ Begin another road" (< 3),
+  reusing the existing onboarding; every action in `GoalHome` carries its
+  journey's goalId.
+- **Witness stays device-level (v1)** — it shows the newest journey's day.
+  Making it per-journey needs a `goal_id` on `witness_invites` — deliberate
+  deferral.
+
 ## 0.4 August 14 — the "reading with a spine" pass (on `claude/handoff-review-update-5mb1kt`)
 
 Born from one piece of on-device feedback: a goal-less daily reading ("The

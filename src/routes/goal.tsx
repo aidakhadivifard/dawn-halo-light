@@ -18,7 +18,7 @@ import {
   createGoal,
   doRitual,
   getGoalPhoto,
-  getGoalStatus,
+  getGoalStatuses,
   setGoalPhoto,
 } from "@/lib/goalStore";
 import { fromApiCard, type Card } from "@/lib/cards";
@@ -185,7 +185,10 @@ function BenchmarkLineView({
 function GoalPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<GoalStatus | null>(null);
+  // Several roads at once: the page holds every active journey; one is open.
+  const [statuses, setStatuses] = useState<GoalStatus[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [addMode, setAddMode] = useState(false);
   const [summary, setSummary] = useState<GoalSummary | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const [offlineNote, setOfflineNote] = useState(false);
@@ -195,10 +198,11 @@ function GoalPage() {
     // Don't hang on a cold backend (Render free tier): show onboarding/home
     // from what we know, reconcile when the real status arrives.
     const loadingFallback = setTimeout(() => alive && setLoading(false), 2500);
-    getGoalStatus().then((s) => {
+    getGoalStatuses().then((list) => {
       if (!alive) return;
       clearTimeout(loadingFallback);
-      setStatus(s);
+      setStatuses(list);
+      setSelectedId((id) => id ?? list[list.length - 1]?.goal.id ?? null);
       setLoading(false);
     });
     setPhoto(getGoalPhoto());
@@ -208,7 +212,13 @@ function GoalPage() {
     };
   }, []);
 
-  const refresh = async () => setStatus(await getGoalStatus());
+  const refresh = async () => {
+    const list = await getGoalStatuses();
+    setStatuses(list);
+    setSelectedId((id) => (list.some((s) => s.goal.id === id) ? id : list[list.length - 1]?.goal.id ?? null));
+  };
+
+  const status = statuses.find((s) => s.goal.id === selectedId) ?? statuses[statuses.length - 1] ?? null;
 
   if (loading) {
     return (
@@ -226,12 +236,22 @@ function GoalPage() {
     );
   }
 
-  if (!status) {
+  if (!status || addMode) {
     return (
       <Shell>
+        {addMode && (
+          <button
+            onClick={() => setAddMode(false)}
+            className="mb-4 text-[10px] uppercase tracking-[0.18em] text-dawn-ink/60 hover:text-dawn-ink transition-colors"
+          >
+            ← Back to your journeys
+          </button>
+        )}
         <Onboarding
           onCreated={(s) => {
-            setStatus(s);
+            setStatuses((list) => [...list, s]);
+            setSelectedId(s.goal.id);
+            setAddMode(false);
             setPhoto(getGoalPhoto());
           }}
           onOffline={() => setOfflineNote(true)}
@@ -243,13 +263,45 @@ function GoalPage() {
 
   return (
     <Shell>
+      {/* The roads being held — switch with a tap; begin another (up to 3). */}
+      {(statuses.length > 1 || statuses.length < 3) && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          {statuses.length > 1 &&
+            statuses.map((s) => (
+              <button
+                key={s.goal.id}
+                onClick={() => setSelectedId(s.goal.id)}
+                className={
+                  "text-[11px] px-4 py-2 rounded-full border transition-colors " +
+                  (s.goal.id === status.goal.id
+                    ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
+                    : "border-dawn-haze/20 text-dawn-ink/70 hover:bg-dawn-haze/10")
+                }
+              >
+                Day {s.day} · {s.goal.title.length > 14 ? `${s.goal.title.slice(0, 14)}…` : s.goal.title}
+              </button>
+            ))}
+          {statuses.length < 3 && (
+            <button
+              onClick={() => {
+                track("goal_prompt_accepted", { source: "another_road" });
+                setAddMode(true);
+              }}
+              className="text-[11px] px-4 py-2 rounded-full border border-dawn-haze/20 text-dawn-ink/50 hover:bg-dawn-haze/10 transition-colors"
+            >
+              + Begin another road
+            </button>
+          )}
+        </div>
+      )}
       <GoalHome
+        key={status.goal.id}
         status={status}
         photo={photo}
         onRefresh={refresh}
         onSummary={(s) => {
           setSummary(s);
-          setStatus(null);
+          void refresh();
         }}
         onCrisis={() => navigate({ to: "/support" })}
         onPaywall={(source) => {
@@ -633,7 +685,7 @@ function GoalHome({
     if (busy) return;
     setBusy(true);
     setOfflineNote(false);
-    const res = await postCheckin({ state, note: note.trim() || undefined });
+    const res = await postCheckin({ state, note: note.trim() || undefined, goalId: g.id });
     setBusy(false);
     if (res.kind === "offline") {
       setOfflineNote(true);
@@ -662,7 +714,7 @@ function GoalHome({
     if (type === "writing" && !writingText.trim()) return;
     setBusy(true);
     setOfflineNote(false);
-    const res = await doRitual({ type, text: type === "writing" ? writingText : undefined });
+    const res = await doRitual({ type, text: type === "writing" ? writingText : undefined, goalId: g.id });
     setBusy(false);
     if (res.kind === "offline") {
       setOfflineNote(true);
@@ -685,7 +737,7 @@ function GoalHome({
   const answer = async (a: "continue" | "adjust" | "thinking" | "done") => {
     if (busy) return;
     setBusy(true);
-    const res = await answerHonesty(a);
+    const res = await answerHonesty(a, undefined, g.id);
     setBusy(false);
     if (res.kind === "offline") {
       setOfflineNote(true);
@@ -704,7 +756,7 @@ function GoalHome({
   const openJournal = async () => {
     try {
       const { api } = await import("@/lib/api");
-      setJournal(await api.goalHistory());
+      setJournal(await api.goalHistoryFor(g.id));
       setJournalLocked(false);
     } catch {
       setJournalLocked(true);
@@ -993,7 +1045,7 @@ function GoalHome({
             <div className="mt-4 flex gap-3">
               <button
                 onClick={async () => {
-                  const res = await closeGoal("abandoned");
+                  const res = await closeGoal("abandoned", g.id);
                   if (res.kind === "ok") {
                     track("goal_abandoned", { daysHeld: res.summary.daysHeld });
                     onSummary(res.summary);

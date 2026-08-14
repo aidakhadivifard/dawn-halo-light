@@ -234,8 +234,18 @@ export const api = {
 
   // ---- endurance goal ----
 
-  async getGoal(): Promise<{ status: GoalStatus | null }> {
-    return req(`/goal`);
+  async getGoal(goalId?: string): Promise<{ status: GoalStatus | null }> {
+    return req(goalId ? `/goal?goalId=${encodeURIComponent(goalId)}` : `/goal`);
+  },
+  /** Every active journey, oldest first. Falls back to the single-goal
+   *  endpoint against an older backend. */
+  async getGoals(): Promise<{ goals: GoalStatus[] }> {
+    try {
+      return await req(`/goals`);
+    } catch {
+      const { status } = await req<{ status: GoalStatus | null }>(`/goal`);
+      return { goals: status ? [status] : [] };
+    }
   },
   async createGoal(input: {
     title: string;
@@ -249,18 +259,19 @@ export const api = {
     title?: string;
     photoUrl?: string | null;
     ritual?: RitualType;
+    goalId?: string;
   }): Promise<{ ok: true; status: GoalStatus }> {
     return req(`/goal`, { method: "PATCH", body: JSON.stringify(patch) });
   },
-  async closeGoal(reason: "completed" | "abandoned"): Promise<{ summary: GoalSummary }> {
-    return req(`/goal/close`, { method: "POST", body: JSON.stringify({ reason }) });
+  async closeGoal(reason: "completed" | "abandoned", goalId?: string): Promise<{ summary: GoalSummary }> {
+    return req(`/goal/close`, { method: "POST", body: JSON.stringify({ reason, goalId }) });
   },
-  async checkin(input: { state: CheckinState; note?: string }): Promise<CheckinResponse> {
+  async checkin(input: { state: CheckinState; note?: string; goalId?: string }): Promise<CheckinResponse> {
     const body = await req<any>(`/goal/checkin`, { method: "POST", body: JSON.stringify(input) });
     if (body.isCrisis) return { kind: "crisis", payload: body };
     return { kind: "checkin", checkin: body.checkin };
   },
-  async ritual(input: { type: RitualType; text?: string }): Promise<RitualResponse> {
+  async ritual(input: { type: RitualType; text?: string; goalId?: string }): Promise<RitualResponse> {
     const body = await req<any>(`/goal/ritual`, {
       method: "POST",
       body: JSON.stringify(input),
@@ -277,8 +288,9 @@ export const api = {
   async honesty(
     answer: "continue" | "adjust" | "thinking" | "done",
     note?: string,
+    goalId?: string,
   ): Promise<{ ok: true; summary?: GoalSummary }> {
-    return req(`/goal/honesty`, { method: "POST", body: JSON.stringify({ answer, note }) });
+    return req(`/goal/honesty`, { method: "POST", body: JSON.stringify({ answer, note, goalId }) });
   },
   async goalHistory(): Promise<{
     checkins: { id: string; date: string; state: CheckinState; note?: string }[];
@@ -293,6 +305,20 @@ export const api = {
     honesty: { id: string; date: string; day: number; answer: string; note?: string }[];
   }> {
     return req(`/goal/history`);
+  },
+  async goalHistoryFor(goalId: string): Promise<{
+    checkins: { id: string; date: string; state: CheckinState; note?: string }[];
+    entries: {
+      id: string;
+      date: string;
+      type: RitualType;
+      cardId?: string;
+      userText?: string;
+      aiReflection?: string;
+    }[];
+    honesty: { id: string; date: string; day: number; answer: string; note?: string }[];
+  }> {
+    return req(`/goal/history?goalId=${encodeURIComponent(goalId)}`);
   },
   async deck(): Promise<{ deck: { title: string; theme: string; essence: string }[] }> {
     return req(`/deck`);

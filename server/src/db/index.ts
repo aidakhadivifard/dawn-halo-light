@@ -327,6 +327,9 @@ export function createDb(path = ":memory:") {
     getActiveGoal: sqlite.prepare<[string]>(
       "SELECT * FROM goals WHERE device_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1",
     ),
+    listActiveGoals: sqlite.prepare<[string]>(
+      "SELECT * FROM goals WHERE device_id = ? AND status = 'active' ORDER BY created_at ASC",
+    ),
     getGoal: sqlite.prepare<[string]>("SELECT * FROM goals WHERE id = ?"),
     updateGoalMeta: sqlite.prepare(
       "UPDATE goals SET title = @title, photo_url = @photoUrl, ritual = @ritual WHERE id = @id",
@@ -476,6 +479,10 @@ export function createDb(path = ":memory:") {
     },
     getActiveGoal(deviceId: string): GoalRow | undefined {
       return stmts.getActiveGoal.get(deviceId) as GoalRow | undefined;
+    },
+    /** All active journeys, oldest first (journey #1 leads the list). */
+    listActiveGoals(deviceId: string): GoalRow[] {
+      return stmts.listActiveGoals.all(deviceId) as GoalRow[];
     },
     getGoal(id: string): GoalRow | undefined {
       return stmts.getGoal.get(id) as GoalRow | undefined;

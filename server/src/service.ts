@@ -42,6 +42,9 @@ export interface ServiceDeps {
   timeoutMs?: number;
 }
 
+/** Several roads at once, but few — past this the companion is a dashboard. */
+export const MAX_ACTIVE_GOALS = 3;
+
 export type DrawResult =
   | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
   | { kind: "paywall"; reason: string }
@@ -194,11 +197,12 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
    * keep-line, clean.
    */
   function isWriter(deviceId: string): boolean {
-    const goal = db.getActiveGoal(deviceId);
-    if (!goal) return false;
-    if (goal.ritual === "writing") return true;
-    if (db.listRitualEntries(goal.id).some((e) => e.user_text)) return true;
-    return db.listCheckins(goal.id).some((c) => c.note);
+    return db.listActiveGoals(deviceId).some(
+      (goal) =>
+        goal.ritual === "writing" ||
+        db.listRitualEntries(goal.id).some((e) => e.user_text) ||
+        db.listCheckins(goal.id).some((c) => c.note),
+    );
   }
 
   /**
@@ -225,6 +229,20 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
    */
   function activeGoalContext(deviceId: string, localDate: string): string | undefined {
     return buildReadingContext(db, deviceId, localDate);
+  }
+
+  /**
+   * Which journey does this call mean? An explicit goalId wins (must belong
+   * to this device and still be active); otherwise the newest active goal —
+   * exactly what single-journey clients have always operated on.
+   */
+  function resolveGoal(deviceId: string, goalId?: string) {
+    if (goalId) {
+      const g = db.getGoal(goalId);
+      if (g && g.device_id === deviceId && g.status === "active") return g;
+      return undefined;
+    }
+    return db.getActiveGoal(deviceId);
   }
 
   function toGoal(row: GoalRow): GoalPayload {
@@ -483,11 +501,17 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     // Endurance-goal layer ("what you're holding on for")
     // ------------------------------------------------------------------
 
-    goalStatus(deviceId: string, localDate: string): GoalStatusPayload | null {
+    goalStatus(deviceId: string, localDate: string, goalId?: string): GoalStatusPayload | null {
       db.getOrCreateDevice(deviceId);
-      const goal = db.getActiveGoal(deviceId);
+      const goal = resolveGoal(deviceId, goalId);
       if (!goal) return null;
       return buildStatus(goal, localDate);
+    },
+
+    /** Every active journey, oldest first — the multi-journey contract. */
+    goalStatusAll(deviceId: string, localDate: string): GoalStatusPayload[] {
+      db.getOrCreateDevice(deviceId);
+      return db.listActiveGoals(deviceId).map((g) => buildStatus(g, localDate));
     },
 
     createGoal(
@@ -499,7 +523,9 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       | { kind: "invalid"; reason: string }
       | { kind: "goal"; status: GoalStatusPayload } {
       db.getOrCreateDevice(deviceId);
-      if (db.getActiveGoal(deviceId)) return { kind: "exists" };
+      // Several roads may be held at once — but only a few. Past three, the
+      // companion becomes a dashboard. (Old clients read this as "exists".)
+      if (db.listActiveGoals(deviceId).length >= MAX_ACTIVE_GOALS) return { kind: "exists" };
       const title = (input.title ?? "").trim().slice(0, 120);
       const reward = (input.reward ?? "").trim().slice(0, 200);
       const targetDate = (input.targetDate ?? "").trim();
@@ -526,9 +552,9 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     /** Title / photo / ritual only — the target date is LOCKED after creation. */
     updateGoal(
       deviceId: string,
-      input: { title?: string; photoUrl?: string | null; ritual?: string },
+      input: { title?: string; photoUrl?: string | null; ritual?: string; goalId?: string },
     ): { kind: "no_goal" } | { kind: "ok" } {
-      const goal = db.getActiveGoal(deviceId);
+      const goal = resolveGoal(deviceId, input.goalId);
       if (!goal) return { kind: "no_goal" };
       const title = (input.title ?? goal.title).trim().slice(0, 120) || goal.title;
       const photoUrl =
@@ -547,11 +573,12 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       deviceId: string,
       localDate: string,
       reason: "completed" | "abandoned",
+      goalId?: string,
     ):
       | { kind: "no_goal" }
       | { kind: "target_not_reached" }
       | { kind: "closed"; summary: GoalSummary } {
-      const goal = db.getActiveGoal(deviceId);
+      const goal = resolveGoal(deviceId, goalId);
       if (!goal) return { kind: "no_goal" };
       if (reason === "completed" && localDate < goal.target_date) {
         return { kind: "target_not_reached" };
@@ -567,7 +594,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     checkin(
       deviceId: string,
       localDate: string,
-      input: { state: string; note?: string },
+      input: { state: string; note?: string; goalId?: string },
     ):
       | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
       | { kind: "no_goal" }
@@ -585,7 +612,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         };
       }
 
-      const goal = db.getActiveGoal(deviceId);
+      const goal = resolveGoal(deviceId, input.goalId);
       if (!goal) return { kind: "no_goal" };
       const state = input.state as CheckinState;
       if (!CHECKIN_STATES.includes(state)) return { kind: "invalid", reason: "invalid_state" };
@@ -662,7 +689,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     async ritual(
       deviceId: string,
       localDate: string,
-      input: { type: string; text?: string },
+      input: { type: string; text?: string; goalId?: string },
     ): Promise<
       | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
       | { kind: "no_goal" }
@@ -682,7 +709,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         };
       }
 
-      const goal = db.getActiveGoal(deviceId);
+      const goal = resolveGoal(deviceId, input.goalId);
       if (!goal) return { kind: "no_goal" };
       const checkin = db.getCheckin(goal.id, localDate);
       if (!checkin) return { kind: "no_checkin" };
@@ -782,11 +809,12 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       localDate: string,
       answer: string,
       note?: string,
+      goalId?: string,
     ):
       | { kind: "no_goal" }
       | { kind: "invalid"; reason: string }
       | { kind: "ok"; summary?: GoalSummary } {
-      const goal = db.getActiveGoal(deviceId);
+      const goal = resolveGoal(deviceId, goalId);
       if (!goal) return { kind: "no_goal" };
       if (
         answer !== "continue" &&
@@ -818,11 +846,12 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     goalHistory(
       deviceId: string,
       localDate: string,
+      goalId?: string,
     ):
       | { kind: "no_goal" }
       | { kind: "paywall"; reason: string }
       | { kind: "history"; checkins: any[]; entries: any[]; honesty: any[] } {
-      const goal = db.getActiveGoal(deviceId);
+      const goal = resolveGoal(deviceId, goalId);
       if (!goal) return { kind: "no_goal" };
       const state = ritualQuota(deviceId, localDate);
       if (!state.subscribed && !withinTrial(state)) {

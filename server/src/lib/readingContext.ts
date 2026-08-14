@@ -35,8 +35,22 @@ export function buildReadingContext(
   deviceId: string,
   localDate: string,
 ): string | undefined {
-  const goal = db.getActiveGoal(deviceId);
-  if (!goal) return undefined;
+  const goals = db.listActiveGoals(deviceId);
+  if (goals.length === 0) return undefined;
+
+  // Several roads may be held at once. The reading focuses on the one whose
+  // day is heaviest right now (else the newest); the others appear as brief
+  // "also holding" lines so the model sees the whole life, not one lane.
+  const weight: Record<string, number> = { cant: 3, exhausted: 2, barely: 1, strong: 0 };
+  const withToday = goals.map((g) => ({
+    g,
+    today: db.listCheckins(g.id).find((c) => c.local_date === localDate),
+  }));
+  const focus = [...withToday].sort(
+    (a, b) => (weight[b.today?.state ?? ""] ?? -1) - (weight[a.today?.state ?? ""] ?? -1),
+  )[0];
+  const goal = focus.today ? focus.g : goals[goals.length - 1];
+  const others = withToday.filter((w) => w.g.id !== goal.id);
 
   const day = daysSince(goal.start_date, localDate);
   const total = totalDays(goal.start_date, goal.target_date);
@@ -59,9 +73,18 @@ export function buildReadingContext(
   if (today) {
     lines.push(`Today's check-in: ${STATE_LABELS[today.state] ?? today.state}.`);
   }
+  for (const w of others) {
+    const d = daysSince(w.g.start_date, localDate);
+    lines.push(
+      `Also holding: "${w.g.title}" — Day ${d}${
+        w.today ? `; today: ${STATE_LABELS[w.today.state] ?? w.today.state}` : ""
+      }.`,
+    );
+  }
   // The reading's weather comes from the READER's day, never from the card:
-  // bright by default, gentle only when their own check-in says it is heavy.
-  const heavy = today && today.state !== "strong";
+  // bright by default, gentle only when ANY of their own check-ins says the
+  // day is heavy.
+  const heavy = withToday.some((w) => w.today && w.today.state !== "strong");
   lines.push(
     heavy
       ? `TONE FOR TODAY: their day is heavy — read gently, warmth over spark. Consolation is allowed today.`
