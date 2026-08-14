@@ -26,6 +26,10 @@ export type Card = {
   message: string;
   /** One gentle reflection question shown beneath the guidance. */
   reflection?: string;
+  /** One short claim the reader can carry — the reading's pocketable line. */
+  keepLine?: string;
+  /** The side the card took: "forward" | "steady" | "caution". */
+  lean?: string;
   /** Resolved illustration URL (already mapped from the library). */
   illustration: string;
   /** Backend illustration id (for save/share round-trips). */
@@ -46,7 +50,7 @@ export type DrawInput = { intent: "ask" | "feel"; text: string };
 export type FollowUpInput = { previous: Card; text: string };
 
 export type DrawOutcome =
-  | { kind: "card"; card: Card; entitlement?: Entitlement; goalSeed?: string }
+  | { kind: "card"; card: Card; entitlement?: Entitlement; goalSeed?: string; answer?: string }
   | { kind: "crisis"; message: string; resources: { region: string; label: string; detail: string }[] }
   | { kind: "paywall"; reason: string };
 
@@ -68,6 +72,8 @@ function apiToCard(c: ApiCard): Card {
     title: c.title,
     message: c.message,
     reflection: c.reflection,
+    keepLine: c.keepLine,
+    lean: c.lean,
     theme: c.theme,
     illustrationId: c.illustrationId,
     illustration: srcForId(c.illustrationId, c.theme) ?? artForCard({ id: c.id, theme: c.theme }),
@@ -147,7 +153,7 @@ export async function askFollowUpEx(input: FollowUpInput): Promise<DrawOutcome> 
     if (res.kind === "crisis")
       return { kind: "crisis", message: res.payload.message, resources: res.payload.resources };
     if (res.kind === "paywall") return { kind: "paywall", reason: res.reason };
-    return { kind: "card", card: apiToCard(res.card), entitlement: res.entitlement };
+    return { kind: "card", card: apiToCard(res.card), entitlement: res.entitlement, answer: res.answer };
   } catch (e) {
     if (e instanceof PaywallError) return { kind: "paywall", reason: e.reason };
     const result = askOracle(input.text || "");

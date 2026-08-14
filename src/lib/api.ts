@@ -15,6 +15,10 @@ export interface ApiCard {
   title: string;
   message: string;
   reflection?: string;
+  /** One short claim to carry — the reading's pocketable line. */
+  keepLine?: string;
+  /** The side the card took: "forward" | "steady" | "caution". */
+  lean?: string;
   theme: CardTheme;
   illustrationId: string;
   isCrisis?: boolean;
@@ -40,7 +44,7 @@ export interface CrisisPayload {
 }
 
 export type DrawResponse =
-  | { kind: "card"; card: ApiCard; entitlement: Entitlement; goalSeed?: string }
+  | { kind: "card"; card: ApiCard; entitlement: Entitlement; goalSeed?: string; answer?: string }
   | { kind: "crisis"; payload: CrisisPayload }
   | { kind: "paywall"; reason: string; entitlement?: Entitlement };
 
@@ -192,7 +196,7 @@ export const api = {
     });
     if (body.paywall) return { kind: "paywall", reason: body.reason, entitlement: body.entitlement };
     if (body.isCrisis) return { kind: "crisis", payload: body };
-    return { kind: "card", card: body.card, entitlement: body.entitlement };
+    return { kind: "card", card: body.card, entitlement: body.entitlement, answer: body.answer };
   },
   async entitlement(): Promise<Entitlement> {
     return req(`/entitlement`);

@@ -59,6 +59,14 @@ export function buildReadingContext(
   if (today) {
     lines.push(`Today's check-in: ${STATE_LABELS[today.state] ?? today.state}.`);
   }
+  // The reading's weather comes from the READER's day, never from the card:
+  // bright by default, gentle only when their own check-in says it is heavy.
+  const heavy = today && today.state !== "strong";
+  lines.push(
+    heavy
+      ? `TONE FOR TODAY: their day is heavy — read gently, warmth over spark. Consolation is allowed today.`
+      : `TONE FOR TODAY: an ordinary or strong day — read with morning energy, forward and vivid, taking a side. No consolation today; hand them something worth carrying.`,
+  );
   if (last7.length > 0) {
     lines.push(
       `Recent check-ins: ${last7

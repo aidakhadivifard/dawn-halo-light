@@ -81,7 +81,8 @@ type Phase = "loading" | "checkin" | "transition" | "milestone" | "honesty" | "c
 // The deliberate "the reader is thinking" pause: reveals never land faster
 // than this. Network time counts toward it, so a slow backend adds nothing
 // on top — and the api layer caps requests at 15s so it can't run away.
-const RITUAL_FLOOR_MS = 5000;
+// The "reader is thinking" pause. 5s felt like waiting, not ritual — halved.
+const RITUAL_FLOOR_MS = 2500;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const RETENTION_DAYS = [1, 3, 7, 30];
 const DISCOVERY_KEY = "dawnhalo:discoveryShown";
@@ -719,6 +720,15 @@ function TodayPage() {
                   >
                     I had a dream
                   </button>
+                  {/* Not an intention for today's card — a road. Tinted so the
+                      eye reads it as a different kind of act before the tap. */}
+                  <Link
+                    to="/goal"
+                    onClick={() => track("goal_prompt_accepted", { source: "arrival_chip" })}
+                    className="text-[12px] px-4 py-2.5 rounded-full border border-dawn-rose/40 text-dawn-rose/90 hover:bg-dawn-rose/10 transition-colors"
+                  >
+                    I want to start a new journey
+                  </Link>
                   <button
                     onClick={() => {
                       setInputMode(inputMode === "ask" ? null : "ask");
@@ -733,15 +743,6 @@ function TodayPage() {
                   >
                     Ask something else
                   </button>
-                  {/* Not an intention for today's card — a road. Tinted so the
-                      eye reads it as a different kind of act before the tap. */}
-                  <Link
-                    to="/goal"
-                    onClick={() => track("goal_prompt_accepted", { source: "arrival_chip" })}
-                    className="text-[12px] px-4 py-2.5 rounded-full border border-dawn-rose/40 text-dawn-rose/90 hover:bg-dawn-rose/10 transition-colors"
-                  >
-                    I want to start a new journey
-                  </Link>
                 </div>
                 {inputMode && (
                   <input
@@ -771,6 +772,9 @@ function TodayPage() {
               ))}
             </div>
             <p className="mt-10 text-[10px] uppercase tracking-[0.3em] text-dawn-ink/25">Dawnhalo</p>
+            <p className="mt-1.5 text-[9px] uppercase tracking-[0.22em] text-dawn-ink/20">
+              A little light for your next step
+            </p>
           </section>
         )}
 

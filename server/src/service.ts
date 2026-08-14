@@ -9,7 +9,7 @@ import { classifyInput } from "./lib/classify";
 import { detectEnduranceSeed } from "./lib/endurance";
 import { canDraw, snapshot, withinTrial, type QuotaState } from "./lib/entitlement";
 import { selectIllustration, NO_REPEAT_WINDOW_DAYS } from "./lib/illustrations";
-import { generateCardText, type MessagesClient } from "./lib/anthropic";
+import { generateCardText, generateFollowUpAnswer, type MessagesClient } from "./lib/anthropic";
 import { HALO_DECK, type HaloCard } from "./lib/deck";
 import { buildReadingContext } from "./lib/readingContext";
 import { generateReflection } from "./lib/reflect";
@@ -54,6 +54,11 @@ export type DrawResult =
        * "give it a day count", prefilled with this seed.
        */
       goalSeed?: string;
+      /**
+       * Follow-ups only: the same card's short plain answer. New clients
+       * render this as a continuation; the card object keeps old clients whole.
+       */
+      answer?: string;
     };
 
 export interface GoalPayload {
@@ -158,6 +163,8 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     title: string;
     message: string;
     reflection?: string | null;
+    keep_line?: string | null;
+    lean?: string | null;
     theme: string;
     illustration_id: string;
     created_at: string;
@@ -170,12 +177,28 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       title: row.title,
       message: row.message,
       reflection: row.reflection ?? undefined,
+      keepLine: row.keep_line ?? undefined,
+      lean: row.lean ?? undefined,
       theme: row.theme as CardTheme,
       illustrationId: row.illustration_id,
       createdAt: row.created_at,
       fallback: !!row.fallback,
       followUpUsed: !!row.follow_up_used,
     };
+  }
+
+  /**
+   * Reflection is for readers who write (decision: the question only appears
+   * once they have opened that door themselves — a writing ritual, a heavy-day
+   * note, or choosing writing as their ritual). Everyone else ends on the
+   * keep-line, clean.
+   */
+  function isWriter(deviceId: string): boolean {
+    const goal = db.getActiveGoal(deviceId);
+    if (!goal) return false;
+    if (goal.ritual === "writing") return true;
+    if (db.listRitualEntries(goal.id).some((e) => e.user_text)) return true;
+    return db.listCheckins(goal.id).some((c) => c.note);
   }
 
   /**
@@ -335,7 +358,9 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         opener: gen.opener,
         title: gen.title,
         message: gen.message,
-        reflection: gen.reflection || null,
+        reflection: isWriter(deviceId) ? gen.reflection || null : null,
+        keep_line: gen.keepLine || null,
+        lean: gen.lean || null,
         prompt: null,
         parent_id: null,
         fallback: gen.fallback ? 1 : 0,
@@ -382,7 +407,9 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         opener: gen.opener,
         title: gen.title,
         message: gen.message,
-        reflection: gen.reflection || null,
+        reflection: isWriter(deviceId) ? gen.reflection || null : null,
+        keep_line: gen.keepLine || null,
+        lean: gen.lean || null,
         prompt: text || null,
         parent_id: null,
         fallback: gen.fallback ? 1 : 0,
@@ -421,23 +448,26 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         return { kind: "paywall", reason: "trial_over" };
       }
 
-      const intent = classifyInput(text || parent.message);
-      const gen = await generateCardText(
-        { intent, text, previous: { title: parent.title, message: parent.message } },
+      // The SAME card answers — no second card, no ceremony. One or two plain
+      // sentences; imagery stays in the reading. The row keeps the parent's
+      // identity so history shows the answer under the same card.
+      const gen = await generateFollowUpAnswer(
+        { text, previous: { title: parent.title, message: parent.message } },
         { client, timeoutMs },
       );
-      const illustrationId = selectIllustration(gen.theme, recentIds(deviceId, gen.theme));
       const row = {
         id: newId("follow"),
         device_id: deviceId,
         local_date: localDate,
         type: "followup",
-        theme: gen.theme,
-        illustration_id: illustrationId,
-        opener: gen.opener,
-        title: gen.title,
-        message: gen.message,
-        reflection: gen.reflection || null,
+        theme: parent.theme,
+        illustration_id: parent.illustration_id,
+        opener: "",
+        title: parent.title,
+        message: gen.answer,
+        reflection: null,
+        keep_line: null,
+        lean: null,
         prompt: text || null,
         parent_id: parent.id,
         fallback: gen.fallback ? 1 : 0,
@@ -445,7 +475,8 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       };
       db.insertDraw(row);
       db.markFollowUpUsed(parent.id);
-      return { kind: "card", card: { ...toCard(row), followUpUsed: true } };
+      // `answer` is the new contract; the card object keeps old clients whole.
+      return { kind: "card", card: { ...toCard(row), followUpUsed: true }, answer: gen.answer };
     },
 
     // ------------------------------------------------------------------
@@ -690,7 +721,9 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
           opener: gen.opener,
           title: gen.title,
           message: gen.message,
-          reflection: gen.reflection || null,
+          reflection: isWriter(deviceId) ? gen.reflection || null : null,
+          keep_line: gen.keepLine || null,
+          lean: gen.lean || null,
           prompt: null,
           parent_id: null,
           fallback: gen.fallback ? 1 : 0,

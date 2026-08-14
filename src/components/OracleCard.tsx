@@ -31,9 +31,9 @@ export function OracleCardView({ card, readOnly, journeyDay }: Props) {
 
   const [followUp, setFollowUp] = useState("");
   const [followUpUsed, setFollowUpUsed] = useState(!!card.followUpUsed);
-  const [followCard, setFollowCard] = useState<Card | null>(null);
+  // The same card answers in one or two plain sentences — no second card.
+  const [followAnswer, setFollowAnswer] = useState<{ question: string; answer: string } | null>(null);
   const [askOpen, setAskOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [sparkOpen, setSparkOpen] = useState(false);
   const [note, setNote] = useState("");
   const [copied, setCopied] = useState(false);
@@ -74,7 +74,8 @@ export function OracleCardView({ card, readOnly, journeyDay }: Props) {
         return;
       }
       track("follow_up_asked");
-      setFollowCard(out.card);
+      // Old servers return only a second card; its message is still the answer.
+      setFollowAnswer({ question: followUp, answer: out.answer ?? out.card.message });
       setFollowUpUsed(true);
     } finally {
       setBusy(false);
@@ -116,7 +117,8 @@ export function OracleCardView({ card, readOnly, journeyDay }: Props) {
         ? await shareJourneyImage({
             day: journeyDay,
             card,
-            line: card.message.split(/\n{2,}/)[0]?.slice(0, 140) ?? card.title,
+            // The keep-line was written to be carried — it IS the share line.
+            line: card.keepLine ?? card.message.split(/\n{2,}/)[0]?.slice(0, 140) ?? card.title,
           })
         : await shareCardAsImage(card);
       track("card_image_shared", { method: outcome, format: journeyDay ? "journey" : "card" });
@@ -175,6 +177,14 @@ export function OracleCardView({ card, readOnly, journeyDay }: Props) {
             ))}
           </div>
 
+          {/* The keep-line: the reading's pocketable claim — bold, quotable,
+              the line that goes with them (and onto the share image). */}
+          {card.keepLine && (
+            <p className="mt-6 text-[17px] font-serif font-medium text-dawn-ink text-balance">
+              {card.keepLine}
+            </p>
+          )}
+
           {card.reflection && (
             <div className="mt-6 pl-4 border-l-2 border-dawn-rose/40">
               <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-rose/70 mb-1.5">Reflection</p>
@@ -183,7 +193,8 @@ export function OracleCardView({ card, readOnly, journeyDay }: Props) {
           )}
         </div>
 
-        {/* One primary action; everything else collapses under a quiet More row. */}
+        {/* One primary action; Save/Share stay visible — two quiet buttons
+            behind a "More" tap bought nothing and buried the growth loop. */}
         {!readOnly && (
           <div className="mt-7 pt-6 border-t border-dawn-haze/10">
             {!followUpUsed && !askOpen && (
@@ -194,24 +205,13 @@ export function OracleCardView({ card, readOnly, journeyDay }: Props) {
                 Ask one more thing
               </button>
             )}
-            <div className="mt-3 text-center">
-              {!moreOpen ? (
-                <button
-                  onClick={() => setMoreOpen(true)}
-                  className="text-[10px] uppercase tracking-[0.2em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors"
-                >
-                  More
-                </button>
-              ) : (
-                <div className="flex flex-wrap justify-center gap-2">
-                  <ActionButton onClick={toggleSave} active={saved}>
-                    {saved ? "Saved" : "Save"}
-                  </ActionButton>
-                  <ActionButton onClick={() => setSparkOpen((s) => !s)} active={sparkOpen}>
-                    Share
-                  </ActionButton>
-                </div>
-              )}
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              <ActionButton onClick={toggleSave} active={saved}>
+                {saved ? "Saved" : "Save"}
+              </ActionButton>
+              <ActionButton onClick={() => setSparkOpen((s) => !s)} active={sparkOpen}>
+                Share
+              </ActionButton>
             </div>
           </div>
         )}
@@ -262,23 +262,9 @@ export function OracleCardView({ card, readOnly, journeyDay }: Props) {
 
       {!readOnly && !followUpUsed && !busy && askOpen && (
         <form onSubmit={submitFollowUp} className="mt-6 animate-card-rise">
-          <label className="block text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">What would you like to know more about?</label>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {["My next step", "What I need to hear", "A different perspective"].map((s) => (
-              <button key={s} type="button" onClick={() => setFollowUp(s)}
-                className={
-                  "text-[11px] px-4 py-2 rounded-full border transition-colors " +
-                  (followUp === s
-                    ? "bg-dawn-rose/15 border-dawn-rose/40 text-dawn-ink"
-                    : "border-dawn-haze/20 text-dawn-ink/70 hover:bg-dawn-haze/10")
-                }>
-                {s}
-              </button>
-            ))}
-          </div>
           <div className="relative">
-            <input id={`fu-${card.id}`} value={followUp} onChange={(e) => setFollowUp(e.target.value)}
-              placeholder="Something else…"
+            <input autoFocus id={`fu-${card.id}`} value={followUp} onChange={(e) => setFollowUp(e.target.value)}
+              placeholder="Ask the card one more thing…"
               className="w-full bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-4 pr-24 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30" />
             <button type="submit"
               className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.18em] font-bold px-4 py-2 bg-dawn-rose text-dawn-sky rounded-full hover:bg-dawn-haze transition-colors">
@@ -288,10 +274,16 @@ export function OracleCardView({ card, readOnly, journeyDay }: Props) {
         </form>
       )}
 
-      {followCard && (
-        <div className="mt-8">
-          <p className="text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-3 ml-1">The card answered</p>
-          <OracleCardView card={followCard} readOnly journeyDay={journeyDay} />
+      {/* The same card answers — a continuation of the reading, not a second
+          card ceremony. Plain speech; the atmosphere already happened above. */}
+      {followAnswer && (
+        <div className="mt-6 pl-4 border-l-2 border-dawn-haze/25 animate-card-rise">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-medium opacity-45 mb-1.5">
+            You asked: {followAnswer.question}
+          </p>
+          <p className="text-[15px] text-dawn-ink/85 leading-relaxed text-pretty max-w-[44ch]">
+            {followAnswer.answer}
+          </p>
         </div>
       )}
     </article>

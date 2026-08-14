@@ -1,5 +1,6 @@
-// The Library — saved cards, past readings, and the deck's meanings.
-// A quiet shelf, not a store.
+// The Library — saved cards and past readings. A quiet shelf, not a store.
+// (The deck's meanings tab is gone: an encyclopedia of unmet cards killed the
+// mystery and nobody browsed it — a card explains itself when you open it.)
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -13,19 +14,25 @@ export const Route = createFileRoute("/saved")({
   head: () => ({
     meta: [
       { title: "Library — Dawnhalo" },
-      { name: "description", content: "Your saved cards, past readings and the deck." },
+      { name: "description", content: "Your saved cards and past readings." },
     ],
   }),
   component: LibraryPage,
 });
 
-type Tab = "saved" | "readings" | "deck";
+type Tab = "saved" | "readings";
+
+// The side the card took, worn as a small badge on history rows.
+const LEAN_LABELS: Record<string, string> = {
+  forward: "leans forward",
+  steady: "holds steady",
+  caution: "a caution",
+};
 
 function LibraryPage() {
   const [tab, setTab] = useState<Tab>("saved");
   const [cards, setCards] = useState<SavedCard[]>([]);
   const [readings, setReadings] = useState<Card[]>([]);
-  const [deck, setDeck] = useState<{ title: string; theme: string; essence: string }[]>([]);
   const [open, setOpen] = useState<Card | null>(null);
 
   useEffect(() => {
@@ -35,10 +42,6 @@ function LibraryPage() {
       .history()
       .then(({ history }) => alive && setReadings(history.map(fromApiCard).slice(0, 60)))
       .catch(() => {});
-    api
-      .deck()
-      .then(({ deck }) => alive && setDeck(deck))
-      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -47,7 +50,6 @@ function LibraryPage() {
   const TABS: { id: Tab; label: string }[] = [
     { id: "saved", label: "Saved" },
     { id: "readings", label: "Past readings" },
-    { id: "deck", label: "Card meanings" },
   ];
 
   return (
@@ -106,7 +108,7 @@ function LibraryPage() {
                         <img src={c.illustration} alt="" width={64} height={80} className="size-16 rounded-md object-cover ring-1 ring-dawn-haze/15" loading="lazy" />
                         <div className="min-w-0 flex-1">
                           <p className="font-serif text-lg leading-tight text-dawn-ink">{c.title}</p>
-                          <p className="text-xs text-dawn-ink/60 truncate">{c.message}</p>
+                          <p className="text-xs text-dawn-ink/60 truncate">{c.keepLine ?? c.message}</p>
                         </div>
                       </button>
                     </li>
@@ -129,30 +131,26 @@ function LibraryPage() {
                       >
                         <img src={c.illustration} alt="" width={56} height={70} className="size-14 rounded-md object-cover ring-1 ring-dawn-haze/15" loading="lazy" />
                         <div className="min-w-0 flex-1">
-                          <p className="font-serif text-base leading-tight text-dawn-ink">{c.title}</p>
-                          <p className="text-[10px] uppercase tracking-widest text-dawn-ink/40">
+                          <div className="flex items-baseline gap-2">
+                            <p className="font-serif text-base leading-tight text-dawn-ink truncate">{c.title}</p>
+                            {c.lean && LEAN_LABELS[c.lean] && (
+                              <span className="shrink-0 text-[9px] uppercase tracking-[0.14em] text-dawn-rose/80">
+                                {LEAN_LABELS[c.lean]}
+                              </span>
+                            )}
+                          </div>
+                          {/* The keep-line doubles as the row's summary — the
+                              reading's own one-line memory of that day. */}
+                          {c.keepLine && (
+                            <p className="mt-0.5 text-xs font-serif italic text-dawn-ink/70 truncate">{c.keepLine}</p>
+                          )}
+                          <p className="mt-0.5 text-[10px] uppercase tracking-widest text-dawn-ink/40">
                             {c.createdAt
                               ? new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
                               : ""}
                           </p>
                         </div>
                       </button>
-                    </li>
-                  ))}
-                </ul>
-              ))}
-
-            {tab === "deck" &&
-              (deck.length === 0 ? (
-                <p className="p-5 border border-dashed border-dawn-haze/15 rounded-xl text-sm italic opacity-60">
-                  The deck's meanings arrive when Dawnhalo can reach the house.
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {deck.map((c) => (
-                    <li key={c.title} className="p-4 bg-dawn-surface/60 border border-dawn-haze/15 rounded-xl">
-                      <p className="font-serif text-base text-dawn-ink">{c.title}</p>
-                      <p className="mt-0.5 text-xs text-dawn-ink/60 leading-relaxed">{c.essence}</p>
                     </li>
                   ))}
                 </ul>

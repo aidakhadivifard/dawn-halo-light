@@ -117,6 +117,8 @@ export function createApp(db: DB, opts: AppOptions = {}) {
       title: r.title,
       message: r.message,
       reflection: r.reflection ?? undefined,
+      keepLine: r.keep_line ?? undefined,
+      lean: r.lean ?? undefined,
       theme: r.theme,
       illustrationId: r.illustration_id,
       createdAt: r.created_at,
@@ -137,6 +139,8 @@ export function createApp(db: DB, opts: AppOptions = {}) {
       title: c.title,
       message: c.message,
       reflection: c.reflection ?? null,
+      keep_line: c.keepLine ?? null,
+      lean: c.lean ?? null,
       created_at: c.createdAt ?? new Date().toISOString(),
     });
     res.json({ ok: true });
@@ -415,5 +419,6 @@ function respondDraw(
     card: result.card,
     entitlement,
     ...(result.goalSeed ? { goalSeed: result.goalSeed } : {}),
+    ...(result.answer ? { answer: result.answer } : {}),
   });
 }

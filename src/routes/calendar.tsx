@@ -109,10 +109,14 @@ function JournalPage() {
             <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 mb-1">Your memory</p>
             <h1 className="text-3xl font-serif font-light tracking-tight italic">Journal.</h1>
           </div>
-          <div className="text-right">
-            <span className="block text-2xl font-serif italic text-dawn-haze">{String(streak).padStart(2, "0")}</span>
-            <span className="text-[8px] uppercase tracking-widest opacity-40">Day streak</span>
-          </div>
+          {/* The streak is hidden until it exists — "00 STREAK" is shaming
+              an empty page (same rule as Today). Never zero-padded. */}
+          {streak > 0 && (
+            <div className="text-right">
+              <span className="block text-2xl font-serif italic text-dawn-haze">{streak}</span>
+              <span className="text-[8px] uppercase tracking-widest opacity-40">Day streak</span>
+            </div>
+          )}
         </header>
 
         <input

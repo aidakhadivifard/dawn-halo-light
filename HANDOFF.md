@@ -27,6 +27,41 @@ needs a laptop:
   to copy. Final test: someone must lose. Always start with the cheapest
   killer test.
 
+## 0.4 August 14 — the "reading with a spine" pass (on `claude/handoff-review-update-5mb1kt`)
+
+Born from one piece of on-device feedback: a goal-less daily reading ("The
+Distant Lantern") read as pale, consoling, forgettable — while a months-old
+reading that made a bold claim was still carrying her on hard days. 14 agreed
+decisions, all built:
+
+- **Tone comes from the READER's day, never the card**: bright, forward,
+  side-taking by default; gentle only when today's check-in is hard (TONE line
+  in `readingContext.ts`, WEATHER section in `prompt.ts`). Taking a side ≠
+  always positive — a caution card cautions with energy.
+- **Every reading ends with a `keepLine`** — one ≤8-word claim to carry ("The
+  money is in the staying.") — plus a `lean` (forward/steady/caution). New DB
+  columns on draws+saved, new Card fields; shown bold under the message, used
+  as the journey-share line, and as the one-line summary on Library rows
+  (Past readings show title + lean badge + keepLine).
+- **Follow-up = the same card answers.** No second card ceremony:
+  `generateFollowUpAnswer` (anthropic.ts) returns 1–2 plain sentences, zero
+  imagery; server keeps returning a legacy card object (`answer` field is the
+  new contract) so old APKs don't break. The three preset chips (My next step
+  etc.) are gone — free-text ask only.
+- **Reflection is writers-only** (`isWriter` in service.ts): the question
+  appears only once the reader has written something (or chose the writing
+  ritual). Everyone else ends on the keepLine, clean.
+- **UI**: "More" collapse removed (Save·Share always visible — Share is the
+  growth loop, it was buried); journey chip moved above "Ask something else";
+  reveal floor halved (`RITUAL_FLOOR_MS` 5000→2500); Journal header hides the
+  zero streak (the "00 STREAK" rule now applied everywhere); Library's "Card
+  meanings" tab removed; tagline under the arrival wordmark.
+- **Fallback texts NOT yet rewritten** to the new energy (agreed phase 2) —
+  they also carry no keepLine, so fallback readings show no bold line.
+- Render upgrade (Starter + persistent disk + `DATABASE_URL=/data/dawnhalo.db`)
+  was walked through with the owner the same day — check it actually happened
+  before trusting the DB to persist.
+
 ## 0.3 August 13 changes (on `claude/handoff-review-update-5mb1kt`)
 
 - **A journey can now be started on purpose.** Until now the endurance layer

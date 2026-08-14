@@ -25,6 +25,8 @@ export interface DrawRow {
   title: string;
   message: string;
   reflection: string | null; // one gentle reflection question
+  keep_line: string | null; // one short claim to carry (also the history summary)
+  lean: string | null; // "forward" | "steady" | "caution"
   prompt: string | null;
   parent_id: string | null;
   follow_up_used: number; // 0/1
@@ -223,6 +225,12 @@ export function createDb(path = ":memory:") {
   for (const sql of [
     "ALTER TABLE draws ADD COLUMN reflection TEXT",
     "ALTER TABLE saved ADD COLUMN reflection TEXT",
+    // The keep-line: one short claim the reader can carry; lean: the side the
+    // card took (forward/steady/caution). Both travel with the card forever.
+    "ALTER TABLE draws ADD COLUMN keep_line TEXT",
+    "ALTER TABLE draws ADD COLUMN lean TEXT",
+    "ALTER TABLE saved ADD COLUMN keep_line TEXT",
+    "ALTER TABLE saved ADD COLUMN lean TEXT",
     "ALTER TABLE honesty_checks ADD COLUMN note TEXT",
     // The heavy-day signal: the local date the holder last let their witness
     // see, and when the witness last opened the page.
@@ -248,9 +256,9 @@ export function createDb(path = ":memory:") {
     ),
     insertDraw: sqlite.prepare(
       `INSERT INTO draws (id, device_id, local_date, type, theme, illustration_id,
-         opener, title, message, reflection, prompt, parent_id, follow_up_used, fallback, created_at)
+         opener, title, message, reflection, keep_line, lean, prompt, parent_id, follow_up_used, fallback, created_at)
        VALUES (@id, @device_id, @local_date, @type, @theme, @illustration_id,
-         @opener, @title, @message, @reflection, @prompt, @parent_id, 0, @fallback, @created_at)`,
+         @opener, @title, @message, @reflection, @keep_line, @lean, @prompt, @parent_id, 0, @fallback, @created_at)`,
     ),
     countDrawsToday: sqlite.prepare<[string, string]>(
       "SELECT COUNT(*) AS n FROM draws WHERE device_id = ? AND local_date = ? AND type != 'followup'",
@@ -271,8 +279,8 @@ export function createDb(path = ":memory:") {
        ORDER BY created_at DESC LIMIT ?`,
     ),
     insertSaved: sqlite.prepare(
-      `INSERT OR REPLACE INTO saved (id, device_id, theme, illustration_id, opener, title, message, reflection, created_at, saved_at)
-       VALUES (@id, @device_id, @theme, @illustration_id, @opener, @title, @message, @reflection, @created_at, @saved_at)`,
+      `INSERT OR REPLACE INTO saved (id, device_id, theme, illustration_id, opener, title, message, reflection, keep_line, lean, created_at, saved_at)
+       VALUES (@id, @device_id, @theme, @illustration_id, @opener, @title, @message, @reflection, @keep_line, @lean, @created_at, @saved_at)`,
     ),
     listSaved: sqlite.prepare<[string]>(
       "SELECT * FROM saved WHERE device_id = ? ORDER BY saved_at DESC",
@@ -428,10 +436,14 @@ export function createDb(path = ":memory:") {
       title: string;
       message: string;
       reflection?: string | null;
+      keep_line?: string | null;
+      lean?: string | null;
       created_at: string;
     }) {
       stmts.insertSaved.run({
         reflection: null,
+        keep_line: null,
+        lean: null,
         ...row,
         saved_at: new Date().toISOString(),
       });

@@ -29,9 +29,15 @@ export interface GenResult {
   title: string;
   message: string;
   reflection: string;
+  /** One short claim to carry; empty when the source didn't produce one. */
+  keepLine: string;
+  /** "forward" | "steady" | "caution" — the side the card took. */
+  lean: string;
   theme: CardTheme;
   fallback: boolean;
 }
+
+const LEANS = ["forward", "steady", "caution"] as const;
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 
@@ -210,6 +216,8 @@ function fallbackCard(input: GenInput, rand = Math.random): GenResult {
       title: input.forcedCard.title,
       message: t.message(input.forcedCard.essence),
       reflection: t.reflection,
+      keepLine: "",
+      lean: "",
       theme: input.forcedCard.theme,
       fallback: true,
     };
@@ -225,6 +233,8 @@ function fallbackCard(input: GenInput, rand = Math.random): GenResult {
     title: pick.title,
     message: pick.message,
     reflection: pick.reflection,
+    keepLine: "",
+    lean: "",
     theme: pick.theme,
     fallback: true,
   };
@@ -236,6 +246,8 @@ export function parseCardJson(raw: string): {
   title?: string;
   message?: string;
   reflection?: string;
+  keepLine?: string;
+  lean?: string;
   theme?: string;
 } | null {
   if (!raw) return null;
@@ -254,6 +266,8 @@ function coerce(parsed: ReturnType<typeof parseCardJson>, input: GenInput): GenR
   if (!parsed) return null;
   const { opener, title, message, reflection } = parsed;
   if (!opener || !title || !message) return null;
+  const keepLine = typeof parsed.keepLine === "string" ? parsed.keepLine.trim() : "";
+  const lean = (LEANS as readonly string[]).includes(parsed.lean ?? "") ? parsed.lean! : "";
 
   // A server-drawn card is authoritative: the model only interprets it.
   if (input.forcedCard) {
@@ -262,6 +276,8 @@ function coerce(parsed: ReturnType<typeof parseCardJson>, input: GenInput): GenR
       title: input.forcedCard.title,
       message,
       reflection: reflection ?? "",
+      keepLine,
+      lean,
       theme: input.forcedCard.theme,
       fallback: false,
     };
@@ -280,7 +296,7 @@ function coerce(parsed: ReturnType<typeof parseCardJson>, input: GenInput): GenR
     ? onDeck.title
     : (snapToDeck(theme, message) ?? title);
 
-  return { opener, title: finalTitle, message, reflection: reflection ?? "", theme, fallback: false };
+  return { opener, title: finalTitle, message, reflection: reflection ?? "", keepLine, lean, theme, fallback: false };
 }
 
 /** Pick a stable deck card for a theme (deterministic by message hash). */
@@ -368,3 +384,59 @@ export async function generateCardText(
 }
 
 export { fallbackCard };
+
+// ---------------------------------------------------------------------------
+// Follow-up: the SAME card answers — no second card, no ceremony. The ritual
+// already happened; a follow-up has only one job, the point. One or two plain
+// sentences, imagery stays in the reading.
+// ---------------------------------------------------------------------------
+
+const FOLLOWUP_SYSTEM = `You are the voice of Dawnhalo, a card reader. A card is already on the table and its reading has been given. The reader asks one more thing about it.
+
+Answer as the SAME card — do not draw a new one, do not restart the ritual.
+
+RULES:
+- ONE or TWO short sentences. Nothing more.
+- Plain, direct language. NO imagery, NO metaphor, NO scene-setting — the atmosphere already happened in the reading. The follow-up speaks like a person.
+- Lead with the point. If they ask for a next step, give one concrete-shaped step (never medical, legal, or financial instructions). If they ask for another angle, give the reversal plainly.
+- Never guarantee, never doom, no dates. No wellness vocabulary (relax, breathe, self-care, journey, energy, manifest).
+
+OUTPUT: respond with ONLY this JSON — {"answer":"..."}`;
+
+const FOLLOWUP_FALLBACK =
+  "The card has said what it can for today. Carry its line with you, and ask again when the road looks different.";
+
+export async function generateFollowUpAnswer(
+  input: { text: string; previous: { title: string; message: string }; goalContext?: string },
+  opts: { client?: MessagesClient | null; timeoutMs?: number } = {},
+): Promise<{ answer: string; fallback: boolean }> {
+  const client = opts.client !== undefined ? opts.client : getClient();
+  if (!client) return { answer: FOLLOWUP_FALLBACK, fallback: true };
+
+  const { anthropicModel } = getConfig();
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const user = `The card on the table: "${input.previous.title}"\nIts reading:\n${input.previous.message}\n\nThey ask: "${input.text}"${input.goalContext ?? ""}\n\nAnswer in the JSON format.`;
+
+  try {
+    const result = await Promise.race([
+      client.messages.create({
+        model: anthropicModel,
+        max_tokens: 200,
+        system: FOLLOWUP_SYSTEM,
+        messages: [{ role: "user", content: user }],
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("anthropic_timeout")), timeoutMs),
+      ),
+    ]);
+    const text = result.content?.find((b) => b.type === "text")?.text ?? "";
+    const parsed = parseCardJson(text) as { answer?: string } | null;
+    const answer = typeof parsed?.answer === "string" ? parsed.answer.trim() : "";
+    if (answer) return { answer, fallback: false };
+    console.error(`[followup] parse_failed raw=${JSON.stringify(text.slice(0, 200))}`);
+    return { answer: FOLLOWUP_FALLBACK, fallback: true };
+  } catch (err) {
+    console.error(`[followup] api_error ${(err as Error)?.message ?? String(err)}`);
+    return { answer: FOLLOWUP_FALLBACK, fallback: true };
+  }
+}

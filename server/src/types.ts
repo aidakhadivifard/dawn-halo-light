@@ -26,6 +26,10 @@ export interface Card {
   message: string;
   /** One gentle reflection question shown beneath the guidance. */
   reflection?: string;
+  /** One short claim the reader can carry — the reading's pocketable line. */
+  keepLine?: string;
+  /** The side the card took: forward | steady | caution. */
+  lean?: string;
   theme: CardTheme;
   /** Library image id (e.g. "card-exhaustion_rest-02"); client resolves to a URL. */
   illustrationId: string;
