@@ -12,6 +12,47 @@ export interface DeviceRow {
   subscribed: number; // 0/1
   plan: string | null; // "monthly" | "yearly" | null
   current_period_end: string | null;
+  partner_code: string | null; // first-touch referral attribution
+  attributed_at: string | null;
+}
+
+export interface JourneyRow {
+  id: string;
+  device_id: string;
+  enduring: string;
+  hope: string;
+  card_title: string;
+  card_essence: string;
+  theme: string;
+  illustration_id: string;
+  opener: string;
+  message: string;
+  reflection: string | null;
+  started_local_date: string; // YYYY-MM-DD local
+  status: string; // "active" | "fulfilled" | "released"
+  closed_at: string | null;
+  closed_local_date: string | null;
+  closing_note: string | null;
+  keepsake_token: string | null;
+  fallback: number; // 0/1
+  created_at: string;
+}
+
+export interface DarkNightRow {
+  id: string;
+  journey_id: string;
+  device_id: string;
+  text: string;
+  local_date: string;
+  created_at: string;
+}
+
+export interface PartnerRow {
+  code: string;
+  name: string;
+  rev_share_pct: number;
+  secret: string;
+  created_at: string;
 }
 
 export interface DrawRow {
@@ -93,6 +134,58 @@ CREATE TABLE IF NOT EXISTS shares (
   note TEXT,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS journeys (
+  id TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL,
+  enduring TEXT NOT NULL,
+  hope TEXT NOT NULL,
+  card_title TEXT NOT NULL,
+  card_essence TEXT NOT NULL,
+  theme TEXT NOT NULL,
+  illustration_id TEXT NOT NULL,
+  opener TEXT NOT NULL,
+  message TEXT NOT NULL,
+  reflection TEXT,
+  started_local_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  closed_at TEXT,
+  closed_local_date TEXT,
+  closing_note TEXT,
+  keepsake_token TEXT,
+  fallback INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_journeys_device ON journeys(device_id, created_at);
+
+CREATE TABLE IF NOT EXISTS dark_nights (
+  id TEXT PRIMARY KEY,
+  journey_id TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  local_date TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dark_nights_journey ON dark_nights(journey_id, created_at);
+
+CREATE TABLE IF NOT EXISTS partners (
+  code TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  rev_share_pct REAL NOT NULL DEFAULT 30,
+  secret TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS partner_revenue (
+  id TEXT PRIMARY KEY,
+  partner_code TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  plan TEXT,
+  amount_usd REAL NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_partner_rev ON partner_revenue(partner_code, created_at);
 `;
 
 export type DB = ReturnType<typeof createDb>;
@@ -106,6 +199,8 @@ export function createDb(path = ":memory:") {
   for (const sql of [
     "ALTER TABLE draws ADD COLUMN reflection TEXT",
     "ALTER TABLE saved ADD COLUMN reflection TEXT",
+    "ALTER TABLE devices ADD COLUMN partner_code TEXT",
+    "ALTER TABLE devices ADD COLUMN attributed_at TEXT",
   ]) {
     try {
       sqlite.exec(sql);
@@ -173,6 +268,60 @@ export function createDb(path = ":memory:") {
        VALUES (@token, @theme, @illustration_id, @opener, @title, @message, @note, @created_at)`,
     ),
     getShare: sqlite.prepare<[string]>("SELECT * FROM shares WHERE token = ?"),
+
+    // --- Journeys (the vow) ---
+    insertJourney: sqlite.prepare(
+      `INSERT INTO journeys (id, device_id, enduring, hope, card_title, card_essence, theme,
+         illustration_id, opener, message, reflection, started_local_date, status, fallback, created_at)
+       VALUES (@id, @device_id, @enduring, @hope, @card_title, @card_essence, @theme,
+         @illustration_id, @opener, @message, @reflection, @started_local_date, 'active', @fallback, @created_at)`,
+    ),
+    activeJourney: sqlite.prepare<[string]>(
+      "SELECT * FROM journeys WHERE device_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1",
+    ),
+    getJourney: sqlite.prepare<[string]>("SELECT * FROM journeys WHERE id = ?"),
+    listJourneys: sqlite.prepare<[string]>(
+      "SELECT * FROM journeys WHERE device_id = ? ORDER BY created_at DESC",
+    ),
+    closeJourney: sqlite.prepare(
+      `UPDATE journeys SET status = @status, closed_at = @closed_at, closed_local_date = @closed_local_date,
+         closing_note = @closing_note, keepsake_token = @keepsake_token
+       WHERE id = @id AND status = 'active'`,
+    ),
+    getJourneyByKeepsake: sqlite.prepare<[string]>(
+      "SELECT * FROM journeys WHERE keepsake_token = ?",
+    ),
+    insertDarkNight: sqlite.prepare(
+      `INSERT INTO dark_nights (id, journey_id, device_id, text, local_date, created_at)
+       VALUES (@id, @journey_id, @device_id, @text, @local_date, @created_at)`,
+    ),
+    listDarkNights: sqlite.prepare<[string]>(
+      "SELECT * FROM dark_nights WHERE journey_id = ? ORDER BY created_at ASC",
+    ),
+
+    // --- Partners (rev-share referrals) ---
+    insertPartner: sqlite.prepare(
+      `INSERT INTO partners (code, name, rev_share_pct, secret, created_at)
+       VALUES (@code, @name, @rev_share_pct, @secret, @created_at)`,
+    ),
+    getPartner: sqlite.prepare<[string]>("SELECT * FROM partners WHERE code = ?"),
+    attributeDevice: sqlite.prepare(
+      `UPDATE devices SET partner_code = @code, attributed_at = @at
+       WHERE device_id = @deviceId AND partner_code IS NULL`,
+    ),
+    countAttributed: sqlite.prepare<[string]>(
+      "SELECT COUNT(*) AS n FROM devices WHERE partner_code = ?",
+    ),
+    countAttributedSubscribed: sqlite.prepare<[string]>(
+      "SELECT COUNT(*) AS n FROM devices WHERE partner_code = ? AND subscribed = 1",
+    ),
+    insertPartnerRevenue: sqlite.prepare(
+      `INSERT OR IGNORE INTO partner_revenue (id, partner_code, device_id, kind, plan, amount_usd, created_at)
+       VALUES (@id, @partner_code, @device_id, @kind, @plan, @amount_usd, @created_at)`,
+    ),
+    sumPartnerRevenue: sqlite.prepare<[string]>(
+      "SELECT COALESCE(SUM(amount_usd), 0) AS total FROM partner_revenue WHERE partner_code = ?",
+    ),
   };
 
   return {
@@ -284,6 +433,79 @@ export function createDb(path = ":memory:") {
     },
     getShare(token: string) {
       return stmts.getShare.get(token) as any | undefined;
+    },
+
+    // --- Journeys ---
+    insertJourney(row: Omit<JourneyRow, "status" | "closed_at" | "closed_local_date" | "closing_note" | "keepsake_token">) {
+      stmts.insertJourney.run(row as any);
+    },
+    activeJourney(deviceId: string): JourneyRow | undefined {
+      return stmts.activeJourney.get(deviceId) as JourneyRow | undefined;
+    },
+    getJourney(id: string): JourneyRow | undefined {
+      return stmts.getJourney.get(id) as JourneyRow | undefined;
+    },
+    listJourneys(deviceId: string): JourneyRow[] {
+      return stmts.listJourneys.all(deviceId) as JourneyRow[];
+    },
+    closeJourney(args: {
+      id: string;
+      status: "fulfilled" | "released";
+      closedAt: string;
+      closedLocalDate: string;
+      closingNote: string | null;
+      keepsakeToken: string;
+    }): boolean {
+      const res = stmts.closeJourney.run({
+        id: args.id,
+        status: args.status,
+        closed_at: args.closedAt,
+        closed_local_date: args.closedLocalDate,
+        closing_note: args.closingNote,
+        keepsake_token: args.keepsakeToken,
+      });
+      return res.changes > 0;
+    },
+    getJourneyByKeepsake(token: string): JourneyRow | undefined {
+      return stmts.getJourneyByKeepsake.get(token) as JourneyRow | undefined;
+    },
+    insertDarkNight(row: DarkNightRow) {
+      stmts.insertDarkNight.run(row as any);
+    },
+    listDarkNights(journeyId: string): DarkNightRow[] {
+      return stmts.listDarkNights.all(journeyId) as DarkNightRow[];
+    },
+
+    // --- Partners ---
+    createPartner(row: PartnerRow) {
+      stmts.insertPartner.run(row as any);
+    },
+    getPartner(code: string): PartnerRow | undefined {
+      return stmts.getPartner.get(code) as PartnerRow | undefined;
+    },
+    /** First-touch attribution: only sets when the device has no partner yet. */
+    attributeDevice(deviceId: string, code: string): boolean {
+      stmts.insertDevice.run(deviceId, new Date().toISOString());
+      const res = stmts.attributeDevice.run({ deviceId, code, at: new Date().toISOString() });
+      return res.changes > 0;
+    },
+    partnerStats(code: string): { installs: number; subscribers: number; revenueUsd: number } {
+      return {
+        installs: (stmts.countAttributed.get(code) as { n: number }).n,
+        subscribers: (stmts.countAttributedSubscribed.get(code) as { n: number }).n,
+        revenueUsd: (stmts.sumPartnerRevenue.get(code) as { total: number }).total,
+      };
+    },
+    recordPartnerRevenue(row: {
+      id: string;
+      partner_code: string;
+      device_id: string;
+      kind: string;
+      plan: string | null;
+      amount_usd: number;
+      created_at: string;
+    }) {
+      stmts.insertPartnerRevenue.run(row);
     },
   };
 }

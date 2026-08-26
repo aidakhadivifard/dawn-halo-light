@@ -136,4 +136,89 @@ export const api = {
   async checkout(plan: "monthly" | "yearly"): Promise<{ url: string | null }> {
     return req(`/stripe/checkout`, { method: "POST", body: JSON.stringify({ plan }) });
   },
+
+  // --- The Vow (journey) ---
+  async getJourney(): Promise<{ journey: ApiJourney | null }> {
+    return req(`/journey`);
+  },
+  async createJourney(input: {
+    enduring: string;
+    hope: string;
+  }): Promise<{ journey?: ApiJourney; isCrisis?: boolean; message?: string; resources?: CrisisPayload["resources"] }> {
+    return req(`/journey`, { method: "POST", body: JSON.stringify(input) });
+  },
+  async darkNight(text: string): Promise<{
+    context?: ApiDarkNightContext;
+    isCrisis?: boolean;
+    message?: string;
+    resources?: CrisisPayload["resources"];
+  }> {
+    return req(`/journey/dark-night`, { method: "POST", body: JSON.stringify({ text }) });
+  },
+  async closeJourney(input: {
+    outcome: "fulfilled" | "released";
+    note?: string;
+  }): Promise<{ journey: ApiJourney; keepsake: ApiKeepsake; url: string }> {
+    return req(`/journey/close`, { method: "POST", body: JSON.stringify(input) });
+  },
+  async getKeepsake(token: string): Promise<{ keepsake: ApiKeepsake }> {
+    return req(`/keepsake/${encodeURIComponent(token)}`);
+  },
+
+  // --- Partner referrals ---
+  async attributePartner(code: string): Promise<{ ok: boolean; attributed: boolean }> {
+    return req(`/partner/attribute`, { method: "POST", body: JSON.stringify({ code }) });
+  },
+  async partnerStats(code: string, key: string): Promise<PartnerStats> {
+    return req(`/partner/${encodeURIComponent(code)}/stats?key=${encodeURIComponent(key)}`);
+  },
 };
+
+export interface ApiJourney {
+  id: string;
+  enduring: string;
+  hope: string;
+  status: "active" | "fulfilled" | "released";
+  startedLocalDate: string;
+  closedLocalDate: string | null;
+  dayNumber: number;
+  keepsakeToken: string | null;
+  card: ApiCard;
+  darkNights: { id: string; text: string; localDate: string; createdAt: string }[];
+}
+
+export interface ApiDarkNightContext {
+  journeyDay: number;
+  nightNumber: number;
+  previousNightDate: string | null;
+  daysSincePrevious: number | null;
+  vowTitle: string;
+  line: string;
+}
+
+export interface ApiKeepsake {
+  status: string;
+  enduring: string;
+  hope: string;
+  cardTitle: string;
+  cardEssence: string;
+  theme: CardTheme;
+  illustrationId: string;
+  message: string;
+  startedLocalDate: string;
+  closedLocalDate: string | null;
+  daysHeld: number;
+  darkNights: number;
+  closingNote: string | null;
+}
+
+export interface PartnerStats {
+  code: string;
+  name: string;
+  revSharePct: number;
+  installs: number;
+  subscribers: number;
+  revenueUsd: number;
+  accruedUsd: number;
+  shareUrl: string;
+}

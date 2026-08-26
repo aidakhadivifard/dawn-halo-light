@@ -54,17 +54,57 @@ GOOD EXAMPLE (question was about money):
 
 OUTPUT FORMAT: respond with ONLY the JSON object — no prose, no code fences.`;
 
+/** Context of an active vow (journey) the person is inside. */
+export interface JourneyContext {
+  enduring: string;
+  hope: string;
+  cardTitle: string;
+  dayNumber: number;
+}
+
+function journeyBlock(j: JourneyContext): string {
+  return (
+    `CONTEXT — they are inside a vow. ${j.dayNumber} day(s) ago they named what they are enduring ` +
+    `("${j.enduring}") and the hope they are holding ("${j.hope}"), and drew ${j.cardTitle} as the ` +
+    `card of that vow. Today's reading may quietly acknowledge the road they are on when it fits — ` +
+    `never force the connection, and never promise the hoped-for outcome. The hope is theirs; ` +
+    `you only keep it company.\n\n`
+  );
+}
+
+/**
+ * The one-time vow reading: the person has named what they are enduring and
+ * what they hope for, and draws a single card that will never be redrawn.
+ * The reading must honor the endurance without promising the outcome.
+ */
+export function buildVowPrompt(args: { enduring: string; hope: string }): string {
+  return (
+    `They are making a vow — a promise to keep going through something hard, held to one card ` +
+    `drawn once and never redrawn.\n\n` +
+    `What they are enduring: "${args.enduring}"\n` +
+    `What they hope for: "${args.hope}"\n\n` +
+    `Choose the ONE card from the deck that can stand beside them for the whole road — favor cards ` +
+    `of endurance, slow growth, and far-off light. The reading should: name the weight honestly in one ` +
+    `line; hold their hope with them WITHOUT promising it will come true (the hope is theirs — you ` +
+    `witness it, you never guarantee it); and end on the endurance itself as the thing that holds. ` +
+    `This card will greet them every day until the road ends, so write it to be re-read on hard ` +
+    `nights. Same three-part structure and JSON format.`
+  );
+}
+
 export function buildUserPrompt(args: {
   intent: "question" | "feeling" | "general";
   text?: string;
   previous?: { title: string; message: string };
+  journey?: JourneyContext;
 }): string {
-  const { intent, text, previous } = args;
+  const { intent, text, previous, journey } = args;
+  const ctx = journey ? journeyBlock(journey) : "";
   if (previous) {
-    return `Earlier you drew this card for them:\nCard: ${previous.title}\nReading: ${previous.message}\n\nThey want to go deeper: "${text ?? ""}"\n\nDraw the card from the deck that best meets this follow-up (it may be the same card revealing a new face, or a new one). Interpret it in light of both their original reading and this question. Same three-part structure and JSON format.`;
+    return `${ctx}Earlier you drew this card for them:\nCard: ${previous.title}\nReading: ${previous.message}\n\nThey want to go deeper: "${text ?? ""}"\n\nDraw the card from the deck that best meets this follow-up (it may be the same card revealing a new face, or a new one). Interpret it in light of both their original reading and this question. Same three-part structure and JSON format.`;
   }
   if (!text) {
-    return `Draw today's daily card from the deck — sense the quiet emotional weather of an ordinary morning and choose the card that meets it. Same three-part structure and JSON format.`;
+    return `${ctx}Draw today's daily card from the deck — sense the quiet emotional weather of an ordinary morning and choose the card that meets it. Same three-part structure and JSON format.`;
   }
   const label =
     intent === "question"
@@ -72,5 +112,5 @@ export function buildUserPrompt(args: {
       : intent === "feeling"
         ? "They shared a feeling. Sense the emotional pattern beneath their words, choose the deck card that meets it, and read it:"
         : "They brought this. Sense what they might be feeling underneath, choose the deck card that meets it, and read it:";
-  return `${label}\n"${text}"\n\nChoose ONE card from the deck and interpret it for them. Respond to the emotional pattern, not to invented facts. Same three-part structure and JSON format.`;
+  return `${ctx}${label}\n"${text}"\n\nChoose ONE card from the deck and interpret it for them. Respond to the emotional pattern, not to invented facts. Same three-part structure and JSON format.`;
 }

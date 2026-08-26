@@ -126,8 +126,45 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+// Partner referral capture: a ?ref=CODE on any landing URL attributes this
+// device to that partner (first-touch, enforced server-side). The pending code
+// is kept in localStorage until the backend confirms it, so an offline first
+// visit still credits the partner on a later one.
+const REF_PENDING_KEY = "dawnhalo:pendingRef";
+
+function captureReferral() {
+  if (typeof window === "undefined") return;
+  try {
+    const url = new URL(window.location.href);
+    const ref = url.searchParams.get("ref")?.trim().toLowerCase();
+    if (ref && /^[a-z0-9_-]{2,40}$/.test(ref)) {
+      localStorage.setItem(REF_PENDING_KEY, ref);
+      // Clean the URL so the code isn't re-shared accidentally.
+      url.searchParams.delete("ref");
+      window.history.replaceState({}, "", url.toString());
+    }
+    const pending = localStorage.getItem(REF_PENDING_KEY);
+    if (pending) {
+      import("@/lib/api").then(({ api }) =>
+        api
+          .attributePartner(pending)
+          .then(() => localStorage.removeItem(REF_PENDING_KEY))
+          .catch(() => {
+            /* backend unreachable or unknown code — retry next visit */
+          }),
+      );
+    }
+  } catch {
+    /* storage or URL unavailable */
+  }
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    captureReferral();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

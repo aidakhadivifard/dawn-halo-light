@@ -54,6 +54,44 @@ function isoFromUnix(seconds: number | null | undefined): string | null {
 }
 
 /**
+ * If the paying device was referred by a partner, record the payment toward
+ * that partner's revenue. Idempotent per Stripe object id (webhook retries and
+ * duplicate deliveries insert-or-ignore on the same row id).
+ *
+ * v1 records the initial checkout only; renewals arrive as invoice events that
+ * this webhook does not yet subscribe to. Prefer amount_total from Stripe
+ * (source of truth, in cents); fall back to the plan's list price.
+ */
+function recordReferralRevenue(
+  db: DB,
+  args: {
+    deviceId: string;
+    plan: string | null;
+    kind: "checkout" | "renewal";
+    eventObjectId: string | undefined;
+    amountTotal: number | null | undefined;
+  },
+) {
+  const device = db.getDevice(args.deviceId);
+  const code = device?.partner_code;
+  if (!code) return;
+  const fallbackUsd = args.plan === "yearly" ? PLANS.yearly.billedAnnually : PLANS.monthly.priceMonthly;
+  const amountUsd =
+    typeof args.amountTotal === "number" && args.amountTotal > 0
+      ? args.amountTotal / 100
+      : fallbackUsd;
+  db.recordPartnerRevenue({
+    id: args.eventObjectId ?? `rev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    partner_code: code,
+    device_id: args.deviceId,
+    kind: args.kind,
+    plan: args.plan,
+    amount_usd: amountUsd,
+    created_at: new Date().toISOString(),
+  });
+}
+
+/**
  * Apply a Stripe event to the DB. Pure and synchronous so tests can feed it
  * constructed event objects. Returns whether the event was handled.
  */
@@ -67,14 +105,16 @@ export function handleStripeEvent(
     case "checkout.session.completed": {
       const deviceId = obj.client_reference_id || obj.metadata?.deviceId;
       if (!deviceId) return { handled: false };
+      const plan = obj.metadata?.plan ?? null;
       db.setSubscription({
         deviceId,
         email: obj.customer_details?.email ?? obj.customer_email ?? null,
         customerId: typeof obj.customer === "string" ? obj.customer : (obj.customer?.id ?? null),
         subscribed: true,
-        plan: obj.metadata?.plan ?? null,
+        plan,
         periodEnd: null,
       });
+      recordReferralRevenue(db, { deviceId, plan, kind: "checkout", eventObjectId: obj.id, amountTotal: obj.amount_total });
       return { handled: true, deviceId };
     }
 
