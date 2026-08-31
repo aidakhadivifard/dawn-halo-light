@@ -17,7 +17,7 @@ RUN tar -xzf /tmp/litestream.tar.gz -C /usr/local/bin litestream && rm /tmp/lite
 WORKDIR /app
 
 # Native deps (better-sqlite3) need build tools only at install time.
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
