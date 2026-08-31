@@ -34,6 +34,10 @@ export interface JourneyRow {
   closed_local_date: string | null;
   closing_note: string | null;
   keepsake_token: string | null;
+  /** The sealed letter: who it's for, its text, and its public token once unsealed. */
+  letter_to: string | null;
+  letter_text: string | null;
+  letter_token: string | null;
   fallback: number; // 0/1
   created_at: string;
 }
@@ -153,6 +157,9 @@ CREATE TABLE IF NOT EXISTS journeys (
   closed_local_date TEXT,
   closing_note TEXT,
   keepsake_token TEXT,
+  letter_to TEXT,
+  letter_text TEXT,
+  letter_token TEXT,
   fallback INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
@@ -201,6 +208,11 @@ export function createDb(path = ":memory:") {
     "ALTER TABLE saved ADD COLUMN reflection TEXT",
     "ALTER TABLE devices ADD COLUMN partner_code TEXT",
     "ALTER TABLE devices ADD COLUMN attributed_at TEXT",
+    // The sealed letter: written at vow time, unsealed only on fulfillment,
+    // burned (hard-deleted) on release.
+    "ALTER TABLE journeys ADD COLUMN letter_to TEXT",
+    "ALTER TABLE journeys ADD COLUMN letter_text TEXT",
+    "ALTER TABLE journeys ADD COLUMN letter_token TEXT",
   ]) {
     try {
       sqlite.exec(sql);
@@ -272,9 +284,9 @@ export function createDb(path = ":memory:") {
     // --- Journeys (the vow) ---
     insertJourney: sqlite.prepare(
       `INSERT INTO journeys (id, device_id, enduring, hope, card_title, card_essence, theme,
-         illustration_id, opener, message, reflection, started_local_date, status, fallback, created_at)
+         illustration_id, opener, message, reflection, started_local_date, status, letter_to, letter_text, fallback, created_at)
        VALUES (@id, @device_id, @enduring, @hope, @card_title, @card_essence, @theme,
-         @illustration_id, @opener, @message, @reflection, @started_local_date, 'active', @fallback, @created_at)`,
+         @illustration_id, @opener, @message, @reflection, @started_local_date, 'active', @letter_to, @letter_text, @fallback, @created_at)`,
     ),
     activeJourney: sqlite.prepare<[string]>(
       "SELECT * FROM journeys WHERE device_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1",
@@ -290,6 +302,15 @@ export function createDb(path = ":memory:") {
     ),
     getJourneyByKeepsake: sqlite.prepare<[string]>(
       "SELECT * FROM journeys WHERE keepsake_token = ?",
+    ),
+    unsealLetter: sqlite.prepare(
+      "UPDATE journeys SET letter_token = @token WHERE id = @id AND letter_text IS NOT NULL",
+    ),
+    burnLetter: sqlite.prepare(
+      "UPDATE journeys SET letter_to = NULL, letter_text = NULL, letter_token = NULL WHERE id = ?",
+    ),
+    getJourneyByLetter: sqlite.prepare<[string]>(
+      "SELECT * FROM journeys WHERE letter_token = ?",
     ),
     insertDarkNight: sqlite.prepare(
       `INSERT INTO dark_nights (id, journey_id, device_id, text, local_date, created_at)
@@ -468,6 +489,17 @@ export function createDb(path = ":memory:") {
     },
     getJourneyByKeepsake(token: string): JourneyRow | undefined {
       return stmts.getJourneyByKeepsake.get(token) as JourneyRow | undefined;
+    },
+    /** Mint the letter's public token — only possible when a letter exists. */
+    unsealLetter(id: string, token: string): boolean {
+      return stmts.unsealLetter.run({ id, token }).changes > 0;
+    },
+    /** Hard-delete the letter. Nothing recoverable, by design. */
+    burnLetter(id: string) {
+      stmts.burnLetter.run(id);
+    },
+    getJourneyByLetter(token: string): JourneyRow | undefined {
+      return stmts.getJourneyByLetter.get(token) as JourneyRow | undefined;
     },
     insertDarkNight(row: DarkNightRow) {
       stmts.insertDarkNight.run(row as any);

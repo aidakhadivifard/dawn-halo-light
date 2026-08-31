@@ -49,8 +49,15 @@ export interface DarkNightContext {
  *
  * `nights` must be the list of dark nights BEFORE this new one is added.
  */
+/** First letter of the letter-recipient's name, for the sealed-letter hint. */
+export function letterInitial(letterTo: string | null | undefined): string | null {
+  const t = (letterTo ?? "").trim();
+  return t ? t[0].toUpperCase() : null;
+}
+
 export function darkNightContext(args: {
-  journey: Pick<JourneyRow, "started_local_date" | "card_title">;
+  journey: Pick<JourneyRow, "started_local_date" | "card_title"> &
+    Partial<Pick<JourneyRow, "letter_to">>;
   priorNights: Pick<DarkNightRow, "local_date">[];
   todayLocalDate: string;
 }): DarkNightContext {
@@ -77,6 +84,10 @@ export function darkNightContext(args: {
       `Day ${journeyDay}. This is night ${nightNumber}. The last one was ${daysSincePrevious} days ago — ` +
       `and you came through it. ${journey.card_title} has not moved.`;
   }
+
+  // The quiet reminder of who this road is for — never the full name.
+  const initial = letterInitial(journey.letter_to);
+  if (initial) line += ` The letter to ${initial}. is still sealed.`;
 
   return { journeyDay, nightNumber, previousNightDate, daysSincePrevious, vowTitle: journey.card_title, line };
 }

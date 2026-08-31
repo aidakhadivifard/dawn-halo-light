@@ -5,7 +5,13 @@
 // The offline vow is deterministic: the same (enduring, hope) always draws the
 // same card, so a flaky network can never quietly change someone's vow.
 
-import { api, type ApiJourney, type ApiDarkNightContext, type ApiKeepsake } from "@/lib/api";
+import {
+  api,
+  type ApiJourney,
+  type ApiDarkNightContext,
+  type ApiKeepsake,
+  type ApiLetter,
+} from "@/lib/api";
 import { srcForId, cardsByTheme, type CardTheme } from "@/lib/cardLibrary";
 import { classifyInput, artForCard } from "@/lib/dawnhalo";
 import { localDay } from "@/lib/device";
@@ -27,6 +33,8 @@ export interface Vow {
   closedLocalDate: string | null;
   dayNumber: number;
   keepsakeToken: string | null;
+  /** The sealed letter — initial only while sealed. */
+  letter: { initial: string | null; sealed: boolean } | null;
   card: Card;
   darkNights: VowDarkNight[];
   /** True when this vow lives only in localStorage (backend unreachable). */
@@ -64,6 +72,7 @@ function apiToVow(j: ApiJourney): Vow {
     closedLocalDate: j.closedLocalDate,
     dayNumber: j.dayNumber,
     keepsakeToken: j.keepsakeToken,
+    letter: j.letter ?? null,
     card: {
       id: j.card.id,
       opener: j.card.opener,
@@ -97,6 +106,8 @@ interface StoredVow {
   message: string;
   reflection: string;
   darkNights: VowDarkNight[];
+  letterTo?: string;
+  letterText?: string;
 }
 
 const OFFLINE_VOW_CARDS: { title: string; theme: CardTheme }[] = [
@@ -153,6 +164,10 @@ function storedToVow(s: StoredVow): Vow {
     closedLocalDate: s.closedLocalDate,
     dayNumber: dayNumberOf(s.startedLocalDate, s.closedLocalDate ?? localDay()),
     keepsakeToken: null,
+    letter:
+      s.letterTo && s.letterText
+        ? { initial: s.letterTo.trim()[0]?.toUpperCase() ?? null, sealed: true }
+        : null,
     card: {
       id: s.id,
       opener: s.opener,
@@ -170,7 +185,7 @@ function storedToVow(s: StoredVow): Vow {
   };
 }
 
-function offlineCreate(enduring: string, hope: string): Vow {
+function offlineCreate(enduring: string, hope: string, letterTo?: string, letterText?: string): Vow {
   const pick = OFFLINE_VOW_CARDS[hashStr(`${enduring}::${hope}`) % OFFLINE_VOW_CARDS.length];
   const pool = cardsByTheme(pick.theme);
   const illustrationId = pool.length ? pool[hashStr(enduring) % pool.length].id : "";
@@ -192,6 +207,8 @@ function offlineCreate(enduring: string, hope: string): Vow {
       "What holds is not the outcome. It is you, staying. That is the vow.",
     reflection: "On the hardest night, what will you want to remember about why you began?",
     darkNights: [],
+    letterTo: letterTo && letterText ? letterTo : undefined,
+    letterText: letterTo && letterText ? letterText : undefined,
   };
   saveStored(stored);
   return storedToVow(stored);
@@ -250,19 +267,26 @@ export async function getVow(): Promise<Vow | null> {
   }
 }
 
-/** Make the vow. Crisis-safe offline too. */
-export async function createVow(enduring: string, hope: string): Promise<VowOutcome> {
+/** Make the vow — optionally with a sealed letter. Crisis-safe offline too. */
+export async function createVow(
+  enduring: string,
+  hope: string,
+  letterTo?: string,
+  letterText?: string,
+): Promise<VowOutcome> {
   try {
-    const res = await api.createJourney({ enduring, hope });
+    const res = await api.createJourney({ enduring, hope, letterTo, letterText });
     if (res.isCrisis)
       return { kind: "crisis", message: res.message ?? CRISIS_MESSAGE, resources: res.resources ?? CRISIS_RESOURCES };
     if (res.journey) return { kind: "vow", vow: apiToVow(res.journey) };
     throw new Error("bad_response");
   } catch {
     // Offline: still enforce crisis safety deterministically.
-    if (classifyInput(enduring) === "crisis" || classifyInput(hope) === "crisis")
-      return { kind: "crisis", message: CRISIS_MESSAGE, resources: CRISIS_RESOURCES };
-    return { kind: "vow", vow: offlineCreate(enduring, hope) };
+    for (const t of [enduring, hope, letterText ?? ""]) {
+      if (t && classifyInput(t) === "crisis")
+        return { kind: "crisis", message: CRISIS_MESSAGE, resources: CRISIS_RESOURCES };
+    }
+    return { kind: "vow", vow: offlineCreate(enduring, hope, letterTo, letterText) };
   }
 }
 
@@ -285,6 +309,10 @@ export interface CloseResult {
   keepsake: ApiKeepsake;
   /** Public share URL — null for offline vows (nothing to share yet). */
   url: string | null;
+  /** The unsealed letter (fulfilled vows only). */
+  letter: { to: string; text: string; url: string | null } | null;
+  /** True when a released vow's letter was burned unread. */
+  letterBurned: boolean;
 }
 
 /** Close the vow — fulfilled or released — and mint the keepsake. */
@@ -295,12 +323,23 @@ export async function closeVow(
   try {
     const res = await api.closeJourney({ outcome, note });
     saveStored(null); // any legacy offline vow is superseded
-    return { keepsake: res.keepsake, url: res.url };
+    return { keepsake: res.keepsake, url: res.url, letter: res.letter, letterBurned: res.letterBurned };
   } catch {
     const s = loadStored();
     if (!s || s.status !== "active") return null;
     s.status = outcome;
     s.closedLocalDate = localDay();
+    // The letter's two fates, offline as well.
+    const hadLetter = !!(s.letterTo && s.letterText);
+    const letter =
+      outcome === "fulfilled" && hadLetter
+        ? { to: s.letterTo!, text: s.letterText!, url: null }
+        : null;
+    const letterBurned = outcome === "released" && hadLetter;
+    if (letterBurned || outcome === "fulfilled") {
+      delete s.letterTo;
+      delete s.letterText;
+    }
     saveStored(s);
     return {
       keepsake: {
@@ -319,7 +358,19 @@ export async function closeVow(
         closingNote: note || null,
       },
       url: null,
+      letter,
+      letterBurned,
     };
+  }
+}
+
+/** Public unsealed-letter lookup for the /letter/$token page. */
+export async function getLetter(token: string): Promise<ApiLetter | null> {
+  try {
+    const { letter } = await api.getLetter(token);
+    return letter;
+  } catch {
+    return null;
   }
 }
 

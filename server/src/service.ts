@@ -14,6 +14,7 @@ import type { JourneyContext } from "./lib/prompt";
 import {
   darkNightContext,
   dayNumber,
+  letterInitial,
   toKeepsake,
   type DarkNightContext,
   type Keepsake,
@@ -84,6 +85,9 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       closedLocalDate: j.closed_local_date,
       dayNumber: dayNumber(j.started_local_date, j.closed_local_date ?? localDate),
       keepsakeToken: j.keepsake_token,
+      // The sealed letter never leaves the server while the vow is active —
+      // only the recipient's initial. Even the writer cannot reread it.
+      letter: j.letter_text ? { initial: letterInitial(j.letter_to), sealed: !j.letter_token } : null,
       card: {
         id: j.id,
         opener: j.opener,
@@ -292,7 +296,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     async createJourney(
       deviceId: string,
       localDate: string,
-      input: { enduring: string; hope: string },
+      input: { enduring: string; hope: string; letterTo?: string; letterText?: string },
     ): Promise<
       | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
       | { kind: "exists"; journey: ReturnType<typeof journeyToApi> }
@@ -301,11 +305,15 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     > {
       const enduring = (input.enduring ?? "").trim().slice(0, 500);
       const hope = (input.hope ?? "").trim().slice(0, 500);
+      // The sealed letter is optional; both parts required for it to exist.
+      const letterTo = (input.letterTo ?? "").trim().slice(0, 80);
+      const letterText = (input.letterText ?? "").trim().slice(0, 2000);
+      const hasLetter = !!(letterTo && letterText);
       if (!enduring || !hope) return { kind: "invalid" };
 
-      // Safety first — both fields, before any AI call.
-      for (const t of [enduring, hope]) {
-        if (detectCrisis(t).isCrisis) {
+      // Safety first — every field, before any AI call.
+      for (const t of [enduring, hope, letterText]) {
+        if (t && detectCrisis(t).isCrisis) {
           return {
             kind: "crisis",
             message: CRISIS_RESOURCES.message,
@@ -339,6 +347,9 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         closed_local_date: null,
         closing_note: null,
         keepsake_token: null,
+        letter_to: hasLetter ? letterTo : null,
+        letter_text: hasLetter ? letterText : null,
+        letter_token: null,
         fallback: gen.fallback ? 1 : 0,
         created_at: now().toISOString(),
       };
@@ -396,7 +407,15 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       input: { outcome: "fulfilled" | "released"; note?: string },
     ):
       | { kind: "no_journey" }
-      | { kind: "closed"; journey: ReturnType<typeof journeyToApi>; keepsake: Keepsake } {
+      | {
+          kind: "closed";
+          journey: ReturnType<typeof journeyToApi>;
+          keepsake: Keepsake;
+          /** Present only when a fulfilled vow unseals its letter. */
+          letter: { to: string; text: string; token: string } | null;
+          /** True when a released vow's letter was burned unread. */
+          letterBurned: boolean;
+        } {
       const j = db.activeJourney(deviceId);
       if (!j) return { kind: "no_journey" };
       const token = `vow_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
@@ -408,12 +427,42 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         closingNote: (input.note ?? "").trim().slice(0, 500) || null,
         keepsakeToken: token,
       });
+
+      // The sealed letter's two fates: unsealed at fulfillment, burned at release.
+      let letter: { to: string; text: string; token: string } | null = null;
+      let letterBurned = false;
+      if (j.letter_text && j.letter_to) {
+        if (input.outcome === "fulfilled") {
+          const letterToken = `ltr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+          db.unsealLetter(j.id, letterToken);
+          letter = { to: j.letter_to, text: j.letter_text, token: letterToken };
+        } else {
+          db.burnLetter(j.id); // hard delete — no one will ever know
+          letterBurned = true;
+        }
+      }
+
       const closed = db.getJourney(j.id)!;
       const nights = db.listDarkNights(j.id);
       return {
         kind: "closed",
         journey: journeyToApi(closed, localDate),
         keepsake: toKeepsake(closed, nights.length, localDate),
+        letter,
+        letterBurned,
+      };
+    },
+
+    /** Public letter lookup — exists only after a fulfilled vow unsealed it. */
+    getLetter(token: string, localDate: string) {
+      const j = db.getJourneyByLetter(token);
+      if (!j || !j.letter_text || !j.letter_to) return null;
+      const nights = db.listDarkNights(j.id);
+      return {
+        to: j.letter_to,
+        text: j.letter_text,
+        writtenLocalDate: j.started_local_date,
+        keepsake: toKeepsake(j, nights.length, localDate),
       };
     },
 

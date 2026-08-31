@@ -16,6 +16,7 @@ import { Route as SavedRouteImport } from './routes/saved'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as KeepsakeTokenRouteImport } from './routes/keepsake.$token'
+import { Route as LetterTokenRouteImport } from './routes/letter.$token'
 import { Route as PartnerCodeRouteImport } from './routes/partner.$code'
 import { Route as SparkTokenRouteImport } from './routes/spark.$token'
 
@@ -54,6 +55,11 @@ const KeepsakeTokenRoute = KeepsakeTokenRouteImport.update({
   path: '/keepsake/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LetterTokenRoute = LetterTokenRouteImport.update({
+  id: '/letter/$token',
+  path: '/letter/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PartnerCodeRoute = PartnerCodeRouteImport.update({
   id: '/partner/$code',
   path: '/partner/$code',
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/keepsake/$token': typeof KeepsakeTokenRoute
+  '/letter/$token': typeof LetterTokenRoute
   '/partner/$code': typeof PartnerCodeRoute
   '/spark/$token': typeof SparkTokenRoute
 }
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/keepsake/$token': typeof KeepsakeTokenRoute
+  '/letter/$token': typeof LetterTokenRoute
   '/partner/$code': typeof PartnerCodeRoute
   '/spark/$token': typeof SparkTokenRoute
 }
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/keepsake/$token': typeof KeepsakeTokenRoute
+  '/letter/$token': typeof LetterTokenRoute
   '/partner/$code': typeof PartnerCodeRoute
   '/spark/$token': typeof SparkTokenRoute
 }
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/support'
     | '/keepsake/$token'
+    | '/letter/$token'
     | '/partner/$code'
     | '/spark/$token'
   fileRoutesByTo: FileRoutesByTo
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/support'
     | '/keepsake/$token'
+    | '/letter/$token'
     | '/partner/$code'
     | '/spark/$token'
   id:
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/support'
     | '/keepsake/$token'
+    | '/letter/$token'
     | '/partner/$code'
     | '/spark/$token'
   fileRoutesById: FileRoutesById
@@ -143,6 +155,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SupportRoute: typeof SupportRoute
   KeepsakeTokenRoute: typeof KeepsakeTokenRoute
+  LetterTokenRoute: typeof LetterTokenRoute
   PartnerCodeRoute: typeof PartnerCodeRoute
   SparkTokenRoute: typeof SparkTokenRoute
 }
@@ -198,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KeepsakeTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/letter/$token': {
+      id: '/letter/$token'
+      path: '/letter/$token'
+      fullPath: '/letter/$token'
+      preLoaderRoute: typeof LetterTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/partner/$code': {
       id: '/partner/$code'
       path: '/partner/$code'
@@ -223,6 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SupportRoute: SupportRoute,
   KeepsakeTokenRoute: KeepsakeTokenRoute,
+  LetterTokenRoute: LetterTokenRoute,
   PartnerCodeRoute: PartnerCodeRoute,
   SparkTokenRoute: SparkTokenRoute,
 }

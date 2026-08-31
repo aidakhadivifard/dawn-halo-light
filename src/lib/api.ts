@@ -144,6 +144,8 @@ export const api = {
   async createJourney(input: {
     enduring: string;
     hope: string;
+    letterTo?: string;
+    letterText?: string;
   }): Promise<{ journey?: ApiJourney; isCrisis?: boolean; message?: string; resources?: CrisisPayload["resources"] }> {
     return req(`/journey`, { method: "POST", body: JSON.stringify(input) });
   },
@@ -158,11 +160,20 @@ export const api = {
   async closeJourney(input: {
     outcome: "fulfilled" | "released";
     note?: string;
-  }): Promise<{ journey: ApiJourney; keepsake: ApiKeepsake; url: string }> {
+  }): Promise<{
+    journey: ApiJourney;
+    keepsake: ApiKeepsake;
+    url: string;
+    letter: { to: string; text: string; url: string } | null;
+    letterBurned: boolean;
+  }> {
     return req(`/journey/close`, { method: "POST", body: JSON.stringify(input) });
   },
   async getKeepsake(token: string): Promise<{ keepsake: ApiKeepsake }> {
     return req(`/keepsake/${encodeURIComponent(token)}`);
+  },
+  async getLetter(token: string): Promise<{ letter: ApiLetter }> {
+    return req(`/letter/${encodeURIComponent(token)}`);
   },
 
   // --- Partner referrals ---
@@ -183,8 +194,17 @@ export interface ApiJourney {
   closedLocalDate: string | null;
   dayNumber: number;
   keepsakeToken: string | null;
+  /** The sealed letter — only the recipient's initial while the vow is active. */
+  letter: { initial: string | null; sealed: boolean } | null;
   card: ApiCard;
   darkNights: { id: string; text: string; localDate: string; createdAt: string }[];
+}
+
+export interface ApiLetter {
+  to: string;
+  text: string;
+  writtenLocalDate: string;
+  keepsake: ApiKeepsake;
 }
 
 export interface ApiDarkNightContext {

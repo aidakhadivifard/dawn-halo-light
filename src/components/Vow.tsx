@@ -21,18 +21,27 @@ const RITUAL_FLOOR_MS = 1600;
 
 export function VowOnboarding({ onCreated }: { onCreated: (vow: Vow) => void }) {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<"enduring" | "hope" | "drawing" | "reveal">("enduring");
+  const [phase, setPhase] = useState<"enduring" | "hope" | "letter" | "drawing" | "reveal">(
+    "enduring",
+  );
   const [enduring, setEnduring] = useState("");
   const [hope, setHope] = useState("");
+  const [letterTo, setLetterTo] = useState("");
+  const [letterText, setLetterText] = useState("");
   const [vow, setVow] = useState<Vow | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const draw = async () => {
+  const draw = async (withLetter: boolean) => {
     if (busy) return;
     setBusy(true);
     setPhase("drawing");
     const started = Date.now();
-    const out = await createVow(enduring.trim(), hope.trim());
+    const out = await createVow(
+      enduring.trim(),
+      hope.trim(),
+      withLetter ? letterTo.trim() : undefined,
+      withLetter ? letterText.trim() : undefined,
+    );
     if (out.kind === "crisis") {
       navigate({ to: "/support" });
       return;
@@ -95,6 +104,50 @@ export function VowOnboarding({ onCreated }: { onCreated: (vow: Vow) => void }) 
             placeholder="That it works out. That the answer comes. That this was worth it."
             className="mt-6 w-full max-w-sm bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-2xl p-5 text-sm leading-relaxed focus:outline-none focus:ring-1 ring-dawn-rose/30 resize-none"
           />
+          <button
+            onClick={() => hope.trim() && setPhase("letter")}
+            disabled={!hope.trim()}
+            className="mt-6 px-10 py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(244,163,122,0.5)] hover:bg-dawn-haze transition-all disabled:opacity-40"
+          >
+            Continue
+          </button>
+          <button
+            onClick={() => setPhase("enduring")}
+            className="mt-4 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors"
+          >
+            Back
+          </button>
+        </div>
+      )}
+
+      {phase === "letter" && (
+        <div className="flex flex-col items-center text-center py-8 animate-card-rise">
+          <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-rose mb-3">
+            One more thing — only if you want
+          </p>
+          <h2 className="text-2xl font-serif font-light tracking-tight text-balance">
+            Is there someone you're walking this road for?
+          </h2>
+          <p className="mt-3 text-dawn-ink/50 text-sm leading-relaxed max-w-[36ch]">
+            Write them a letter. It is sealed the moment you draw — even you can't reread it. They
+            will never know it exists… unless the day comes. If you let this vow go, the letter
+            burns unread. No one ever finds out.
+          </p>
+          <input
+            value={letterTo}
+            onChange={(e) => setLetterTo(e.target.value)}
+            maxLength={80}
+            placeholder="Their name"
+            className="mt-6 w-full max-w-sm bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-5 py-3.5 text-sm text-center focus:outline-none focus:ring-1 ring-dawn-rose/30"
+          />
+          <textarea
+            value={letterText}
+            onChange={(e) => setLetterText(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            placeholder="I made this vow today. If you're reading this, I made it…"
+            className="mt-3 w-full max-w-sm bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-2xl p-5 text-sm leading-relaxed focus:outline-none focus:ring-1 ring-dawn-rose/30 resize-none"
+          />
           <div className="mt-6 p-4 max-w-sm bg-dawn-sky/60 border border-dawn-haze/15 rounded-xl">
             <p className="text-[11px] leading-relaxed text-dawn-ink/60">
               You will draw <span className="font-bold text-dawn-ink/80">one card</span> for this
@@ -102,17 +155,18 @@ export function VowOnboarding({ onCreated }: { onCreated: (vow: Vow) => void }) 
             </p>
           </div>
           <button
-            onClick={draw}
-            disabled={!hope.trim() || busy}
+            onClick={() => draw(true)}
+            disabled={busy || !letterTo.trim() || !letterText.trim()}
             className="mt-6 px-10 py-4 bg-dawn-rose text-dawn-sky text-sm uppercase tracking-[0.2em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(244,163,122,0.5)] hover:bg-dawn-haze transition-all disabled:opacity-40"
           >
-            Draw My Vow Card
+            Seal the letter &amp; draw
           </button>
           <button
-            onClick={() => setPhase("enduring")}
-            className="mt-4 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors"
+            onClick={() => draw(false)}
+            disabled={busy}
+            className="mt-4 text-[11px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors disabled:opacity-50"
           >
-            Back
+            Skip — just the vow
           </button>
         </div>
       )}
@@ -269,6 +323,40 @@ export function VowPanel({ vow, onEnded }: { vow: Vow; onEnded: () => void }) {
               ? `You held on through ${k.darkNights} hard night${k.darkNights === 1 ? "" : "s"}, and the thing you hoped for arrived. ${k.cardTitle} kept its watch.`
               : `The hoped-for thing didn't come — but ${k.daysHeld} days of staying did. That was never the card's doing. It was yours.`}
           </p>
+          {closeResult.letter && (
+            <div className="mt-6 p-5 bg-dawn-sky/60 border border-dawn-rose/30 rounded-2xl text-left">
+              <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-rose mb-2">
+                The letter to {closeResult.letter.to} is unsealed
+              </p>
+              <p className="font-serif italic text-[15px] leading-relaxed text-dawn-ink/85">
+                “{closeResult.letter.text}”
+              </p>
+              {closeResult.letter.url && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(closeResult.letter!.url!);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1600);
+                    } catch {
+                      /* clipboard unavailable */
+                    }
+                  }}
+                  className="mt-4 px-6 py-2.5 bg-dawn-rose text-dawn-sky text-[10px] uppercase tracking-[0.18em] font-bold rounded-full hover:bg-dawn-haze transition-colors"
+                >
+                  {copied ? "Link copied" : `Copy the letter link for ${closeResult.letter.to}`}
+                </button>
+              )}
+              <p className="mt-3 text-[11px] text-dawn-ink/50 leading-relaxed">
+                You decide when and how it reaches them. The app never sends anything itself.
+              </p>
+            </div>
+          )}
+          {closeResult.letterBurned && (
+            <p className="mt-5 text-[13px] font-serif italic text-dawn-ink/60 leading-relaxed">
+              The letter burned unread. Only you know how many days you stood.
+            </p>
+          )}
           {closeResult.url && (
             <button
               onClick={copyUrl}
@@ -327,6 +415,12 @@ export function VowPanel({ vow, onEnded }: { vow: Vow; onEnded: () => void }) {
               </span>
             </div>
           </div>
+
+          {vow.letter?.sealed && (
+            <p className="px-5 -mt-2 pb-1 text-[10px] uppercase tracking-[0.18em] text-dawn-rose/70">
+              ✉ A letter to {vow.letter.initial}. — sealed
+            </p>
+          )}
 
           {mode === "reading" && (
             <div className="px-5 pb-5 animate-card-rise">

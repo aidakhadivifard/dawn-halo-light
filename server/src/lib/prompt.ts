@@ -87,6 +87,9 @@ export function buildVowPrompt(args: { enduring: string; hope: string }): string
     `of endurance, slow growth, and far-off light. The reading should: name the weight honestly in one ` +
     `line; hold their hope with them WITHOUT promising it will come true (the hope is theirs — you ` +
     `witness it, you never guarantee it); and end on the endurance itself as the thing that holds. ` +
+    `If they say they hate or dread the thing itself, honor that as a VALID road — doing what you ` +
+    `hate for what you want is one of the oldest vows there is. Never try to make them love the ` +
+    `process, never sell enthusiasm; witness the staying. ` +
     `This card will greet them every day until the road ends, so write it to be re-read on hard ` +
     `nights. Same three-part structure and JSON format.`
   );

@@ -221,7 +221,14 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   app.post("/api/journey", requireDevice, resolveLocalDate, cardLimiter, async (req, res) => {
     const enduring = (req.body?.enduring ?? "").toString();
     const hope = (req.body?.hope ?? "").toString();
-    const result = await svc.createJourney(req.deviceId!, req.localDate!, { enduring, hope });
+    const letterTo = (req.body?.letterTo ?? "").toString();
+    const letterText = (req.body?.letterText ?? "").toString();
+    const result = await svc.createJourney(req.deviceId!, req.localDate!, {
+      enduring,
+      hope,
+      letterTo,
+      letterText,
+    });
     if (result.kind === "crisis")
       return res.json({ isCrisis: true, message: result.message, resources: result.resources });
     if (result.kind === "invalid") return res.status(400).json({ error: "missing_enduring_or_hope" });
@@ -248,6 +255,10 @@ export function createApp(db: DB, opts: AppOptions = {}) {
       journey: result.journey,
       keepsake: result.keepsake,
       url: `${cfg.appBaseUrl}/keepsake/${result.journey.keepsakeToken}`,
+      letter: result.letter
+        ? { to: result.letter.to, text: result.letter.text, url: `${cfg.appBaseUrl}/letter/${result.letter.token}` }
+        : null,
+      letterBurned: result.letterBurned,
     });
   });
 
@@ -256,6 +267,13 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     const keepsake = svc.getKeepsake(req.params.token, req.localDate!);
     if (!keepsake) return res.status(404).json({ error: "keepsake_not_found" });
     res.json({ keepsake });
+  });
+
+  // Public unsealed letter read — only exists for fulfilled vows.
+  app.get("/api/letter/:token", resolveLocalDate, (req, res) => {
+    const letter = svc.getLetter(req.params.token, req.localDate!);
+    if (!letter) return res.status(404).json({ error: "letter_not_found" });
+    res.json({ letter });
   });
 
   // --- Partners (rev-share referrals) ---
