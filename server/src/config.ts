@@ -15,6 +15,8 @@ export interface AppConfig {
   corsOrigins: string;
   /** Public base URL of the frontend, used for Stripe redirect URLs. */
   appBaseUrl: string;
+  /** Admin key protecting partner creation. Unset = partner admin disabled. */
+  adminKey: string | undefined;
 }
 
 export function getConfig(): AppConfig {
@@ -32,5 +34,6 @@ export function getConfig(): AppConfig {
     databaseUrl: process.env.DATABASE_URL ?? "./dawnhalo.db",
     corsOrigins: process.env.CORS_ORIGINS ?? "*",
     appBaseUrl: process.env.APP_BASE_URL ?? "http://localhost:3000",
+    adminKey: process.env.ADMIN_KEY,
   };
 }

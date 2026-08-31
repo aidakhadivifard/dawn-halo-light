@@ -209,6 +209,171 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     }
   });
 
+  // --- The Vow (journey) — rate-limited where AI is involved ---
+  app.get("/api/journey", requireDevice, resolveLocalDate, (req, res) => {
+    res.json({ journey: svc.getJourney(req.deviceId!, req.localDate!) });
+  });
+
+  app.get("/api/journeys", requireDevice, resolveLocalDate, (req, res) => {
+    res.json({ journeys: svc.listJourneys(req.deviceId!, req.localDate!) });
+  });
+
+  app.post("/api/journey", requireDevice, resolveLocalDate, cardLimiter, async (req, res) => {
+    const enduring = (req.body?.enduring ?? "").toString();
+    const hope = (req.body?.hope ?? "").toString();
+    const letterTo = (req.body?.letterTo ?? "").toString();
+    const letterText = (req.body?.letterText ?? "").toString();
+    const result = await svc.createJourney(req.deviceId!, req.localDate!, {
+      enduring,
+      hope,
+      letterTo,
+      letterText,
+    });
+    if (result.kind === "crisis")
+      return res.json({ isCrisis: true, message: result.message, resources: result.resources });
+    if (result.kind === "invalid") return res.status(400).json({ error: "missing_enduring_or_hope" });
+    if (result.kind === "exists")
+      return res.status(409).json({ error: "vow_already_active", journey: result.journey });
+    // Re-read through the snapshot path so the response carries living state
+    // (card-flavored action prompt etc.) from the very first render.
+    res.json({ journey: svc.getJourney(req.deviceId!, req.localDate!) ?? result.journey });
+  });
+
+  // One Small Step — commit / decline / resolve.
+  app.post("/api/journey/step", requireDevice, resolveLocalDate, (req, res) => {
+    const text = (req.body?.text ?? "").toString();
+    if (!text.trim()) return res.status(400).json({ error: "missing_text" });
+    const result = svc.commitStep(req.deviceId!, req.localDate!, text);
+    if (result.kind === "crisis")
+      return res.json({ isCrisis: true, message: result.message, resources: result.resources });
+    if (result.kind === "no_journey") return res.status(404).json({ error: "no_active_vow" });
+    res.json({ step: result.step });
+  });
+
+  app.post("/api/journey/step/decline", requireDevice, resolveLocalDate, (req, res) => {
+    const result = svc.declineStep(req.deviceId!, req.localDate!);
+    if (result.kind === "no_journey") return res.status(404).json({ error: "no_active_vow" });
+    res.json({ ok: true });
+  });
+
+  app.post("/api/journey/step/resolve", requireDevice, resolveLocalDate, (req, res) => {
+    const done = req.body?.done === true;
+    const result = svc.resolveStep(req.deviceId!, req.localDate!, done);
+    if (result.kind === "no_step") return res.status(404).json({ error: "no_committed_step" });
+    res.json({ line: result.line });
+  });
+
+  app.post("/api/journey/dark-night", requireDevice, resolveLocalDate, (req, res) => {
+    const text = (req.body?.text ?? "").toString();
+    const result = svc.addDarkNight(req.deviceId!, req.localDate!, text);
+    if (result.kind === "crisis")
+      return res.json({ isCrisis: true, message: result.message, resources: result.resources });
+    if (result.kind === "no_journey") return res.status(404).json({ error: "no_active_vow" });
+    res.json({ context: result.context });
+  });
+
+  app.post("/api/journey/close", requireDevice, resolveLocalDate, (req, res) => {
+    const outcome = req.body?.outcome === "released" ? "released" : "fulfilled";
+    const note = (req.body?.note ?? "").toString();
+    const result = svc.closeJourney(req.deviceId!, req.localDate!, { outcome, note });
+    if (result.kind === "no_journey") return res.status(404).json({ error: "no_active_vow" });
+    res.json({
+      journey: result.journey,
+      keepsake: result.keepsake,
+      url: `${cfg.appBaseUrl}/keepsake/${result.journey.keepsakeToken}`,
+      letter: result.letter
+        ? { to: result.letter.to, text: result.letter.text, url: `${cfg.appBaseUrl}/letter/${result.letter.token}` }
+        : null,
+      letterBurned: result.letterBurned,
+    });
+  });
+
+  // Public keepsake read (like the spark read). Counts the open — the share metric.
+  app.get("/api/keepsake/:token", resolveLocalDate, (req, res) => {
+    const keepsake = svc.getKeepsake(req.params.token, req.localDate!);
+    if (!keepsake) return res.status(404).json({ error: "keepsake_not_found" });
+    db.bumpKeepsakeViews(req.params.token);
+    res.json({ keepsake });
+  });
+
+  // Public unsealed letter read — only exists for fulfilled vows.
+  app.get("/api/letter/:token", resolveLocalDate, (req, res) => {
+    const letter = svc.getLetter(req.params.token, req.localDate!);
+    if (!letter) return res.status(404).json({ error: "letter_not_found" });
+    db.bumpLetterViews(req.params.token);
+    res.json({ letter });
+  });
+
+  // The three numbers that decide everything — admin only.
+  app.get("/api/admin/metrics", resolveLocalDate, (req, res) => {
+    if (!cfg.adminKey) return res.status(503).json({ error: "admin_disabled" });
+    const key = req.header("x-admin-key") ?? (req.query.key ?? "").toString();
+    if (key !== cfg.adminKey) return res.status(401).json({ error: "unauthorized" });
+    res.json({ metrics: db.adminMetrics(req.localDate!) });
+  });
+
+  // --- Partners (rev-share referrals) ---
+
+  // First-touch attribution: called once by the client when it sees ?ref=CODE.
+  app.post("/api/partner/attribute", requireDevice, (req, res) => {
+    const code = (req.body?.code ?? "").toString().trim().toLowerCase().slice(0, 40);
+    if (!code) return res.status(400).json({ error: "missing_code" });
+    const partner = db.getPartner(code);
+    if (!partner) return res.status(404).json({ error: "unknown_partner" });
+    const attributed = db.attributeDevice(req.deviceId!, code);
+    res.json({ ok: true, attributed });
+  });
+
+  // Create a partner (admin only — set ADMIN_KEY in the server env).
+  app.post("/api/partner", (req, res) => {
+    if (!cfg.adminKey) return res.status(503).json({ error: "admin_disabled" });
+    if (req.header("x-admin-key") !== cfg.adminKey)
+      return res.status(401).json({ error: "unauthorized" });
+    const code = (req.body?.code ?? "").toString().trim().toLowerCase().slice(0, 40);
+    const name = (req.body?.name ?? "").toString().trim().slice(0, 120);
+    const pct = Number(req.body?.revSharePct ?? 30);
+    if (!/^[a-z0-9_-]{2,40}$/.test(code) || !name)
+      return res.status(400).json({ error: "invalid_code_or_name" });
+    if (!(pct > 0 && pct <= 90)) return res.status(400).json({ error: "invalid_rev_share_pct" });
+    if (db.getPartner(code)) return res.status(409).json({ error: "code_taken" });
+    const secret = `pk_${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 10)}`;
+    db.createPartner({
+      code,
+      name,
+      rev_share_pct: pct,
+      secret,
+      created_at: new Date().toISOString(),
+    });
+    res.json({
+      code,
+      name,
+      revSharePct: pct,
+      secret,
+      shareUrl: `${cfg.appBaseUrl}/?ref=${code}`,
+      dashboardUrl: `${cfg.appBaseUrl}/partner/${code}`,
+    });
+  });
+
+  // Partner dashboard stats — authenticated by the partner's own secret.
+  app.get("/api/partner/:code/stats", (req, res) => {
+    const code = req.params.code.toLowerCase();
+    const partner = db.getPartner(code);
+    if (!partner) return res.status(404).json({ error: "unknown_partner" });
+    const key = req.header("x-partner-key") ?? (req.query.key ?? "").toString();
+    if (key !== partner.secret) return res.status(401).json({ error: "unauthorized" });
+    const stats = db.partnerStats(code);
+    res.json({
+      code,
+      name: partner.name,
+      revSharePct: partner.rev_share_pct,
+      installs: stats.installs,
+      subscribers: stats.subscribers,
+      revenueUsd: Math.round(stats.revenueUsd * 100) / 100,
+      accruedUsd: Math.round(stats.revenueUsd * partner.rev_share_pct) / 100,
+      shareUrl: `${cfg.appBaseUrl}/?ref=${code}`,
+    });
+  });
+
   return app;
 }
 

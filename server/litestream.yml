@@ -1,0 +1,17 @@
+# Litestream config — values come from env vars set on the host (Render etc).
+#
+#   LITESTREAM_REPLICA_URL         e.g. s3://dawnhalo-db/replica
+#   LITESTREAM_ENDPOINT            e.g. https://s3.us-west-004.backblazeb2.com
+#   LITESTREAM_ACCESS_KEY_ID       B2 keyID (or any S3-compatible key)
+#   LITESTREAM_SECRET_ACCESS_KEY   B2 applicationKey
+#
+# DATABASE_URL must match the db path the server opens (default /data/dawnhalo.db).
+
+dbs:
+  - path: ${DATABASE_URL}
+    replicas:
+      - url: ${LITESTREAM_REPLICA_URL}
+        endpoint: ${LITESTREAM_ENDPOINT}
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        sync-interval: 10s

@@ -1,22 +1,33 @@
 services:
   - type: web
     name: dawnhalo-api
-    runtime: node
+    runtime: docker
     region: oregon
     plan: free
     rootDir: server
-    buildCommand: npm install
-    startCommand: npm start
+    dockerfilePath: ./Dockerfile
     envVars:
-      - key: NODE_VERSION
-        value: "22.11.0"
       - key: NODE_ENV
         value: production
       - key: PORT
         value: "10000"
+      - key: DATABASE_URL
+        value: /data/dawnhalo.db
       - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ADMIN_KEY
         sync: false
       - key: CORS_ORIGINS
         value: "*"
       - key: APP_BASE_URL
         value: https://dawnhalo-api.onrender.com
+      # Litestream — persistent SQLite on the free plan via Backblaze B2
+      # (free 10GB). See DEPLOY_FREE.md. Leave unset to run without persistence.
+      - key: LITESTREAM_REPLICA_URL
+        sync: false
+      - key: LITESTREAM_ENDPOINT
+        sync: false
+      - key: LITESTREAM_ACCESS_KEY_ID
+        sync: false
+      - key: LITESTREAM_SECRET_ACCESS_KEY
+        sync: false

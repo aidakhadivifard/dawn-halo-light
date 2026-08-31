@@ -3,15 +3,17 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { getConfig } from "../config";
-import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt";
+import { SYSTEM_PROMPT, buildUserPrompt, buildVowPrompt, type JourneyContext } from "./prompt";
 import { pickOpener } from "./openers";
-import { findHalo, halosForTheme } from "./deck";
+import { findHalo, halosForTheme, HALO_DECK } from "./deck";
 import { CARD_THEMES, type CardTheme } from "../types";
 
 export interface GenInput {
   intent: "question" | "feeling" | "general";
   text?: string;
   previous?: { title: string; message: string };
+  /** Active vow context — when present, readings quietly acknowledge the road. */
+  journey?: JourneyContext;
 }
 
 export interface GenResult {
@@ -195,6 +197,75 @@ export async function generateCardText(
   } catch {
     // Slow, unavailable, rate-limited, or malformed — degrade gracefully.
     return fallbackCard(input);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The Vow — a one-time reading drawn when a journey begins. Never redrawn.
+
+/** Endurance-flavored deck cards the offline fallback may choose from. */
+const VOW_FALLBACK_TITLES = [
+  "The Long Road",
+  "Winter Roots",
+  "The Distant Lantern",
+  "The Waiting Dawn",
+  "The Mountain Pass",
+  "The Sleeping Seed",
+  "The Far Shore",
+] as const;
+
+/**
+ * Deterministic offline vow: same (enduring, hope) always draws the same card,
+ * so a flaky network can never quietly change someone's vow.
+ */
+export function fallbackVow(args: { enduring: string; hope: string }): GenResult {
+  const seed = `${args.enduring}::${args.hope}`;
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  const title = VOW_FALLBACK_TITLES[Math.abs(h) % VOW_FALLBACK_TITLES.length];
+  const card = HALO_DECK.find((c) => c.title === title) ?? HALO_DECK[0];
+  return {
+    opener: "This is the card that stepped forward to walk with you…",
+    title: card.title,
+    message:
+      `What you are carrying is real, and it is heavy.\n\n` +
+      `This card holds the hope you named — it does not promise it. No card can. ` +
+      `It promises only that the road is still a road.\n\n` +
+      `What holds is not the outcome. It is you, staying. That is the vow.`,
+    reflection: "On the hardest night, what will you want to remember about why you began?",
+    theme: card.theme,
+    fallback: true,
+  };
+}
+
+/** Generate the one-time vow reading. Falls back deterministically. */
+export async function generateVowText(
+  args: { enduring: string; hope: string },
+  opts: { client?: MessagesClient | null; timeoutMs?: number } = {},
+): Promise<GenResult> {
+  const client = opts.client !== undefined ? opts.client : getClient();
+  if (!client) return fallbackVow(args);
+
+  const { anthropicModel } = getConfig();
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  try {
+    const result = await Promise.race([
+      client.messages.create({
+        model: anthropicModel,
+        max_tokens: 800,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: buildVowPrompt(args) }],
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("anthropic_timeout")), timeoutMs),
+      ),
+    ]);
+    const text = result.content?.find((b) => b.type === "text")?.text ?? "";
+    const coerced = coerce(parseCardJson(text), { intent: "general" });
+    return coerced ?? fallbackVow(args);
+  } catch {
+    return fallbackVow(args);
   }
 }
 

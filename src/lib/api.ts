@@ -136,4 +136,133 @@ export const api = {
   async checkout(plan: "monthly" | "yearly"): Promise<{ url: string | null }> {
     return req(`/stripe/checkout`, { method: "POST", body: JSON.stringify({ plan }) });
   },
+
+  // --- The Vow (journey) ---
+  async getJourney(): Promise<{ journey: ApiJourney | null }> {
+    return req(`/journey`);
+  },
+  async createJourney(input: {
+    enduring: string;
+    hope: string;
+    letterTo?: string;
+    letterText?: string;
+  }): Promise<{ journey?: ApiJourney; isCrisis?: boolean; message?: string; resources?: CrisisPayload["resources"] }> {
+    return req(`/journey`, { method: "POST", body: JSON.stringify(input) });
+  },
+  async commitStep(text: string): Promise<{
+    step?: { id: string; text: string; status: "committed" };
+    isCrisis?: boolean;
+    message?: string;
+    resources?: CrisisPayload["resources"];
+  }> {
+    return req(`/journey/step`, { method: "POST", body: JSON.stringify({ text }) });
+  },
+  async declineStep(): Promise<{ ok: boolean }> {
+    return req(`/journey/step/decline`, { method: "POST", body: JSON.stringify({}) });
+  },
+  async resolveStep(done: boolean): Promise<{ line: string }> {
+    return req(`/journey/step/resolve`, { method: "POST", body: JSON.stringify({ done }) });
+  },
+  async darkNight(text: string): Promise<{
+    context?: ApiDarkNightContext;
+    isCrisis?: boolean;
+    message?: string;
+    resources?: CrisisPayload["resources"];
+  }> {
+    return req(`/journey/dark-night`, { method: "POST", body: JSON.stringify({ text }) });
+  },
+  async closeJourney(input: {
+    outcome: "fulfilled" | "released";
+    note?: string;
+  }): Promise<{
+    journey: ApiJourney;
+    keepsake: ApiKeepsake;
+    url: string;
+    letter: { to: string; text: string; url: string } | null;
+    letterBurned: boolean;
+  }> {
+    return req(`/journey/close`, { method: "POST", body: JSON.stringify(input) });
+  },
+  async getKeepsake(token: string): Promise<{ keepsake: ApiKeepsake }> {
+    return req(`/keepsake/${encodeURIComponent(token)}`);
+  },
+  async getLetter(token: string): Promise<{ letter: ApiLetter }> {
+    return req(`/letter/${encodeURIComponent(token)}`);
+  },
+
+  // --- Partner referrals ---
+  async attributePartner(code: string): Promise<{ ok: boolean; attributed: boolean }> {
+    return req(`/partner/attribute`, { method: "POST", body: JSON.stringify({ code }) });
+  },
+  async partnerStats(code: string, key: string): Promise<PartnerStats> {
+    return req(`/partner/${encodeURIComponent(code)}/stats?key=${encodeURIComponent(key)}`);
+  },
 };
+
+export interface ApiJourney {
+  id: string;
+  enduring: string;
+  hope: string;
+  status: "active" | "fulfilled" | "released";
+  startedLocalDate: string;
+  closedLocalDate: string | null;
+  dayNumber: number;
+  keepsakeToken: string | null;
+  /** The sealed letter — only the recipient's initial while the vow is active. */
+  letter: { initial: string | null; sealed: boolean } | null;
+  card: ApiCard;
+  darkNights: { id: string; text: string; localDate: string; createdAt: string }[];
+  /** Living state — present on the active-vow snapshot only. */
+  living?: ApiVowLiving;
+}
+
+export interface ApiVowLiving {
+  todayStep: { id: string; text: string; status: "committed" | "done" | "not_moved" } | null;
+  askStep: boolean;
+  actionPrompt: string;
+  memory: string | null;
+  returnLine: string | null;
+}
+
+export interface ApiLetter {
+  to: string;
+  text: string;
+  writtenLocalDate: string;
+  keepsake: ApiKeepsake;
+}
+
+export interface ApiDarkNightContext {
+  journeyDay: number;
+  nightNumber: number;
+  previousNightDate: string | null;
+  daysSincePrevious: number | null;
+  vowTitle: string;
+  line: string;
+}
+
+export interface ApiKeepsake {
+  status: string;
+  enduring: string;
+  hope: string;
+  cardTitle: string;
+  cardEssence: string;
+  theme: CardTheme;
+  illustrationId: string;
+  message: string;
+  startedLocalDate: string;
+  closedLocalDate: string | null;
+  daysHeld: number;
+  darkNights: number;
+  closingNote: string | null;
+}
+
+export interface PartnerStats {
+  code: string;
+  name: string;
+  revSharePct: number;
+  installs: number;
+  subscribers: number;
+  revenueUsd: number;
+  accruedUsd: number;
+  shareUrl: string;
+}

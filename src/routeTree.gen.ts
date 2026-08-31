@@ -9,32 +9,26 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SupportRouteImport } from './routes/support'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SavedRouteImport } from './routes/saved'
-import { Route as PaywallRouteImport } from './routes/paywall'
-import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as CalendarRouteImport } from './routes/calendar'
+import { Route as PaywallRouteImport } from './routes/paywall'
+import { Route as SavedRouteImport } from './routes/saved'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SupportRouteImport } from './routes/support'
+import { Route as KeepsakeTokenRouteImport } from './routes/keepsake.$token'
+import { Route as LetterTokenRouteImport } from './routes/letter.$token'
+import { Route as PartnerCodeRouteImport } from './routes/partner.$code'
 import { Route as SparkTokenRouteImport } from './routes/spark.$token'
 
-const SupportRoute = SupportRouteImport.update({
-  id: '/support',
-  path: '/support',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SavedRoute = SavedRouteImport.update({
-  id: '/saved',
-  path: '/saved',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PaywallRoute = PaywallRouteImport.update({
-  id: '/paywall',
-  path: '/paywall',
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalendarRoute = CalendarRouteImport.update({
@@ -42,9 +36,39 @@ const CalendarRoute = CalendarRouteImport.update({
   path: '/calendar',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const PaywallRoute = PaywallRouteImport.update({
+  id: '/paywall',
+  path: '/paywall',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SavedRoute = SavedRouteImport.update({
+  id: '/saved',
+  path: '/saved',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KeepsakeTokenRoute = KeepsakeTokenRouteImport.update({
+  id: '/keepsake/$token',
+  path: '/keepsake/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LetterTokenRoute = LetterTokenRouteImport.update({
+  id: '/letter/$token',
+  path: '/letter/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PartnerCodeRoute = PartnerCodeRouteImport.update({
+  id: '/partner/$code',
+  path: '/partner/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SparkTokenRoute = SparkTokenRouteImport.update({
@@ -55,100 +79,114 @@ const SparkTokenRoute = SparkTokenRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/calendar': typeof CalendarRoute
   '/paywall': typeof PaywallRoute
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/keepsake/$token': typeof KeepsakeTokenRoute
+  '/letter/$token': typeof LetterTokenRoute
+  '/partner/$code': typeof PartnerCodeRoute
   '/spark/$token': typeof SparkTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/calendar': typeof CalendarRoute
   '/paywall': typeof PaywallRoute
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/keepsake/$token': typeof KeepsakeTokenRoute
+  '/letter/$token': typeof LetterTokenRoute
+  '/partner/$code': typeof PartnerCodeRoute
   '/spark/$token': typeof SparkTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/calendar': typeof CalendarRoute
   '/paywall': typeof PaywallRoute
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/keepsake/$token': typeof KeepsakeTokenRoute
+  '/letter/$token': typeof LetterTokenRoute
+  '/partner/$code': typeof PartnerCodeRoute
   '/spark/$token': typeof SparkTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/calendar'
     | '/paywall'
     | '/saved'
     | '/settings'
     | '/support'
+    | '/keepsake/$token'
+    | '/letter/$token'
+    | '/partner/$code'
     | '/spark/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/calendar'
     | '/paywall'
     | '/saved'
     | '/settings'
     | '/support'
+    | '/keepsake/$token'
+    | '/letter/$token'
+    | '/partner/$code'
     | '/spark/$token'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/calendar'
     | '/paywall'
     | '/saved'
     | '/settings'
     | '/support'
+    | '/keepsake/$token'
+    | '/letter/$token'
+    | '/partner/$code'
     | '/spark/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   CalendarRoute: typeof CalendarRoute
   PaywallRoute: typeof PaywallRoute
   SavedRoute: typeof SavedRoute
   SettingsRoute: typeof SettingsRoute
   SupportRoute: typeof SupportRoute
+  KeepsakeTokenRoute: typeof KeepsakeTokenRoute
+  LetterTokenRoute: typeof LetterTokenRoute
+  PartnerCodeRoute: typeof PartnerCodeRoute
   SparkTokenRoute: typeof SparkTokenRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/support': {
-      id: '/support'
-      path: '/support'
-      fullPath: '/support'
-      preLoaderRoute: typeof SupportRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/saved': {
-      id: '/saved'
-      path: '/saved'
-      fullPath: '/saved'
-      preLoaderRoute: typeof SavedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/paywall': {
-      id: '/paywall'
-      path: '/paywall'
-      fullPath: '/paywall'
-      preLoaderRoute: typeof PaywallRouteImport
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/calendar': {
@@ -158,11 +196,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/paywall': {
+      id: '/paywall'
+      path: '/paywall'
+      fullPath: '/paywall'
+      preLoaderRoute: typeof PaywallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/saved': {
+      id: '/saved'
+      path: '/saved'
+      fullPath: '/saved'
+      preLoaderRoute: typeof SavedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/keepsake/$token': {
+      id: '/keepsake/$token'
+      path: '/keepsake/$token'
+      fullPath: '/keepsake/$token'
+      preLoaderRoute: typeof KeepsakeTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/letter/$token': {
+      id: '/letter/$token'
+      path: '/letter/$token'
+      fullPath: '/letter/$token'
+      preLoaderRoute: typeof LetterTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/partner/$code': {
+      id: '/partner/$code'
+      path: '/partner/$code'
+      fullPath: '/partner/$code'
+      preLoaderRoute: typeof PartnerCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/spark/$token': {
@@ -177,13 +257,27 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   CalendarRoute: CalendarRoute,
   PaywallRoute: PaywallRoute,
   SavedRoute: SavedRoute,
   SettingsRoute: SettingsRoute,
   SupportRoute: SupportRoute,
+  KeepsakeTokenRoute: KeepsakeTokenRoute,
+  LetterTokenRoute: LetterTokenRoute,
+  PartnerCodeRoute: PartnerCodeRoute,
   SparkTokenRoute: SparkTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
