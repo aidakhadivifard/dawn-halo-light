@@ -51,6 +51,9 @@ function TodayPage() {
   const [showOther, setShowOther] = useState(false);
   // The vow: undefined = loading, null = none yet (onboarding), Vow = active.
   const [vow, setVow] = useState<Vow | null | undefined>(undefined);
+  // The daily oracle reading is subordinate to the vow: folded behind a quiet
+  // link so the vow card keeps its scarcity as the page's one card.
+  const [showDaily, setShowDaily] = useState(false);
 
   const INTENTIONS = ["I need clarity", "I need calm", "I need courage"];
 
@@ -188,8 +191,20 @@ function TodayPage() {
         {vow === null && <VowOnboarding onCreated={(v) => setVow(v)} />}
         {vow && <VowPanel vow={vow} onEnded={() => setVow(null)} />}
 
+        {/* The daily reading, folded — one card owns this page: the vow card. */}
+        {vow && !showDaily && (
+          <div className="text-center mb-6">
+            <button
+              onClick={() => setShowDaily(true)}
+              className="text-[11px] uppercase tracking-[0.18em] text-dawn-ink/45 hover:text-dawn-ink/75 transition-colors border-b border-dawn-haze/20 pb-0.5"
+            >
+              Today's reading from the oracle
+            </button>
+          </div>
+        )}
+
         {/* STATE 1: Arrival / Intention — what brought you here today? */}
-        {vow !== null && ritual === "arrival" && (
+        {vow !== null && (vow === undefined || showDaily) && ritual === "arrival" && (
           <section className="flex flex-col items-center text-center py-10 animate-card-rise">
             <div className="relative w-40 h-40 mb-6">
               <div
@@ -266,7 +281,7 @@ function TodayPage() {
         )}
 
         {/* STATE 2: Ritual — take a slow breath */}
-        {vow !== null && ritual === "drawing" && (
+        {vow !== null && (vow === undefined || showDaily) && ritual === "drawing" && (
           <section className="flex flex-col items-center text-center py-16">
             <div className="relative w-56 h-56 mb-6">
               <div
@@ -287,7 +302,7 @@ function TodayPage() {
         )}
 
         {/* STATE 3: Reveal — card visible but message hidden */}
-        {vow !== null && ritual === "reveal" && activeCard && (
+        {vow !== null && (vow === undefined || showDaily) && ritual === "reveal" && activeCard && (
           <div className="animate-card-draw">
             <article className="relative group">
               <div
@@ -325,14 +340,14 @@ function TodayPage() {
         )}
 
         {/* STATE 4: Open — full card with message, actions, follow-up */}
-        {vow !== null && ritual === "open" && activeCard && (
+        {vow !== null && (vow === undefined || showDaily) && ritual === "open" && activeCard && (
           <div className="animate-card-rise">
             <OracleCardView key={activeCard.id} card={activeCard} onDrawAgain={drawAgain} />
           </div>
         )}
 
         {/* Ask the Oracle — visible only when a card has been fully read */}
-        {vow !== null && ritual === "open" && (
+        {vow !== null && (vow === undefined || showDaily) && ritual === "open" && (
           <section className="mt-12">
             <form onSubmit={submitInput} className="relative">
               <label className="block text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 mb-3 ml-1">Ask the oracle</label>
@@ -358,7 +373,7 @@ function TodayPage() {
         )}
 
         {/* Reminders — only when card is fully open */}
-        {vow !== null && ritual === "open" && (
+        {vow !== null && (vow === undefined || showDaily) && ritual === "open" && (
           <section className="mt-10 space-y-3">
             <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 ml-1">Reminders for today</p>
             {reminders.map((r, i) => (
@@ -370,7 +385,7 @@ function TodayPage() {
           </section>
         )}
 
-        {vow !== null && ritual === "open" && (
+        {vow !== null && (vow === undefined || showDaily) && ritual === "open" && (
           <div className="mt-16 pt-8 border-t border-dawn-haze/10 text-center">
             <p className="text-[10px] uppercase tracking-widest opacity-30">In need of immediate support?</p>
             <div className="mt-3 flex justify-center gap-6">

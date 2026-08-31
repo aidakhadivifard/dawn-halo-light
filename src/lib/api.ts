@@ -149,6 +149,20 @@ export const api = {
   }): Promise<{ journey?: ApiJourney; isCrisis?: boolean; message?: string; resources?: CrisisPayload["resources"] }> {
     return req(`/journey`, { method: "POST", body: JSON.stringify(input) });
   },
+  async commitStep(text: string): Promise<{
+    step?: { id: string; text: string; status: "committed" };
+    isCrisis?: boolean;
+    message?: string;
+    resources?: CrisisPayload["resources"];
+  }> {
+    return req(`/journey/step`, { method: "POST", body: JSON.stringify({ text }) });
+  },
+  async declineStep(): Promise<{ ok: boolean }> {
+    return req(`/journey/step/decline`, { method: "POST", body: JSON.stringify({}) });
+  },
+  async resolveStep(done: boolean): Promise<{ line: string }> {
+    return req(`/journey/step/resolve`, { method: "POST", body: JSON.stringify({ done }) });
+  },
   async darkNight(text: string): Promise<{
     context?: ApiDarkNightContext;
     isCrisis?: boolean;
@@ -198,6 +212,16 @@ export interface ApiJourney {
   letter: { initial: string | null; sealed: boolean } | null;
   card: ApiCard;
   darkNights: { id: string; text: string; localDate: string; createdAt: string }[];
+  /** Living state — present on the active-vow snapshot only. */
+  living?: ApiVowLiving;
+}
+
+export interface ApiVowLiving {
+  todayStep: { id: string; text: string; status: "committed" | "done" | "not_moved" } | null;
+  askStep: boolean;
+  actionPrompt: string;
+  memory: string | null;
+  returnLine: string | null;
 }
 
 export interface ApiLetter {

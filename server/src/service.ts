@@ -12,9 +12,13 @@ import { generateCardText, generateVowText, type MessagesClient } from "./lib/an
 import { findHalo } from "./lib/deck";
 import type { JourneyContext } from "./lib/prompt";
 import {
+  cardActionPrompt,
   darkNightContext,
   dayNumber,
   letterInitial,
+  memoryLine,
+  returnLine,
+  shouldAskStep,
   toKeepsake,
   type DarkNightContext,
   type Keepsake,
@@ -282,7 +286,102 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     getJourney(deviceId: string, localDate: string) {
       db.getOrCreateDevice(deviceId);
       const j = db.activeJourney(deviceId);
-      return j ? journeyToApi(j, localDate) : null;
+      if (!j) return null;
+
+      // Living state: today's step, the paced ask, the rare memory, and the
+      // quiet welcome back. Compute the return line BEFORE touching last-seen.
+      const welcome = returnLine(j.last_seen_local_date, j.started_local_date, localDate);
+      db.touchJourneySeen(j.id, localDate);
+
+      const todayStep = db.stepForDay(j.id, localDate);
+      const moves = db.listMoves(j.id);
+      const nights = db.listDarkNights(j.id);
+      return {
+        ...journeyToApi(j, localDate),
+        living: {
+          todayStep: todayStep
+            ? { id: todayStep.id, text: todayStep.text, status: todayStep.status as "committed" | "done" | "not_moved" }
+            : null,
+          askStep: !todayStep && shouldAskStep(db.recentAskOutcomes(j.id), localDate),
+          actionPrompt: cardActionPrompt(j.card_title),
+          memory: memoryLine({
+            journeyId: j.id,
+            todayLocalDate: localDate,
+            startedLocalDate: j.started_local_date,
+            moves,
+            nights,
+          }),
+          returnLine: welcome,
+        },
+      };
+    },
+
+    // ----- One Small Step ---------------------------------------------------
+
+    /** Commit one small step for today. */
+    commitStep(
+      deviceId: string,
+      localDate: string,
+      text: string,
+    ):
+      | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
+      | { kind: "no_journey" }
+      | { kind: "step"; step: { id: string; text: string; status: "committed" } } {
+      const trimmed = (text ?? "").trim().slice(0, 300);
+      if (!trimmed) return { kind: "no_journey" }; // treated as bad input upstream
+      if (detectCrisis(trimmed).isCrisis) {
+        return { kind: "crisis", message: CRISIS_RESOURCES.message, resources: CRISIS_RESOURCES.resources };
+      }
+      const j = db.activeJourney(deviceId);
+      if (!j) return { kind: "no_journey" };
+      const existing = db.stepForDay(j.id, localDate);
+      if (existing && existing.status === "committed") {
+        return { kind: "step", step: { id: existing.id, text: existing.text, status: "committed" } };
+      }
+      const row = {
+        id: newId("step"),
+        journey_id: j.id,
+        device_id: deviceId,
+        text: trimmed,
+        local_date: localDate,
+        status: "committed",
+        created_at: now().toISOString(),
+      };
+      db.insertVowStep(row);
+      return { kind: "step", step: { id: row.id, text: row.text, status: "committed" } };
+    },
+
+    /** NOT TODAY — recorded only to pace future asks. Never counted, never shown. */
+    declineStep(deviceId: string, localDate: string): { kind: "ok" } | { kind: "no_journey" } {
+      const j = db.activeJourney(deviceId);
+      if (!j) return { kind: "no_journey" };
+      db.insertVowStep({
+        id: newId("step"),
+        journey_id: j.id,
+        device_id: deviceId,
+        text: "",
+        local_date: localDate,
+        status: "declined",
+        created_at: now().toISOString(),
+      });
+      return { kind: "ok" };
+    },
+
+    /** Did it move? The witness line, either way, carries no judgment. */
+    resolveStep(
+      deviceId: string,
+      localDate: string,
+      done: boolean,
+    ): { kind: "no_step" } | { kind: "resolved"; line: string } {
+      const j = db.activeJourney(deviceId);
+      if (!j) return { kind: "no_step" };
+      const step = db.stepForDay(j.id, localDate);
+      if (!step || step.status !== "committed") return { kind: "no_step" };
+      db.resolveVowStep(step.id, done ? "done" : "not_moved");
+      return {
+        kind: "resolved",
+        line: done ? "It moved today." : "The vow is still here.",
+      };
     },
 
     listJourneys(deviceId: string, localDate: string) {
@@ -350,6 +449,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         letter_to: hasLetter ? letterTo : null,
         letter_text: hasLetter ? letterText : null,
         letter_token: null,
+        last_seen_local_date: localDate,
         fallback: gen.fallback ? 1 : 0,
         created_at: now().toISOString(),
       };

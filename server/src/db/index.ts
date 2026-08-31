@@ -38,8 +38,22 @@ export interface JourneyRow {
   letter_to: string | null;
   letter_text: string | null;
   letter_token: string | null;
+  /** Last local day the vow was looked at (for the quiet return line only). */
+  last_seen_local_date: string | null;
   fallback: number; // 0/1
   created_at: string;
+}
+
+export interface VowStepRow {
+  id: string;
+  journey_id: string;
+  device_id: string;
+  text: string;
+  local_date: string;
+  /** 'committed' | 'done' | 'not_moved' | 'declined' — only 'done' is ever counted. */
+  status: string;
+  created_at: string;
+  resolved_at: string | null;
 }
 
 export interface DarkNightRow {
@@ -175,6 +189,21 @@ CREATE TABLE IF NOT EXISTS dark_nights (
 );
 CREATE INDEX IF NOT EXISTS idx_dark_nights_journey ON dark_nights(journey_id, created_at);
 
+-- One Small Step. Status invariant (load-bearing): only 'done' rows are ever
+-- aggregated or shown back. 'not_moved' and 'declined' exist solely so the app
+-- can pace its own asking — they are never counted, never displayed.
+CREATE TABLE IF NOT EXISTS vow_steps (
+  id TEXT PRIMARY KEY,
+  journey_id TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  local_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'committed',
+  created_at TEXT NOT NULL,
+  resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_vow_steps_journey ON vow_steps(journey_id, local_date);
+
 CREATE TABLE IF NOT EXISTS partners (
   code TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -213,6 +242,8 @@ export function createDb(path = ":memory:") {
     "ALTER TABLE journeys ADD COLUMN letter_to TEXT",
     "ALTER TABLE journeys ADD COLUMN letter_text TEXT",
     "ALTER TABLE journeys ADD COLUMN letter_token TEXT",
+    // For the return-after-silence line; never displayed as an absence stat.
+    "ALTER TABLE journeys ADD COLUMN last_seen_local_date TEXT",
   ]) {
     try {
       sqlite.exec(sql);
@@ -318,6 +349,29 @@ export function createDb(path = ":memory:") {
     ),
     listDarkNights: sqlite.prepare<[string]>(
       "SELECT * FROM dark_nights WHERE journey_id = ? ORDER BY created_at ASC",
+    ),
+    touchJourneySeen: sqlite.prepare(
+      "UPDATE journeys SET last_seen_local_date = @date WHERE id = @id",
+    ),
+    insertVowStep: sqlite.prepare(
+      `INSERT INTO vow_steps (id, journey_id, device_id, text, local_date, status, created_at)
+       VALUES (@id, @journey_id, @device_id, @text, @local_date, @status, @created_at)`,
+    ),
+    resolveVowStep: sqlite.prepare(
+      "UPDATE vow_steps SET status = @status, resolved_at = @resolved_at WHERE id = @id AND status = 'committed'",
+    ),
+    stepForDay: sqlite.prepare<[string, string]>(
+      "SELECT * FROM vow_steps WHERE journey_id = ? AND local_date = ? AND status != 'declined' ORDER BY created_at DESC LIMIT 1",
+    ),
+    countMoves: sqlite.prepare<[string]>(
+      "SELECT COUNT(*) AS n FROM vow_steps WHERE journey_id = ? AND status = 'done'",
+    ),
+    listMoves: sqlite.prepare<[string]>(
+      "SELECT * FROM vow_steps WHERE journey_id = ? AND status = 'done' ORDER BY created_at ASC",
+    ),
+    recentAskOutcomes: sqlite.prepare<[string]>(
+      `SELECT status, local_date FROM vow_steps WHERE journey_id = ?
+       ORDER BY created_at DESC LIMIT 2`,
     ),
 
     // --- Partners (rev-share referrals) ---
@@ -506,6 +560,31 @@ export function createDb(path = ":memory:") {
     },
     listDarkNights(journeyId: string): DarkNightRow[] {
       return stmts.listDarkNights.all(journeyId) as DarkNightRow[];
+    },
+
+    // --- One Small Step ---
+    touchJourneySeen(id: string, date: string) {
+      stmts.touchJourneySeen.run({ id, date });
+    },
+    insertVowStep(row: Omit<VowStepRow, "resolved_at">) {
+      stmts.insertVowStep.run(row as any);
+    },
+    resolveVowStep(id: string, status: "done" | "not_moved"): boolean {
+      return stmts.resolveVowStep.run({ id, status, resolved_at: new Date().toISOString() }).changes > 0;
+    },
+    stepForDay(journeyId: string, localDate: string): VowStepRow | undefined {
+      return stmts.stepForDay.get(journeyId, localDate) as VowStepRow | undefined;
+    },
+    /** The only aggregate that exists: times the person chose to move. */
+    countMoves(journeyId: string): number {
+      return (stmts.countMoves.get(journeyId) as { n: number }).n;
+    },
+    listMoves(journeyId: string): VowStepRow[] {
+      return stmts.listMoves.all(journeyId) as VowStepRow[];
+    },
+    /** Last two ask outcomes, newest first — for pacing the prompt only. */
+    recentAskOutcomes(journeyId: string): { status: string; local_date: string }[] {
+      return stmts.recentAskOutcomes.all(journeyId) as { status: string; local_date: string }[];
     },
 
     // --- Partners ---

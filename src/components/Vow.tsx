@@ -8,6 +8,9 @@ import {
   createVow,
   logDarkNight,
   closeVow,
+  commitStep,
+  declineStep,
+  resolveStep,
   type Vow,
   type DarkNightContext,
   type CloseResult,
@@ -255,11 +258,63 @@ export function VowPanel({ vow, onEnded }: { vow: Vow; onEnded: () => void }) {
   const [mode, setMode] = useState<PanelMode>("idle");
   const [nightText, setNightText] = useState("");
   const [nightCtx, setNightCtx] = useState<DarkNightContext | null>(null);
+  const [nightChoice, setNightChoice] = useState<"none" | "step" | "stayed" | "stepped">("none");
   const [outcome, setOutcome] = useState<"fulfilled" | "released">("fulfilled");
   const [note, setNote] = useState("");
   const [closeResult, setCloseResult] = useState<CloseResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // One Small Step — local phase over the snapshot's living state.
+  const [stepText, setStepText] = useState("");
+  const [stepPhase, setStepPhase] = useState<"snapshot" | "declined" | "committed" | "witness">(
+    "snapshot",
+  );
+  const [stepLine, setStepLine] = useState<string | null>(null);
+  const [committedText, setCommittedText] = useState<string | null>(null);
+
+  const living = vow.living;
+  const showAsk = stepPhase === "snapshot" && !living.todayStep && living.askStep;
+  // "Did it move?" appears on RETURN, not right after committing — the doc's
+  // distinction between inviting a step and auditing it.
+  const showResolve = stepPhase === "snapshot" && living.todayStep?.status === "committed";
+  const resolveText = living.todayStep?.text ?? committedText ?? "";
+
+  const doCommit = async (text: string) => {
+    if (busy || !text.trim()) return;
+    setBusy(true);
+    try {
+      const out = await commitStep(text.trim());
+      if (out?.kind === "crisis") {
+        navigate({ to: "/support" });
+        return;
+      }
+      if (out?.kind === "step") {
+        setCommittedText(out.step.text);
+        setStepPhase("committed");
+        setStepText("");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doDecline = async () => {
+    setStepPhase("declined"); // no message, no warning — just quiet
+    void declineStep();
+  };
+
+  const doResolve = async (done: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const line = await resolveStep(done);
+      setStepLine(line);
+      setStepPhase("witness");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // After logging a night the vow prop is stale; the context carries the truth.
   const nights = nightCtx ? nightCtx.nightNumber : vow.darkNights.length;
@@ -411,7 +466,7 @@ export function VowPanel({ vow, onEnded }: { vow: Vow; onEnded: () => void }) {
                 {String(vow.dayNumber).padStart(2, "0")}
               </span>
               <span className="text-[8px] uppercase tracking-widest opacity-40">
-                day{vow.dayNumber === 1 ? "" : "s"} held
+                day{vow.dayNumber === 1 ? "" : "s"} with this vow
               </span>
             </div>
           </div>
@@ -420,6 +475,91 @@ export function VowPanel({ vow, onEnded }: { vow: Vow; onEnded: () => void }) {
             <p className="px-5 -mt-2 pb-1 text-[10px] uppercase tracking-[0.18em] text-dawn-rose/70">
               ✉ A letter to {vow.letter.initial}. — sealed
             </p>
+          )}
+
+          {/* The quiet welcome back — never a count of absent days. */}
+          {mode === "idle" && living.returnLine && (
+            <p className="px-5 pb-2 font-serif italic text-[14px] text-dawn-ink/70">
+              {living.returnLine}
+            </p>
+          )}
+
+          {/* Memory — rare, narrative evidence. The only place moves are spoken of. */}
+          {mode === "idle" && living.memory && (
+            <div className="mx-5 mb-3 p-4 bg-dawn-sky/60 border border-dawn-haze/15 rounded-xl">
+              <p className="text-[9px] uppercase tracking-[0.2em] font-medium text-dawn-rose/70 mb-1.5">
+                Memory
+              </p>
+              <p className="font-serif italic text-[14px] leading-relaxed text-dawn-ink/85">
+                {living.memory}
+              </p>
+            </div>
+          )}
+
+          {/* One Small Step — an invitation, never an assignment. */}
+          {mode === "idle" && showAsk && (
+            <div className="px-5 pb-4">
+              <p className="text-[13px] font-serif italic text-dawn-ink/75 leading-relaxed mb-3">
+                {living.actionPrompt}
+              </p>
+              <input
+                value={stepText}
+                onChange={(e) => setStepText(e.target.value)}
+                maxLength={300}
+                placeholder="One call. Ten minutes. One page. Just showing up."
+                className="w-full bg-dawn-sky/60 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30"
+              />
+              <div className="mt-3 flex items-center gap-4">
+                <button
+                  onClick={() => doCommit(stepText)}
+                  disabled={busy || !stepText.trim()}
+                  className="px-6 py-2.5 bg-dawn-rose text-dawn-sky text-[10px] uppercase tracking-[0.18em] font-bold rounded-full hover:bg-dawn-haze transition-colors disabled:opacity-40"
+                >
+                  I'll do this
+                </button>
+                <button
+                  onClick={doDecline}
+                  className="text-[10px] uppercase tracking-[0.18em] text-dawn-ink/40 hover:text-dawn-ink/70 transition-colors"
+                >
+                  Not today
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === "idle" && showResolve && (
+            <div className="px-5 pb-4">
+              <p className="text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-1.5">
+                Did it move?
+              </p>
+              <p className="font-serif italic text-[14px] text-dawn-ink/80 mb-3">“{resolveText}”</p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => doResolve(true)}
+                  disabled={busy}
+                  className="px-6 py-2.5 bg-dawn-rose text-dawn-sky text-[10px] uppercase tracking-[0.18em] font-bold rounded-full hover:bg-dawn-haze transition-colors disabled:opacity-40"
+                >
+                  Yes — I did it
+                </button>
+                <button
+                  onClick={() => doResolve(false)}
+                  disabled={busy}
+                  className="text-[10px] uppercase tracking-[0.18em] text-dawn-ink/45 hover:text-dawn-ink/75 transition-colors disabled:opacity-50"
+                >
+                  Not this time
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === "idle" && stepPhase === "committed" && committedText && (
+            <p className="px-5 pb-4 font-serif italic text-[14px] text-dawn-ink/75">
+              “{committedText}” — held for today.
+            </p>
+          )}
+
+          {mode === "idle" && stepPhase === "witness" && stepLine && (
+            <p className="px-5 pb-4 font-serif italic text-[15px] text-dawn-ink/85">{stepLine}</p>
           )}
 
           {mode === "reading" && (
@@ -484,6 +624,68 @@ export function VowPanel({ vow, onEnded }: { vow: Vow; onEnded: () => void }) {
                 <p className="font-serif italic text-[15px] leading-relaxed text-dawn-ink/85">
                   {nightCtx.line}
                 </p>
+
+                {/* Some nights, will means moving; some nights it means only
+                    not letting go. The user decides which night this is. */}
+                {nightChoice === "none" && (
+                  <div className="mt-4">
+                    <p className="text-[13px] text-dawn-ink/60 mb-3">
+                      Do you need to stay still tonight, or move one small thing?
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setNightChoice("stayed")}
+                        className="text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 rounded-full border border-dawn-haze/20 text-dawn-ink/80 hover:bg-dawn-haze/10 transition-colors"
+                      >
+                        Just stay with me
+                      </button>
+                      <button
+                        onClick={() => setNightChoice("step")}
+                        className="text-[10px] uppercase tracking-[0.18em] font-medium px-5 py-2.5 rounded-full border border-dawn-rose/30 text-dawn-rose hover:bg-dawn-rose/10 transition-colors"
+                      >
+                        One small step
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {nightChoice === "stayed" && (
+                  <p className="mt-4 font-serif italic text-[14px] text-dawn-ink/75">
+                    Then stay. Nothing has to be solved tonight.
+                  </p>
+                )}
+
+                {nightChoice === "step" && (
+                  <div className="mt-4">
+                    <p className="text-[10px] uppercase tracking-[0.18em] font-medium opacity-50 mb-2">
+                      What's the smallest thing that would still count?
+                    </p>
+                    <input
+                      autoFocus
+                      value={stepText}
+                      onChange={(e) => setStepText(e.target.value)}
+                      maxLength={300}
+                      placeholder="Put on my shoes. Open the document. Send one message."
+                      className="w-full bg-dawn-sky/60 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:ring-1 ring-dawn-rose/30"
+                    />
+                    <button
+                      onClick={async () => {
+                        await doCommit(stepText);
+                        setNightChoice("stepped");
+                      }}
+                      disabled={busy || !stepText.trim()}
+                      className="mt-3 px-6 py-2.5 bg-dawn-rose text-dawn-sky text-[10px] uppercase tracking-[0.18em] font-bold rounded-full hover:bg-dawn-haze transition-colors disabled:opacity-40"
+                    >
+                      That's enough for tonight
+                    </button>
+                  </div>
+                )}
+
+                {nightChoice === "stepped" && committedText && (
+                  <p className="mt-4 font-serif italic text-[14px] text-dawn-ink/75">
+                    “{committedText}” — held for tonight. That's enough.
+                  </p>
+                )}
               </div>
             </div>
           )}

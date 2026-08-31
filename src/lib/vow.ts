@@ -37,6 +37,14 @@ export interface Vow {
   letter: { initial: string | null; sealed: boolean } | null;
   card: Card;
   darkNights: VowDarkNight[];
+  /** Living state: today's step, the paced ask, memory, and the return line. */
+  living: {
+    todayStep: { id: string; text: string; status: "committed" | "done" | "not_moved" } | null;
+    askStep: boolean;
+    actionPrompt: string;
+    memory: string | null;
+    returnLine: string | null;
+  };
   /** True when this vow lives only in localStorage (backend unreachable). */
   offline?: boolean;
 }
@@ -73,6 +81,13 @@ function apiToVow(j: ApiJourney): Vow {
     dayNumber: j.dayNumber,
     keepsakeToken: j.keepsakeToken,
     letter: j.letter ?? null,
+    living: j.living ?? {
+      todayStep: null,
+      askStep: true,
+      actionPrompt: "Is there one thing you can move today?",
+      memory: null,
+      returnLine: null,
+    },
     card: {
       id: j.card.id,
       opener: j.card.opener,
@@ -108,6 +123,12 @@ interface StoredVow {
   darkNights: VowDarkNight[];
   letterTo?: string;
   letterText?: string;
+  todayStep?: {
+    id: string;
+    text: string;
+    status: "committed" | "done" | "not_moved";
+    localDate: string;
+  };
 }
 
 const OFFLINE_VOW_CARDS: { title: string; theme: CardTheme }[] = [
@@ -168,6 +189,16 @@ function storedToVow(s: StoredVow): Vow {
       s.letterTo && s.letterText
         ? { initial: s.letterTo.trim()[0]?.toUpperCase() ?? null, sealed: true }
         : null,
+    living: {
+      todayStep:
+        s.todayStep && s.todayStep.localDate === localDay()
+          ? { id: s.todayStep.id, text: s.todayStep.text, status: s.todayStep.status }
+          : null,
+      askStep: !(s.todayStep && s.todayStep.localDate === localDay()),
+      actionPrompt: "Is there one thing you can move today?",
+      memory: null,
+      returnLine: null,
+    },
     card: {
       id: s.id,
       opener: s.opener,
@@ -287,6 +318,61 @@ export async function createVow(
         return { kind: "crisis", message: CRISIS_MESSAGE, resources: CRISIS_RESOURCES };
     }
     return { kind: "vow", vow: offlineCreate(enduring, hope, letterTo, letterText) };
+  }
+}
+
+// ---- One Small Step -------------------------------------------------------
+
+export type StepOutcome =
+  | { kind: "step"; step: { id: string; text: string; status: "committed" } }
+  | { kind: "crisis"; message: string; resources: { region: string; label: string; detail: string }[] }
+  | null;
+
+/** I'LL DO THIS — commit one small step for today. */
+export async function commitStep(text: string): Promise<StepOutcome> {
+  try {
+    const res = await api.commitStep(text);
+    if (res.isCrisis)
+      return { kind: "crisis", message: res.message ?? CRISIS_MESSAGE, resources: res.resources ?? CRISIS_RESOURCES };
+    if (res.step) return { kind: "step", step: res.step };
+    return null;
+  } catch {
+    if (classifyInput(text) === "crisis")
+      return { kind: "crisis", message: CRISIS_MESSAGE, resources: CRISIS_RESOURCES };
+    const s = loadStored();
+    if (!s || s.status !== "active") return null;
+    s.todayStep = {
+      id: `step_local_${Date.now().toString(36)}`,
+      text: text.trim(),
+      status: "committed",
+      localDate: localDay(),
+    };
+    saveStored(s);
+    return { kind: "step", step: { id: s.todayStep.id, text: s.todayStep.text, status: "committed" } };
+  }
+}
+
+/** NOT TODAY — silently recorded for pacing only. */
+export async function declineStep(): Promise<void> {
+  try {
+    await api.declineStep();
+  } catch {
+    /* offline: nothing to record */
+  }
+}
+
+/** Did it move? Either answer gets a judgment-free witness line. */
+export async function resolveStep(done: boolean): Promise<string | null> {
+  try {
+    const { line } = await api.resolveStep(done);
+    return line;
+  } catch {
+    const s = loadStored();
+    if (s?.todayStep && s.todayStep.status === "committed") {
+      s.todayStep.status = done ? "done" : "not_moved";
+      saveStored(s);
+    }
+    return done ? "It moved today." : "The vow is still here.";
   }
 }
 

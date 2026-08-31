@@ -234,7 +234,33 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     if (result.kind === "invalid") return res.status(400).json({ error: "missing_enduring_or_hope" });
     if (result.kind === "exists")
       return res.status(409).json({ error: "vow_already_active", journey: result.journey });
-    res.json({ journey: result.journey });
+    // Re-read through the snapshot path so the response carries living state
+    // (card-flavored action prompt etc.) from the very first render.
+    res.json({ journey: svc.getJourney(req.deviceId!, req.localDate!) ?? result.journey });
+  });
+
+  // One Small Step — commit / decline / resolve.
+  app.post("/api/journey/step", requireDevice, resolveLocalDate, (req, res) => {
+    const text = (req.body?.text ?? "").toString();
+    if (!text.trim()) return res.status(400).json({ error: "missing_text" });
+    const result = svc.commitStep(req.deviceId!, req.localDate!, text);
+    if (result.kind === "crisis")
+      return res.json({ isCrisis: true, message: result.message, resources: result.resources });
+    if (result.kind === "no_journey") return res.status(404).json({ error: "no_active_vow" });
+    res.json({ step: result.step });
+  });
+
+  app.post("/api/journey/step/decline", requireDevice, resolveLocalDate, (req, res) => {
+    const result = svc.declineStep(req.deviceId!, req.localDate!);
+    if (result.kind === "no_journey") return res.status(404).json({ error: "no_active_vow" });
+    res.json({ ok: true });
+  });
+
+  app.post("/api/journey/step/resolve", requireDevice, resolveLocalDate, (req, res) => {
+    const done = req.body?.done === true;
+    const result = svc.resolveStep(req.deviceId!, req.localDate!, done);
+    if (result.kind === "no_step") return res.status(404).json({ error: "no_committed_step" });
+    res.json({ line: result.line });
   });
 
   app.post("/api/journey/dark-night", requireDevice, resolveLocalDate, (req, res) => {
