@@ -288,10 +288,11 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     });
   });
 
-  // Public keepsake read (like the spark read).
+  // Public keepsake read (like the spark read). Counts the open — the share metric.
   app.get("/api/keepsake/:token", resolveLocalDate, (req, res) => {
     const keepsake = svc.getKeepsake(req.params.token, req.localDate!);
     if (!keepsake) return res.status(404).json({ error: "keepsake_not_found" });
+    db.bumpKeepsakeViews(req.params.token);
     res.json({ keepsake });
   });
 
@@ -299,7 +300,16 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   app.get("/api/letter/:token", resolveLocalDate, (req, res) => {
     const letter = svc.getLetter(req.params.token, req.localDate!);
     if (!letter) return res.status(404).json({ error: "letter_not_found" });
+    db.bumpLetterViews(req.params.token);
     res.json({ letter });
+  });
+
+  // The three numbers that decide everything — admin only.
+  app.get("/api/admin/metrics", resolveLocalDate, (req, res) => {
+    if (!cfg.adminKey) return res.status(503).json({ error: "admin_disabled" });
+    const key = req.header("x-admin-key") ?? (req.query.key ?? "").toString();
+    if (key !== cfg.adminKey) return res.status(401).json({ error: "unauthorized" });
+    res.json({ metrics: db.adminMetrics(req.localDate!) });
   });
 
   // --- Partners (rev-share referrals) ---

@@ -40,6 +40,8 @@ export interface JourneyRow {
   letter_token: string | null;
   /** Last local day the vow was looked at (for the quiet return line only). */
   last_seen_local_date: string | null;
+  keepsake_views: number;
+  letter_views: number;
   fallback: number; // 0/1
   created_at: string;
 }
@@ -244,6 +246,10 @@ export function createDb(path = ":memory:") {
     "ALTER TABLE journeys ADD COLUMN letter_token TEXT",
     // For the return-after-silence line; never displayed as an absence stat.
     "ALTER TABLE journeys ADD COLUMN last_seen_local_date TEXT",
+    // Public-page view counters — the cheapest honest signal that a keepsake
+    // or letter was actually opened by someone (the share metric).
+    "ALTER TABLE journeys ADD COLUMN keepsake_views INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE journeys ADD COLUMN letter_views INTEGER NOT NULL DEFAULT 0",
   ]) {
     try {
       sqlite.exec(sql);
@@ -342,6 +348,12 @@ export function createDb(path = ":memory:") {
     ),
     getJourneyByLetter: sqlite.prepare<[string]>(
       "SELECT * FROM journeys WHERE letter_token = ?",
+    ),
+    bumpKeepsakeViews: sqlite.prepare<[string]>(
+      "UPDATE journeys SET keepsake_views = keepsake_views + 1 WHERE keepsake_token = ?",
+    ),
+    bumpLetterViews: sqlite.prepare<[string]>(
+      "UPDATE journeys SET letter_views = letter_views + 1 WHERE letter_token = ?",
     ),
     insertDarkNight: sqlite.prepare(
       `INSERT INTO dark_nights (id, journey_id, device_id, text, local_date, created_at)
@@ -554,6 +566,80 @@ export function createDb(path = ":memory:") {
     },
     getJourneyByLetter(token: string): JourneyRow | undefined {
       return stmts.getJourneyByLetter.get(token) as JourneyRow | undefined;
+    },
+    bumpKeepsakeViews(token: string) {
+      stmts.bumpKeepsakeViews.run(token);
+    },
+    bumpLetterViews(token: string) {
+      stmts.bumpLetterViews.run(token);
+    },
+
+    /**
+     * The three numbers that decide everything (plus supporting counts).
+     * Computed with SQLite date math over local-date strings.
+     */
+    adminMetrics(todayLocalDate: string) {
+      const one = (sql: string, ...params: unknown[]) =>
+        (sqlite.prepare(sql).get(...(params as [])) as { n: number }).n;
+
+      const installs = one("SELECT COUNT(*) AS n FROM devices");
+      const vowsTotal = one("SELECT COUNT(*) AS n FROM journeys");
+      const vowsActive = one("SELECT COUNT(*) AS n FROM journeys WHERE status = 'active'");
+      const vowsFulfilled = one("SELECT COUNT(*) AS n FROM journeys WHERE status = 'fulfilled'");
+      const vowsReleased = one("SELECT COUNT(*) AS n FROM journeys WHERE status = 'released'");
+      const vowsLast7d = one(
+        "SELECT COUNT(*) AS n FROM journeys WHERE date(started_local_date) >= date(?, '-7 days')",
+        todayLocalDate,
+      );
+
+      // D30 return: of vows old enough to be judged (started ≥30 days ago),
+      // how many were still being visited on/after day 30?
+      const d30Eligible = one(
+        "SELECT COUNT(*) AS n FROM journeys WHERE date(started_local_date) <= date(?, '-30 days')",
+        todayLocalDate,
+      );
+      const d30Returned = one(
+        `SELECT COUNT(*) AS n FROM journeys
+         WHERE date(started_local_date) <= date(?, '-30 days')
+           AND date(coalesce(last_seen_local_date, closed_local_date, started_local_date))
+               >= date(started_local_date, '+30 days')`,
+        todayLocalDate,
+      );
+
+      // Share: closed vows whose public keepsake/letter was actually opened.
+      const closed = vowsFulfilled + vowsReleased;
+      const keepsakesViewed = one(
+        "SELECT COUNT(*) AS n FROM journeys WHERE status != 'active' AND keepsake_views > 0",
+      );
+      const lettersViewed = one("SELECT COUNT(*) AS n FROM journeys WHERE letter_views > 0");
+
+      const darkNights = one("SELECT COUNT(*) AS n FROM dark_nights");
+      const movesDone = one("SELECT COUNT(*) AS n FROM vow_steps WHERE status = 'done'");
+      const subscribed = one("SELECT COUNT(*) AS n FROM devices WHERE subscribed = 1");
+
+      return {
+        installs,
+        vows: {
+          total: vowsTotal,
+          active: vowsActive,
+          fulfilled: vowsFulfilled,
+          released: vowsReleased,
+          last7d: vowsLast7d,
+          creationRate: installs ? vowsTotal / installs : 0,
+        },
+        d30: {
+          eligible: d30Eligible,
+          returned: d30Returned,
+          rate: d30Eligible ? d30Returned / d30Eligible : 0,
+        },
+        share: {
+          closedVows: closed,
+          keepsakesViewed,
+          lettersViewed,
+          rate: closed ? keepsakesViewed / closed : 0,
+        },
+        support: { darkNights, movesDone, subscribed },
+      };
     },
     insertDarkNight(row: DarkNightRow) {
       stmts.insertDarkNight.run(row as any);

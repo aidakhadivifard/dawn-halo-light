@@ -450,6 +450,8 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         letter_text: hasLetter ? letterText : null,
         letter_token: null,
         last_seen_local_date: localDate,
+        keepsake_views: 0,
+        letter_views: 0,
         fallback: gen.fallback ? 1 : 0,
         created_at: now().toISOString(),
       };
