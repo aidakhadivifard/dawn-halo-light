@@ -240,7 +240,7 @@ export function fallbackVow(args: { enduring: string; hope: string }): GenResult
 
 /** Generate the one-time vow reading. Falls back deterministically. */
 export async function generateVowText(
-  args: { enduring: string; hope: string },
+  args: { enduring: string; hope: string; horizon?: string | null },
   opts: { client?: MessagesClient | null; timeoutMs?: number } = {},
 ): Promise<GenResult> {
   const client = opts.client !== undefined ? opts.client : getClient();

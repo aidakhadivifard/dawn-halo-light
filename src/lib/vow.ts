@@ -7,6 +7,7 @@
 
 import {
   api,
+  RoadsFullError,
   type ApiJourney,
   type ApiDarkNightContext,
   type ApiKeepsake,
@@ -26,6 +27,8 @@ export interface VowDarkNight {
 
 export interface Vow {
   id: string;
+  /** A short name for this road ("Body", "Pink Wallet"), or null. */
+  label: string | null;
   enduring: string;
   hope: string;
   status: "active" | "fulfilled" | "released";
@@ -53,6 +56,21 @@ export interface DarkNightContext extends ApiDarkNightContext {}
 
 export type VowOutcome =
   | { kind: "vow"; vow: Vow }
+  | { kind: "full"; roads: Vow[]; maxRoads: number }
+  | { kind: "crisis"; message: string; resources: { region: string; label: string; detail: string }[] };
+
+/** One horizon, at most this many roads — mirrors the server invariant. */
+export const MAX_ROADS = 2;
+
+/** The home screen: the horizon (never measured) and the open roads. */
+export interface Home {
+  horizon: string | null;
+  roads: Vow[];
+  maxRoads: number;
+}
+
+export type HorizonOutcome =
+  | { kind: "horizon"; horizon: string }
   | { kind: "crisis"; message: string; resources: { region: string; label: string; detail: string }[] };
 
 export type NightOutcome =
@@ -60,6 +78,7 @@ export type NightOutcome =
   | { kind: "crisis"; message: string; resources: { region: string; label: string; detail: string }[] };
 
 const LS_KEY = "dawnhalo:vow";
+const LS_HORIZON_KEY = "dawnhalo:horizon";
 
 const CRISIS_RESOURCES = [
   { region: "US", label: "Call or text 988", detail: "Suicide & Crisis Lifeline · 24/7" },
@@ -73,6 +92,7 @@ const CRISIS_MESSAGE =
 function apiToVow(j: ApiJourney): Vow {
   return {
     id: j.id,
+    label: j.label ?? null,
     enduring: j.enduring,
     hope: j.hope,
     status: j.status,
@@ -109,6 +129,7 @@ function apiToVow(j: ApiJourney): Vow {
 
 interface StoredVow {
   id: string;
+  label?: string;
   enduring: string;
   hope: string;
   status: "active" | "fulfilled" | "released";
@@ -175,9 +196,28 @@ function dayNumberOf(started: string, today: string): number {
   return Math.max(1, Math.round((parseLocal(today) - parseLocal(started)) / 86_400_000) + 1);
 }
 
+function loadHorizon(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(LS_HORIZON_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveHorizon(text: string | null) {
+  try {
+    if (text) localStorage.setItem(LS_HORIZON_KEY, text);
+    else localStorage.removeItem(LS_HORIZON_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 function storedToVow(s: StoredVow): Vow {
   return {
     id: s.id,
+    label: s.label ?? null,
     enduring: s.enduring,
     hope: s.hope,
     status: s.status,
@@ -216,12 +256,19 @@ function storedToVow(s: StoredVow): Vow {
   };
 }
 
-function offlineCreate(enduring: string, hope: string, letterTo?: string, letterText?: string): Vow {
+function offlineCreate(
+  enduring: string,
+  hope: string,
+  label?: string,
+  letterTo?: string,
+  letterText?: string,
+): Vow {
   const pick = OFFLINE_VOW_CARDS[hashStr(`${enduring}::${hope}`) % OFFLINE_VOW_CARDS.length];
   const pool = cardsByTheme(pick.theme);
   const illustrationId = pool.length ? pool[hashStr(enduring) % pool.length].id : "";
   const stored: StoredVow = {
     id: `vow_local_${Date.now().toString(36)}`,
+    label: label?.trim() || undefined,
     enduring,
     hope,
     status: "active",
@@ -283,10 +330,55 @@ function offlineNight(text: string): NightOutcome | null {
 
 // ---- public seam ----------------------------------------------------------
 
-/** The active vow, or null. Backend first; offline localStorage vow second. */
-export async function getVow(): Promise<Vow | null> {
+/**
+ * The home screen in one call. Backend first; offline second (the offline
+ * model holds one road and a horizon in localStorage — enough for the ritual
+ * to work on a plane).
+ */
+export async function getHome(): Promise<Home> {
   try {
-    const { journey } = await api.getJourney();
+    const home = await api.home();
+    // Cache the horizon so an offline morning still shows it.
+    saveHorizon(home.horizon);
+    const roads = home.roads.map(apiToVow);
+    if (roads.length === 0) {
+      // Backend reachable but empty: a legacy offline vow is still shown so a
+      // person's vow never silently disappears.
+      const stored = loadStored();
+      if (stored && stored.status === "active") roads.push(storedToVow(stored));
+    }
+    return { horizon: home.horizon, roads, maxRoads: home.maxRoads ?? MAX_ROADS };
+  } catch {
+    const stored = loadStored();
+    return {
+      horizon: loadHorizon(),
+      roads: stored && stored.status === "active" ? [storedToVow(stored)] : [],
+      maxRoads: MAX_ROADS,
+    };
+  }
+}
+
+/** Name or rename the horizon. It is never counted, so there is nothing else to it. */
+export async function setHorizon(text: string): Promise<HorizonOutcome> {
+  const trimmed = text.trim();
+  try {
+    const res = await api.setHorizon(trimmed);
+    if (res.isCrisis)
+      return { kind: "crisis", message: res.message ?? CRISIS_MESSAGE, resources: res.resources ?? CRISIS_RESOURCES };
+    saveHorizon(res.horizon ?? trimmed);
+    return { kind: "horizon", horizon: res.horizon ?? trimmed };
+  } catch {
+    if (classifyInput(trimmed) === "crisis")
+      return { kind: "crisis", message: CRISIS_MESSAGE, resources: CRISIS_RESOURCES };
+    saveHorizon(trimmed);
+    return { kind: "horizon", horizon: trimmed };
+  }
+}
+
+/** The active vow, or null. Backend first; offline localStorage vow second. */
+export async function getVow(vowId?: string): Promise<Vow | null> {
+  try {
+    const { journey } = await api.getJourney(vowId);
     if (journey) return apiToVow(journey);
     // Backend reachable and has no vow: an offline vow (if any) is legacy —
     // keep showing it so a person's vow never silently disappears.
@@ -298,26 +390,32 @@ export async function getVow(): Promise<Vow | null> {
   }
 }
 
-/** Make the vow — optionally with a sealed letter. Crisis-safe offline too. */
+/** Make a vow — open a road — optionally with a sealed letter. Crisis-safe offline too. */
 export async function createVow(
   enduring: string,
   hope: string,
-  letterTo?: string,
-  letterText?: string,
+  opts: { label?: string; letterTo?: string; letterText?: string } = {},
 ): Promise<VowOutcome> {
+  const { label, letterTo, letterText } = opts;
   try {
-    const res = await api.createJourney({ enduring, hope, letterTo, letterText });
+    const res = await api.createJourney({ enduring, hope, label, letterTo, letterText });
     if (res.isCrisis)
       return { kind: "crisis", message: res.message ?? CRISIS_MESSAGE, resources: res.resources ?? CRISIS_RESOURCES };
     if (res.journey) return { kind: "vow", vow: apiToVow(res.journey) };
     throw new Error("bad_response");
-  } catch {
+  } catch (e) {
+    if (e instanceof RoadsFullError) {
+      return { kind: "full", roads: e.roads.map(apiToVow), maxRoads: e.maxRoads };
+    }
     // Offline: still enforce crisis safety deterministically.
-    for (const t of [enduring, hope, letterText ?? ""]) {
+    for (const t of [enduring, hope, label ?? "", letterText ?? ""]) {
       if (t && classifyInput(t) === "crisis")
         return { kind: "crisis", message: CRISIS_MESSAGE, resources: CRISIS_RESOURCES };
     }
-    return { kind: "vow", vow: offlineCreate(enduring, hope, letterTo, letterText) };
+    // The offline model holds one road.
+    const stored = loadStored();
+    if (stored && stored.status === "active") return { kind: "full", roads: [storedToVow(stored)], maxRoads: 1 };
+    return { kind: "vow", vow: offlineCreate(enduring, hope, label, letterTo, letterText) };
   }
 }
 
@@ -329,9 +427,9 @@ export type StepOutcome =
   | null;
 
 /** I'LL DO THIS — commit one small step for today. */
-export async function commitStep(text: string): Promise<StepOutcome> {
+export async function commitStep(text: string, vowId?: string): Promise<StepOutcome> {
   try {
-    const res = await api.commitStep(text);
+    const res = await api.commitStep(text, vowId);
     if (res.isCrisis)
       return { kind: "crisis", message: res.message ?? CRISIS_MESSAGE, resources: res.resources ?? CRISIS_RESOURCES };
     if (res.step) return { kind: "step", step: res.step };
@@ -353,18 +451,18 @@ export async function commitStep(text: string): Promise<StepOutcome> {
 }
 
 /** NOT TODAY — silently recorded for pacing only. */
-export async function declineStep(): Promise<void> {
+export async function declineStep(vowId?: string): Promise<void> {
   try {
-    await api.declineStep();
+    await api.declineStep(vowId);
   } catch {
     /* offline: nothing to record */
   }
 }
 
 /** Did it move? Either answer gets a judgment-free witness line. */
-export async function resolveStep(done: boolean): Promise<string | null> {
+export async function resolveStep(done: boolean, vowId?: string): Promise<string | null> {
   try {
-    const { line } = await api.resolveStep(done);
+    const { line } = await api.resolveStep(done, vowId);
     return line;
   } catch {
     const s = loadStored();
@@ -377,9 +475,9 @@ export async function resolveStep(done: boolean): Promise<string | null> {
 }
 
 /** Log a dark night; the answer is the person's own history. */
-export async function logDarkNight(text: string): Promise<NightOutcome | null> {
+export async function logDarkNight(text: string, vowId?: string): Promise<NightOutcome | null> {
   try {
-    const res = await api.darkNight(text);
+    const res = await api.darkNight(text, vowId);
     if (res.isCrisis)
       return { kind: "crisis", message: res.message ?? CRISIS_MESSAGE, resources: res.resources ?? CRISIS_RESOURCES };
     if (res.context) return { kind: "night", context: res.context };
@@ -405,9 +503,10 @@ export interface CloseResult {
 export async function closeVow(
   outcome: "fulfilled" | "released",
   note: string,
+  vowId?: string,
 ): Promise<CloseResult | null> {
   try {
-    const res = await api.closeJourney({ outcome, note });
+    const res = await api.closeJourney({ outcome, note, journeyId: vowId });
     saveStored(null); // any legacy offline vow is superseded
     return { keepsake: res.keepsake, url: res.url, letter: res.letter, letterBurned: res.letterBurned };
   } catch {

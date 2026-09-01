@@ -35,6 +35,12 @@ export type DrawResult =
   | { kind: "paywall"; reason: string }
   | { kind: "card"; card: Card };
 
+/**
+ * One horizon, at most two roads. A third road is not more devotion — it is
+ * the horizon pretending to be a goal. The cap is a product invariant.
+ */
+export const MAX_ROADS = 2;
+
 let counter = 0;
 function newId(prefix: string): string {
   counter = (counter + 1) % 1e6;
@@ -75,13 +81,25 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       hope: j.hope,
       cardTitle: j.card_title,
       dayNumber: dayNumber(j.started_local_date, localDate),
+      horizon: db.getHorizon(deviceId)?.text ?? null,
     };
+  }
+
+  /**
+   * Resolve which road (active vow) an action is about. With one road the id
+   * is optional; with two it must be given and must belong to this device.
+   */
+  function resolveJourney(deviceId: string, journeyId?: string | null): JourneyRow | undefined {
+    const active = db.activeJourneys(deviceId);
+    if (journeyId) return active.find((j) => j.id === journeyId);
+    return active[0];
   }
 
   function journeyToApi(j: JourneyRow, localDate: string) {
     const nights = db.listDarkNights(j.id);
     return {
       id: j.id,
+      label: j.label ?? null,
       enduring: j.enduring,
       hope: j.hope,
       status: j.status as "active" | "fulfilled" | "released",
@@ -109,6 +127,38 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         localDate: n.local_date,
         createdAt: n.created_at,
       })),
+    };
+  }
+
+  /**
+   * A road with its living state: today's step, the paced ask, the rare
+   * memory, and the quiet welcome back. Computes the return line BEFORE
+   * touching last-seen, so absence is noticed once and never counted.
+   */
+  function livingJourney(j: JourneyRow, localDate: string) {
+    const welcome = returnLine(j.last_seen_local_date, j.started_local_date, localDate);
+    db.touchJourneySeen(j.id, localDate);
+
+    const todayStep = db.stepForDay(j.id, localDate);
+    const moves = db.listMoves(j.id);
+    const nights = db.listDarkNights(j.id);
+    return {
+      ...journeyToApi(j, localDate),
+      living: {
+        todayStep: todayStep
+          ? { id: todayStep.id, text: todayStep.text, status: todayStep.status as "committed" | "done" | "not_moved" }
+          : null,
+        askStep: !todayStep && shouldAskStep(db.recentAskOutcomes(j.id), localDate),
+        actionPrompt: cardActionPrompt(j.card_title),
+        memory: memoryLine({
+          journeyId: j.id,
+          todayLocalDate: localDate,
+          startedLocalDate: j.started_local_date,
+          moves,
+          nights,
+        }),
+        returnLine: welcome,
+      },
     };
   }
 
@@ -283,37 +333,46 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     // ----- The Vow (journey) ------------------------------------------------
 
     /** Active vow snapshot for the home screen, or null. */
-    getJourney(deviceId: string, localDate: string) {
+    getJourney(deviceId: string, localDate: string, journeyId?: string | null) {
       db.getOrCreateDevice(deviceId);
-      const j = db.activeJourney(deviceId);
+      const j = resolveJourney(deviceId, journeyId);
       if (!j) return null;
+      return livingJourney(j, localDate);
+    },
 
-      // Living state: today's step, the paced ask, the rare memory, and the
-      // quiet welcome back. Compute the return line BEFORE touching last-seen.
-      const welcome = returnLine(j.last_seen_local_date, j.started_local_date, localDate);
-      db.touchJourneySeen(j.id, localDate);
+    // ----- Horizon & Roads --------------------------------------------------
 
-      const todayStep = db.stepForDay(j.id, localDate);
-      const moves = db.listMoves(j.id);
-      const nights = db.listDarkNights(j.id);
-      return {
-        ...journeyToApi(j, localDate),
-        living: {
-          todayStep: todayStep
-            ? { id: todayStep.id, text: todayStep.text, status: todayStep.status as "committed" | "done" | "not_moved" }
-            : null,
-          askStep: !todayStep && shouldAskStep(db.recentAskOutcomes(j.id), localDate),
-          actionPrompt: cardActionPrompt(j.card_title),
-          memory: memoryLine({
-            journeyId: j.id,
-            todayLocalDate: localDate,
-            startedLocalDate: j.started_local_date,
-            moves,
-            nights,
-          }),
-          returnLine: welcome,
-        },
-      };
+    /**
+     * The home screen in one call: the horizon (the life they are walking
+     * toward — never measured, never a goal) and up to MAX_ROADS active roads.
+     */
+    getHome(deviceId: string, localDate: string) {
+      db.getOrCreateDevice(deviceId);
+      const horizon = db.getHorizon(deviceId)?.text ?? null;
+      const roads = db.activeJourneys(deviceId).map((j) => livingJourney(j, localDate));
+      return { horizon, roads, maxRoads: MAX_ROADS };
+    },
+
+    getHorizon(deviceId: string): string | null {
+      return db.getHorizon(deviceId)?.text ?? null;
+    },
+
+    /** Name (or rename) the horizon. Crisis-checked; never counted anywhere. */
+    setHorizon(
+      deviceId: string,
+      text: string,
+    ):
+      | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
+      | { kind: "invalid" }
+      | { kind: "horizon"; horizon: string } {
+      const trimmed = (text ?? "").trim().slice(0, 500);
+      if (!trimmed) return { kind: "invalid" };
+      if (detectCrisis(trimmed).isCrisis) {
+        return { kind: "crisis", message: CRISIS_RESOURCES.message, resources: CRISIS_RESOURCES.resources };
+      }
+      db.getOrCreateDevice(deviceId);
+      db.setHorizon(deviceId, trimmed);
+      return { kind: "horizon", horizon: trimmed };
     },
 
     // ----- One Small Step ---------------------------------------------------
@@ -323,6 +382,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       deviceId: string,
       localDate: string,
       text: string,
+      journeyId?: string | null,
     ):
       | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
       | { kind: "no_journey" }
@@ -332,7 +392,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       if (detectCrisis(trimmed).isCrisis) {
         return { kind: "crisis", message: CRISIS_RESOURCES.message, resources: CRISIS_RESOURCES.resources };
       }
-      const j = db.activeJourney(deviceId);
+      const j = resolveJourney(deviceId, journeyId);
       if (!j) return { kind: "no_journey" };
       const existing = db.stepForDay(j.id, localDate);
       if (existing && existing.status === "committed") {
@@ -352,8 +412,12 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     },
 
     /** NOT TODAY — recorded only to pace future asks. Never counted, never shown. */
-    declineStep(deviceId: string, localDate: string): { kind: "ok" } | { kind: "no_journey" } {
-      const j = db.activeJourney(deviceId);
+    declineStep(
+      deviceId: string,
+      localDate: string,
+      journeyId?: string | null,
+    ): { kind: "ok" } | { kind: "no_journey" } {
+      const j = resolveJourney(deviceId, journeyId);
       if (!j) return { kind: "no_journey" };
       db.insertVowStep({
         id: newId("step"),
@@ -372,8 +436,9 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       deviceId: string,
       localDate: string,
       done: boolean,
+      journeyId?: string | null,
     ): { kind: "no_step" } | { kind: "resolved"; line: string } {
-      const j = db.activeJourney(deviceId);
+      const j = resolveJourney(deviceId, journeyId);
       if (!j) return { kind: "no_step" };
       const step = db.stepForDay(j.id, localDate);
       if (!step || step.status !== "committed") return { kind: "no_step" };
@@ -389,21 +454,23 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     },
 
     /**
-     * Make a vow: crisis-check both texts, then draw ONE card. Refuses when an
-     * active vow already exists — a vow is never quietly replaced.
+     * Make a vow — open a road: crisis-check every text, then draw ONE card.
+     * Refuses when MAX_ROADS roads are already active — a road is never quietly
+     * replaced, and the horizon is never allowed to become a third goal.
      */
     async createJourney(
       deviceId: string,
       localDate: string,
-      input: { enduring: string; hope: string; letterTo?: string; letterText?: string },
+      input: { enduring: string; hope: string; label?: string; letterTo?: string; letterText?: string },
     ): Promise<
       | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
-      | { kind: "exists"; journey: ReturnType<typeof journeyToApi> }
+      | { kind: "limit"; roads: ReturnType<typeof journeyToApi>[]; maxRoads: number }
       | { kind: "invalid" }
       | { kind: "journey"; journey: ReturnType<typeof journeyToApi> }
     > {
       const enduring = (input.enduring ?? "").trim().slice(0, 500);
       const hope = (input.hope ?? "").trim().slice(0, 500);
+      const label = (input.label ?? "").trim().slice(0, 40) || null;
       // The sealed letter is optional; both parts required for it to exist.
       const letterTo = (input.letterTo ?? "").trim().slice(0, 80);
       const letterText = (input.letterText ?? "").trim().slice(0, 2000);
@@ -411,7 +478,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       if (!enduring || !hope) return { kind: "invalid" };
 
       // Safety first — every field, before any AI call.
-      for (const t of [enduring, hope, letterText]) {
+      for (const t of [enduring, hope, label ?? "", letterText]) {
         if (t && detectCrisis(t).isCrisis) {
           return {
             kind: "crisis",
@@ -422,15 +489,19 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       }
 
       db.getOrCreateDevice(deviceId);
-      const existing = db.activeJourney(deviceId);
-      if (existing) return { kind: "exists", journey: journeyToApi(existing, localDate) };
+      const active = db.activeJourneys(deviceId);
+      if (active.length >= MAX_ROADS) {
+        return { kind: "limit", roads: active.map((j) => journeyToApi(j, localDate)), maxRoads: MAX_ROADS };
+      }
 
-      const gen = await generateVowText({ enduring, hope }, { client, timeoutMs });
+      const horizon = db.getHorizon(deviceId)?.text ?? null;
+      const gen = await generateVowText({ enduring, hope, horizon }, { client, timeoutMs });
       const essence = findHalo(gen.title)?.essence ?? "";
       const illustrationId = selectIllustration(gen.theme, recentIds(deviceId, gen.theme));
       const row: JourneyRow = {
         id: newId("vow"),
         device_id: deviceId,
+        label,
         enduring,
         hope,
         card_title: gen.title,
@@ -467,6 +538,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       deviceId: string,
       localDate: string,
       text: string,
+      journeyId?: string | null,
     ):
       | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
       | { kind: "no_journey" }
@@ -479,7 +551,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
           resources: CRISIS_RESOURCES.resources,
         };
       }
-      const j = db.activeJourney(deviceId);
+      const j = resolveJourney(deviceId, journeyId);
       if (!j) return { kind: "no_journey" };
 
       const prior = db.listDarkNights(j.id);
@@ -506,7 +578,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     closeJourney(
       deviceId: string,
       localDate: string,
-      input: { outcome: "fulfilled" | "released"; note?: string },
+      input: { outcome: "fulfilled" | "released"; note?: string; journeyId?: string | null },
     ):
       | { kind: "no_journey" }
       | {
@@ -518,7 +590,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
           /** True when a released vow's letter was burned unread. */
           letterBurned: boolean;
         } {
-      const j = db.activeJourney(deviceId);
+      const j = resolveJourney(deviceId, input.journeyId);
       if (!j) return { kind: "no_journey" };
       const token = `vow_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
       db.closeJourney({

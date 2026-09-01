@@ -137,43 +137,71 @@ export const api = {
     return req(`/stripe/checkout`, { method: "POST", body: JSON.stringify({ plan }) });
   },
 
-  // --- The Vow (journey) ---
-  async getJourney(): Promise<{ journey: ApiJourney | null }> {
-    return req(`/journey`);
+  // --- Horizon & Roads ---
+  async home(): Promise<ApiHome> {
+    return req(`/home`);
+  },
+  async getHorizon(): Promise<{ horizon: string | null }> {
+    return req(`/horizon`);
+  },
+  async setHorizon(text: string): Promise<{
+    horizon?: string;
+    isCrisis?: boolean;
+    message?: string;
+    resources?: CrisisPayload["resources"];
+  }> {
+    return req(`/horizon`, { method: "PUT", body: JSON.stringify({ text }) });
+  },
+
+  // --- The Vow (journey / road) — journeyId is required only with two roads ---
+  async getJourney(journeyId?: string): Promise<{ journey: ApiJourney | null }> {
+    return req(`/journey${journeyId ? `?journeyId=${encodeURIComponent(journeyId)}` : ""}`);
   },
   async createJourney(input: {
     enduring: string;
     hope: string;
+    label?: string;
     letterTo?: string;
     letterText?: string;
   }): Promise<{ journey?: ApiJourney; isCrisis?: boolean; message?: string; resources?: CrisisPayload["resources"] }> {
-    return req(`/journey`, { method: "POST", body: JSON.stringify(input) });
+    const res = await fetch(`${BASE}/api/journey`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify(input),
+    });
+    if (res.status === 409) {
+      const body = await res.json().catch(() => ({}));
+      throw new RoadsFullError(body.roads ?? [], body.maxRoads ?? 2);
+    }
+    if (!res.ok) throw new Error(`api_error_${res.status}`);
+    return (await res.json()) as any;
   },
-  async commitStep(text: string): Promise<{
+  async commitStep(text: string, journeyId?: string): Promise<{
     step?: { id: string; text: string; status: "committed" };
     isCrisis?: boolean;
     message?: string;
     resources?: CrisisPayload["resources"];
   }> {
-    return req(`/journey/step`, { method: "POST", body: JSON.stringify({ text }) });
+    return req(`/journey/step`, { method: "POST", body: JSON.stringify({ text, journeyId }) });
   },
-  async declineStep(): Promise<{ ok: boolean }> {
-    return req(`/journey/step/decline`, { method: "POST", body: JSON.stringify({}) });
+  async declineStep(journeyId?: string): Promise<{ ok: boolean }> {
+    return req(`/journey/step/decline`, { method: "POST", body: JSON.stringify({ journeyId }) });
   },
-  async resolveStep(done: boolean): Promise<{ line: string }> {
-    return req(`/journey/step/resolve`, { method: "POST", body: JSON.stringify({ done }) });
+  async resolveStep(done: boolean, journeyId?: string): Promise<{ line: string }> {
+    return req(`/journey/step/resolve`, { method: "POST", body: JSON.stringify({ done, journeyId }) });
   },
-  async darkNight(text: string): Promise<{
+  async darkNight(text: string, journeyId?: string): Promise<{
     context?: ApiDarkNightContext;
     isCrisis?: boolean;
     message?: string;
     resources?: CrisisPayload["resources"];
   }> {
-    return req(`/journey/dark-night`, { method: "POST", body: JSON.stringify({ text }) });
+    return req(`/journey/dark-night`, { method: "POST", body: JSON.stringify({ text, journeyId }) });
   },
   async closeJourney(input: {
     outcome: "fulfilled" | "released";
     note?: string;
+    journeyId?: string;
   }): Promise<{
     journey: ApiJourney;
     keepsake: ApiKeepsake;
@@ -199,8 +227,28 @@ export const api = {
   },
 };
 
+/** Thrown when a third road is attempted — the cap is a product invariant. */
+export class RoadsFullError extends Error {
+  roads: ApiJourney[];
+  maxRoads: number;
+  constructor(roads: ApiJourney[], maxRoads: number) {
+    super("roads_full");
+    this.roads = roads;
+    this.maxRoads = maxRoads;
+  }
+}
+
+/** The home screen in one call: the horizon (never measured) and the open roads. */
+export interface ApiHome {
+  horizon: string | null;
+  roads: ApiJourney[];
+  maxRoads: number;
+}
+
 export interface ApiJourney {
   id: string;
+  /** A short name for the road ("Body", "Pink Wallet"). */
+  label: string | null;
   enduring: string;
   hope: string;
   status: "active" | "fulfilled" | "released";

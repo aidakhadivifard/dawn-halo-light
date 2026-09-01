@@ -42,6 +42,8 @@ export interface JourneyRow {
   last_seen_local_date: string | null;
   keepsake_views: number;
   letter_views: number;
+  /** Short road name for the pager; null falls back to the enduring text. */
+  label: string | null;
   fallback: number; // 0/1
   created_at: string;
 }
@@ -206,6 +208,15 @@ CREATE TABLE IF NOT EXISTS vow_steps (
 );
 CREATE INDEX IF NOT EXISTS idx_vow_steps_journey ON vow_steps(journey_id, local_date);
 
+-- The Horizon: the life a person is walking toward, in their own words.
+-- Never measured, never a goal — only kept and quoted back. One per device.
+CREATE TABLE IF NOT EXISTS horizons (
+  device_id TEXT PRIMARY KEY,
+  text TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS partners (
   code TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -250,6 +261,8 @@ export function createDb(path = ":memory:") {
     // or letter was actually opened by someone (the share metric).
     "ALTER TABLE journeys ADD COLUMN keepsake_views INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE journeys ADD COLUMN letter_views INTEGER NOT NULL DEFAULT 0",
+    // A short name for the road ("Pink Wallet", "the body") shown in the pager.
+    "ALTER TABLE journeys ADD COLUMN label TEXT",
   ]) {
     try {
       sqlite.exec(sql);
@@ -321,12 +334,21 @@ export function createDb(path = ":memory:") {
     // --- Journeys (the vow) ---
     insertJourney: sqlite.prepare(
       `INSERT INTO journeys (id, device_id, enduring, hope, card_title, card_essence, theme,
-         illustration_id, opener, message, reflection, started_local_date, status, letter_to, letter_text, fallback, created_at)
+         illustration_id, opener, message, reflection, started_local_date, status, letter_to, letter_text, label, fallback, created_at)
        VALUES (@id, @device_id, @enduring, @hope, @card_title, @card_essence, @theme,
-         @illustration_id, @opener, @message, @reflection, @started_local_date, 'active', @letter_to, @letter_text, @fallback, @created_at)`,
+         @illustration_id, @opener, @message, @reflection, @started_local_date, 'active', @letter_to, @letter_text, @label, @fallback, @created_at)`,
     ),
     activeJourney: sqlite.prepare<[string]>(
-      "SELECT * FROM journeys WHERE device_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1",
+      "SELECT * FROM journeys WHERE device_id = ? AND status = 'active' ORDER BY created_at ASC LIMIT 1",
+    ),
+    activeJourneys: sqlite.prepare<[string]>(
+      "SELECT * FROM journeys WHERE device_id = ? AND status = 'active' ORDER BY created_at ASC",
+    ),
+    getHorizon: sqlite.prepare<[string]>("SELECT * FROM horizons WHERE device_id = ?"),
+    upsertHorizon: sqlite.prepare(
+      `INSERT INTO horizons (device_id, text, created_at, updated_at)
+       VALUES (@device_id, @text, @now, @now)
+       ON CONFLICT(device_id) DO UPDATE SET text = @text, updated_at = @now`,
     ),
     getJourney: sqlite.prepare<[string]>("SELECT * FROM journeys WHERE id = ?"),
     listJourneys: sqlite.prepare<[string]>(
@@ -528,6 +550,16 @@ export function createDb(path = ":memory:") {
     },
     activeJourney(deviceId: string): JourneyRow | undefined {
       return stmts.activeJourney.get(deviceId) as JourneyRow | undefined;
+    },
+    /** All active roads, oldest first (the pager order). */
+    activeJourneys(deviceId: string): JourneyRow[] {
+      return stmts.activeJourneys.all(deviceId) as JourneyRow[];
+    },
+    getHorizon(deviceId: string): { device_id: string; text: string; created_at: string; updated_at: string } | undefined {
+      return stmts.getHorizon.get(deviceId) as any;
+    },
+    setHorizon(deviceId: string, text: string) {
+      stmts.upsertHorizon.run({ device_id: deviceId, text, now: new Date().toISOString() });
     },
     getJourney(id: string): JourneyRow | undefined {
       return stmts.getJourney.get(id) as JourneyRow | undefined;

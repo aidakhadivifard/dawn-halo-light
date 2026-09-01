@@ -78,8 +78,8 @@ function AdminPage() {
   const Tile = ({ big, label, sub }: { big: string; label: string; sub?: string }) => (
     <div className="p-5 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl text-center">
       <p className="text-3xl font-serif italic text-dawn-haze">{big}</p>
-      <p className="text-[9px] uppercase tracking-widest opacity-50 mt-1">{label}</p>
-      {sub && <p className="text-[10px] text-dawn-ink/45 mt-1">{sub}</p>}
+      <p className="text-[12px] uppercase tracking-widest opacity-70 mt-1">{label}</p>
+      {sub && <p className="text-[12px] text-dawn-ink/65 mt-1">{sub}</p>}
     </div>
   );
 
@@ -87,7 +87,7 @@ function AdminPage() {
     <div className="min-h-screen bg-dawn-sky text-dawn-ink">
       <main className="max-w-md mx-auto px-6 pt-12 pb-16">
         <header className="mb-8">
-          <p className="text-[10px] uppercase tracking-[0.2em] font-medium text-dawn-rose">
+          <p className="text-[12px] uppercase tracking-[0.2em] font-medium text-dawn-rose">
             Dawnhalo · owner
           </p>
           <h1 className="mt-1 font-serif text-3xl italic font-light">
@@ -97,20 +97,20 @@ function AdminPage() {
 
         {!metrics && (
           <section className="p-6 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl">
-            <p className="text-sm text-dawn-ink/70 leading-relaxed">
-              Enter the admin key (the server's <code className="text-[12px]">ADMIN_KEY</code>).
+            <p className="text-base text-dawn-ink/70 leading-relaxed">
+              Enter the admin key (the server's <code className="text-[14px]">ADMIN_KEY</code>).
             </p>
             <input
               value={key}
               onChange={(e) => setKey(e.target.value)}
               placeholder="admin key"
-              className="mt-4 w-full bg-dawn-sky/60 text-dawn-ink placeholder:text-dawn-ink/30 border border-dawn-haze/15 rounded-xl px-4 py-3.5 text-sm font-mono focus:outline-none focus:ring-1 ring-dawn-rose/30"
+              className="mt-4 w-full bg-dawn-sky/60 text-dawn-ink placeholder:text-dawn-ink/45 border border-dawn-haze/15 rounded-xl px-4 py-3.5 text-base font-mono focus:outline-none focus:ring-1 ring-dawn-rose/30"
             />
-            {error && <p className="mt-3 text-[12px] text-dawn-rose">{error}</p>}
+            {error && <p className="mt-3 text-[14px] text-dawn-rose">{error}</p>}
             <button
               onClick={() => key.trim() && load(key.trim())}
               disabled={busy || !key.trim()}
-              className="mt-4 px-8 py-3 bg-dawn-rose text-dawn-sky text-[11px] uppercase tracking-[0.2em] font-bold rounded-full hover:bg-dawn-haze transition-colors disabled:opacity-40"
+              className="mt-4 px-8 py-3 bg-dawn-rose text-dawn-sky text-[13px] uppercase tracking-[0.2em] font-bold rounded-full hover:bg-dawn-haze transition-colors disabled:opacity-60"
             >
               {busy ? "Opening…" : "Open"}
             </button>
@@ -148,10 +148,10 @@ function AdminPage() {
 
             {/* Supporting counts */}
             <div className="p-5 bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl">
-              <p className="text-[10px] uppercase tracking-[0.18em] opacity-50 mb-3">
+              <p className="text-[12px] uppercase tracking-[0.18em] opacity-70 mb-3">
                 Supporting counts
               </p>
-              <div className="grid grid-cols-2 gap-y-2 text-[13px] text-dawn-ink/75">
+              <div className="grid grid-cols-2 gap-y-2 text-[15px] text-dawn-ink/75">
                 <span>Active vows</span><span className="text-right font-medium">{metrics.vows.active}</span>
                 <span>Fulfilled / released</span><span className="text-right font-medium">{metrics.vows.fulfilled} / {metrics.vows.released}</span>
                 <span>New vows (7d)</span><span className="text-right font-medium">{metrics.vows.last7d}</span>
@@ -162,7 +162,7 @@ function AdminPage() {
               </div>
             </div>
 
-            <p className="text-[11px] text-dawn-ink/50 leading-relaxed px-1">
+            <p className="text-[13px] text-dawn-ink/70 leading-relaxed px-1">
               Revenue optimization comes after these. If D30 return is weak, fix the product —
               not the paywall.
             </p>
@@ -170,7 +170,7 @@ function AdminPage() {
             <button
               onClick={() => load(key)}
               disabled={busy}
-              className="px-6 py-2.5 text-[10px] uppercase tracking-[0.18em] font-medium rounded-full border border-dawn-haze/20 text-dawn-ink/70 hover:bg-dawn-haze/10 transition-colors disabled:opacity-50"
+              className="px-6 py-2.5 text-[12px] uppercase tracking-[0.18em] font-medium rounded-full border border-dawn-haze/20 text-dawn-ink/70 hover:bg-dawn-haze/10 transition-colors disabled:opacity-70"
             >
               {busy ? "Refreshing…" : "Refresh"}
             </button>

@@ -105,12 +105,27 @@ describe("vow API (e2e)", () => {
     expect(created.body.journey.card.title).toBe("The Long Road");
     expect(created.body.journey.dayNumber).toBe(1);
 
-    // A second vow is refused while one is active — never quietly replaced.
+    // A second road opens beside the first — the first is never replaced, and
+    // /api/journey without an id still returns the oldest road.
     const again = await h(request(api).post("/api/journey")).send({
       enduring: "x",
       hope: "y",
     });
-    expect(again.status).toBe(409);
+    expect(again.status).toBe(200);
+    expect(again.body.journey.id).not.toBe(created.body.journey.id);
+    const first = await h(request(api).get("/api/journey"));
+    expect(first.body.journey.id).toBe(created.body.journey.id);
+    // A third road is refused — the cap is a product invariant.
+    const third = await h(request(api).post("/api/journey")).send({ enduring: "a", hope: "b" });
+    expect(third.status).toBe(409);
+    expect(third.body.error).toBe("roads_full");
+    // Release the second road so the rest of this story is about one vow.
+    const released = await h(request(api).post("/api/journey/close")).send({
+      outcome: "released",
+      journeyId: again.body.journey.id,
+    });
+    expect(released.status).toBe(200);
+    expect(released.body.journey.id).toBe(again.body.journey.id);
 
     // Two weeks later: day number counts, dark night is witnessed.
     const later = "2026-06-16";

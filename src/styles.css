@@ -5,19 +5,21 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* Dark, warm, atmospheric */
-  --color-dawn-sky: #0e0a14;       /* deep plum-black background */
-  --color-dawn-night: #16101d;     /* slightly lifted surface */
-  --color-dawn-surface: #1e1726;   /* card / chip surface */
-  --color-dawn-haze: #f5b78a;      /* warm peach haze for glow */
-  --color-dawn-ink: #f6ecdf;       /* warm cream foreground */
-  --color-dawn-glow: #3a2a2a;      /* muted ember-tinted surface */
-  --color-dawn-rose: #f4a37a;      /* soft sunrise accent */
-  --color-dawn-gold: #f5cf8a;      /* gold horizon */
-  --color-dawn-cream: #faf5ee;
+  /* "Dawn Sky" — pastel sky, gold halo, plum ink. Light, soft, a little
+     otherworldly: the sky right before sunrise, not the night. */
+  --color-dawn-sky: #f3dde6;       /* the sky's middle tone (body carries the gradient) */
+  --color-dawn-night: #3f3462;     /* deep plum — the hard-night surface */
+  --color-dawn-surface: #fffbf6;   /* cream card / chip surface */
+  --color-dawn-haze: #c9a24a;      /* gold halo — borders, glow, the day number */
+  --color-dawn-ink: #3b2e4f;       /* plum ink foreground */
+  --color-dawn-glow: #e6d3f0;      /* lavender, the top of the sky */
+  --color-dawn-rose: #5a4478;      /* plum accent — buttons, eyebrow labels */
+  --color-dawn-gold: #c9a24a;      /* gold horizon */
+  --color-dawn-cream: #fdf0dc;     /* the warm bottom of the sky */
+  --color-dawn-muted: #7a6b8c;     /* secondary text */
 
-  --font-serif: "Fraunces", ui-serif, Georgia, serif;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
 }
 
 @theme inline {
@@ -79,7 +81,34 @@
     color: var(--color-dawn-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    /* Readability is a hard rule: nothing below 16px body text. */
+    font-size: 16px;
   }
+}
+
+/* The sky itself: lavender at the top, rose in the middle, warm cream low
+   down — one gradient behind every screen so the app feels like one place. */
+.bg-dawn-sky {
+  background-color: #f3dde6;
+  background-image: linear-gradient(180deg, #e6d3f0 0%, #f3d6d8 55%, #fdf0dc 100%);
+}
+
+/* A whisper of grain so the pastel reads as paper and light, not plastic. */
+.bg-dawn-sky::after {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.07;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* The hard-night surface — the one place the app goes deep and dark. */
+.bg-dawn-night {
+  background-image: linear-gradient(180deg, #3f3462 0%, #6a4f86 60%, #c98d9a 100%);
+  color: #f7eef2;
 }
 
 @keyframes card-rise {

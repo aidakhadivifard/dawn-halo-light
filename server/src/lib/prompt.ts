@@ -60,13 +60,18 @@ export interface JourneyContext {
   hope: string;
   cardTitle: string;
   dayNumber: number;
+  /** The life they are walking toward — their horizon, never a goal. */
+  horizon?: string | null;
 }
 
 function journeyBlock(j: JourneyContext): string {
+  const horizon = j.horizon
+    ? `The life they say they are walking toward — their horizon, which is never a goal to measure — is: "${j.horizon}". `
+    : "";
   return (
     `CONTEXT — they are inside a vow. ${j.dayNumber} day(s) ago they named what they are enduring ` +
     `("${j.enduring}") and the hope they are holding ("${j.hope}"), and drew ${j.cardTitle} as the ` +
-    `card of that vow. Today's reading may quietly acknowledge the road they are on when it fits — ` +
+    `card of that vow. ${horizon}Today's reading may quietly acknowledge the road they are on when it fits — ` +
     `never force the connection, and never promise the hoped-for outcome. The hope is theirs; ` +
     `you only keep it company.\n\n`
   );
@@ -77,12 +82,17 @@ function journeyBlock(j: JourneyContext): string {
  * what they hope for, and draws a single card that will never be redrawn.
  * The reading must honor the endurance without promising the outcome.
  */
-export function buildVowPrompt(args: { enduring: string; hope: string }): string {
+export function buildVowPrompt(args: { enduring: string; hope: string; horizon?: string | null }): string {
+  const horizon = args.horizon
+    ? `The life they are walking toward (their horizon — witness it, never measure it): "${args.horizon}"\n`
+    : "";
   return (
     `They are making a vow — a promise to keep going through something hard, held to one card ` +
     `drawn once and never redrawn.\n\n` +
     `What they are enduring: "${args.enduring}"\n` +
-    `What they hope for: "${args.hope}"\n\n` +
+    `What they hope for: "${args.hope}"\n` +
+    horizon +
+    `\n` +
     `Choose the ONE card from the deck that can stand beside them for the whole road — favor cards ` +
     `of endurance, slow growth, and far-off light. The reading should: name the weight honestly in one ` +
     `line; hold their hope with them WITHOUT promising it will come true (the hope is theirs — you ` +

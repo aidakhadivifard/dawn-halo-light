@@ -45,27 +45,27 @@ function CalendarPage() {
       <main className="max-w-md mx-auto px-6 pt-12 pb-32">
         <header className="mb-8 flex justify-between items-end">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 mb-1">Your practice</p>
+            <p className="text-[12px] uppercase tracking-[0.2em] font-medium opacity-70 mb-1">Your practice</p>
             <h1 className="text-3xl font-serif font-light tracking-tight italic">Calendar.</h1>
           </div>
           <div className="text-right">
             <span className="block text-2xl font-serif italic text-dawn-haze">{String(streak).padStart(2, "0")}</span>
-            <span className="text-[8px] uppercase tracking-widest opacity-40">Day streak</span>
+            <span className="text-[12px] uppercase tracking-widest opacity-60">Day streak</span>
           </div>
         </header>
 
         <div className="bg-dawn-surface/80 border border-dawn-haze/15 rounded-2xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between mb-4">
             <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
-              className="size-8 rounded-full hover:bg-dawn-haze/10 text-dawn-ink/60 transition-colors">‹</button>
+              className="size-8 rounded-full hover:bg-dawn-haze/10 text-dawn-ink/75 transition-colors">‹</button>
             <p className="font-serif text-lg text-dawn-ink">{month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
             <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
-              className="size-8 rounded-full hover:bg-dawn-haze/10 text-dawn-ink/60 transition-colors">›</button>
+              className="size-8 rounded-full hover:bg-dawn-haze/10 text-dawn-ink/75 transition-colors">›</button>
           </div>
 
           <div className="grid grid-cols-7 gap-1 text-center mb-2">
             {["S","M","T","W","T","F","S"].map((d, i) => (
-              <span key={i} className="text-[9px] uppercase tracking-widest text-dawn-ink/40">{d}</span>
+              <span key={i} className="text-[12px] uppercase tracking-widest text-dawn-ink/60">{d}</span>
             ))}
           </div>
           <div className="grid grid-cols-7 gap-1">
@@ -77,8 +77,8 @@ function CalendarPage() {
               return (
                 <button key={i} onClick={() => setSelected(c)}
                   className={
-                    "aspect-square rounded-full flex items-center justify-center text-sm relative transition-colors " +
-                    (isSel ? "bg-dawn-rose text-dawn-sky" : has ? "bg-dawn-haze/15 text-dawn-ink" : "text-dawn-ink/60 hover:bg-dawn-haze/10") +
+                    "aspect-square rounded-full flex items-center justify-center text-base relative transition-colors " +
+                    (isSel ? "bg-dawn-rose text-dawn-sky" : has ? "bg-dawn-haze/15 text-dawn-ink" : "text-dawn-ink/75 hover:bg-dawn-haze/10") +
                     (isToday && !isSel ? " ring-1 ring-dawn-rose" : "")
                   }>
                   {c.getDate()}
@@ -91,11 +91,11 @@ function CalendarPage() {
 
         {selected && (
           <section className="mt-8">
-            <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 mb-3 ml-1">
+            <p className="text-[12px] uppercase tracking-[0.2em] font-medium opacity-70 mb-3 ml-1">
               {selected.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </p>
             {dayCards.length === 0 ? (
-              <p className="p-5 border border-dashed border-dawn-haze/15 rounded-xl text-sm italic opacity-60">No card on this day.</p>
+              <p className="p-5 border border-dashed border-dawn-haze/15 rounded-xl text-base italic opacity-75">No card on this day.</p>
             ) : (
               <ul className="space-y-3">
                 {dayCards.map((c) => (
@@ -103,7 +103,7 @@ function CalendarPage() {
                     <img src={c.illustration} alt="" width={56} height={70} className="size-14 rounded-md object-cover ring-1 ring-dawn-haze/15" loading="lazy" />
                     <div className="min-w-0">
                       <p className="font-serif text-lg leading-tight text-dawn-ink">{c.title}</p>
-                      <p className="text-xs text-dawn-ink/60 line-clamp-2">{c.message}</p>
+                      <p className="text-[13px] text-dawn-ink/75 line-clamp-2">{c.message}</p>
                     </div>
                   </li>
                 ))}
