@@ -6,8 +6,12 @@ import { getDeviceId, localDay } from "@/lib/device";
 import type { CardTheme } from "@/lib/cardLibrary";
 
 // VITE_API_URL points at the Express backend (e.g. http://localhost:8787).
-// Empty string means "same origin" (useful if you reverse-proxy /api).
-const BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+// Empty string means "same origin" (useful if you reverse-proxy /api). A
+// production build with no URL configured (the APK built by CI) falls back to
+// the live API, so the vow reaches the server instead of living offline only.
+const PROD_API = "https://dawnhalo-api.onrender.com";
+const configured = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+const BASE = configured || (import.meta.env.PROD ? PROD_API : "");
 
 export interface ApiCard {
   id: string;
