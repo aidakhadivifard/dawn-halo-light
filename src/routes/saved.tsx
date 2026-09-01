@@ -25,19 +25,19 @@ function SavedPage() {
     <div className="min-h-screen bg-dawn-sky text-dawn-ink">
       <main className="max-w-md mx-auto px-6 pt-12 pb-32">
         <header className="mb-10">
-          <p className="text-[10px] uppercase tracking-[0.2em] font-medium opacity-50 mb-1">Your saved cards</p>
+          <p className="text-[12px] uppercase tracking-[0.2em] font-medium opacity-70 mb-1">Your saved cards</p>
           <h1 className="text-3xl font-serif font-light tracking-tight italic">Saved cards.</h1>
         </header>
 
         {open ? (
           <div>
-            <button onClick={() => setOpen(null)} className="mb-6 text-[10px] uppercase tracking-[0.18em] text-dawn-ink/60 hover:text-dawn-ink transition-colors">← Back to saved cards</button>
+            <button onClick={() => setOpen(null)} className="mb-6 text-[12px] uppercase tracking-[0.18em] text-dawn-ink/75 hover:text-dawn-ink transition-colors">← Back to saved cards</button>
             <OracleCardView card={open} readOnly />
           </div>
         ) : cards.length === 0 ? (
           <div className="p-8 border border-dashed border-dawn-haze/15 rounded-2xl text-center">
             <p className="font-serif italic text-lg text-dawn-ink/70">Your saved cards are quiet for now.</p>
-            <p className="mt-2 text-sm text-dawn-ink/50">Tap <span className="font-medium">Save</span> on a card to keep it here.</p>
+            <p className="mt-2 text-base text-dawn-ink/70">Tap <span className="font-medium">Save</span> on a card to keep it here.</p>
           </div>
         ) : (
           <ul className="space-y-3">
@@ -47,8 +47,8 @@ function SavedPage() {
                   <img src={c.illustration} alt="" width={64} height={80} className="size-16 rounded-md object-cover ring-1 ring-dawn-haze/15" loading="lazy" />
                   <div className="min-w-0 flex-1">
                     <p className="font-serif text-lg leading-tight text-dawn-ink">{c.title}</p>
-                    <p className="text-xs text-dawn-ink/60 truncate">{c.message}</p>
-                    <p className="mt-1 text-[10px] uppercase tracking-widest text-dawn-ink/40">
+                    <p className="text-[13px] text-dawn-ink/75 truncate">{c.message}</p>
+                    <p className="mt-1 text-[12px] uppercase tracking-widest text-dawn-ink/60">
                       Saved {new Date(c.savedAt ?? c.createdAt ?? Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </p>
                   </div>
