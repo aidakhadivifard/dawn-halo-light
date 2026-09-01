@@ -209,9 +209,36 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     }
   });
 
+  // --- Horizon & Roads ---
+  // The horizon is the life they are walking toward. It is never measured,
+  // never a goal, never counted — so it has no day number and no closing.
+  app.get("/api/home", requireDevice, resolveLocalDate, (req, res) => {
+    res.json(svc.getHome(req.deviceId!, req.localDate!));
+  });
+
+  app.get("/api/horizon", requireDevice, (req, res) => {
+    res.json({ horizon: svc.getHorizon(req.deviceId!) });
+  });
+
+  app.put("/api/horizon", requireDevice, (req, res) => {
+    const text = (req.body?.text ?? "").toString();
+    const result = svc.setHorizon(req.deviceId!, text);
+    if (result.kind === "crisis")
+      return res.json({ isCrisis: true, message: result.message, resources: result.resources });
+    if (result.kind === "invalid") return res.status(400).json({ error: "missing_text" });
+    res.json({ horizon: result.horizon });
+  });
+
+  // A road is a vow. Every road route accepts an optional `journeyId` (body or
+  // query) — required only when two roads are open.
+  const journeyIdOf = (req: Request): string | null => {
+    const raw = req.body?.journeyId ?? req.query?.journeyId;
+    return typeof raw === "string" && raw ? raw : null;
+  };
+
   // --- The Vow (journey) — rate-limited where AI is involved ---
   app.get("/api/journey", requireDevice, resolveLocalDate, (req, res) => {
-    res.json({ journey: svc.getJourney(req.deviceId!, req.localDate!) });
+    res.json({ journey: svc.getJourney(req.deviceId!, req.localDate!, journeyIdOf(req)) });
   });
 
   app.get("/api/journeys", requireDevice, resolveLocalDate, (req, res) => {
@@ -221,29 +248,33 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   app.post("/api/journey", requireDevice, resolveLocalDate, cardLimiter, async (req, res) => {
     const enduring = (req.body?.enduring ?? "").toString();
     const hope = (req.body?.hope ?? "").toString();
+    const label = (req.body?.label ?? "").toString();
     const letterTo = (req.body?.letterTo ?? "").toString();
     const letterText = (req.body?.letterText ?? "").toString();
     const result = await svc.createJourney(req.deviceId!, req.localDate!, {
       enduring,
       hope,
+      label,
       letterTo,
       letterText,
     });
     if (result.kind === "crisis")
       return res.json({ isCrisis: true, message: result.message, resources: result.resources });
     if (result.kind === "invalid") return res.status(400).json({ error: "missing_enduring_or_hope" });
-    if (result.kind === "exists")
-      return res.status(409).json({ error: "vow_already_active", journey: result.journey });
+    if (result.kind === "limit")
+      return res.status(409).json({ error: "roads_full", roads: result.roads, maxRoads: result.maxRoads });
     // Re-read through the snapshot path so the response carries living state
     // (card-flavored action prompt etc.) from the very first render.
-    res.json({ journey: svc.getJourney(req.deviceId!, req.localDate!) ?? result.journey });
+    res.json({
+      journey: svc.getJourney(req.deviceId!, req.localDate!, result.journey.id) ?? result.journey,
+    });
   });
 
   // One Small Step — commit / decline / resolve.
   app.post("/api/journey/step", requireDevice, resolveLocalDate, (req, res) => {
     const text = (req.body?.text ?? "").toString();
     if (!text.trim()) return res.status(400).json({ error: "missing_text" });
-    const result = svc.commitStep(req.deviceId!, req.localDate!, text);
+    const result = svc.commitStep(req.deviceId!, req.localDate!, text, journeyIdOf(req));
     if (result.kind === "crisis")
       return res.json({ isCrisis: true, message: result.message, resources: result.resources });
     if (result.kind === "no_journey") return res.status(404).json({ error: "no_active_vow" });
@@ -251,21 +282,21 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   });
 
   app.post("/api/journey/step/decline", requireDevice, resolveLocalDate, (req, res) => {
-    const result = svc.declineStep(req.deviceId!, req.localDate!);
+    const result = svc.declineStep(req.deviceId!, req.localDate!, journeyIdOf(req));
     if (result.kind === "no_journey") return res.status(404).json({ error: "no_active_vow" });
     res.json({ ok: true });
   });
 
   app.post("/api/journey/step/resolve", requireDevice, resolveLocalDate, (req, res) => {
     const done = req.body?.done === true;
-    const result = svc.resolveStep(req.deviceId!, req.localDate!, done);
+    const result = svc.resolveStep(req.deviceId!, req.localDate!, done, journeyIdOf(req));
     if (result.kind === "no_step") return res.status(404).json({ error: "no_committed_step" });
     res.json({ line: result.line });
   });
 
   app.post("/api/journey/dark-night", requireDevice, resolveLocalDate, (req, res) => {
     const text = (req.body?.text ?? "").toString();
-    const result = svc.addDarkNight(req.deviceId!, req.localDate!, text);
+    const result = svc.addDarkNight(req.deviceId!, req.localDate!, text, journeyIdOf(req));
     if (result.kind === "crisis")
       return res.json({ isCrisis: true, message: result.message, resources: result.resources });
     if (result.kind === "no_journey") return res.status(404).json({ error: "no_active_vow" });
@@ -275,7 +306,11 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   app.post("/api/journey/close", requireDevice, resolveLocalDate, (req, res) => {
     const outcome = req.body?.outcome === "released" ? "released" : "fulfilled";
     const note = (req.body?.note ?? "").toString();
-    const result = svc.closeJourney(req.deviceId!, req.localDate!, { outcome, note });
+    const result = svc.closeJourney(req.deviceId!, req.localDate!, {
+      outcome,
+      note,
+      journeyId: journeyIdOf(req),
+    });
     if (result.kind === "no_journey") return res.status(404).json({ error: "no_active_vow" });
     res.json({
       journey: result.journey,
