@@ -68,7 +68,7 @@ describe("horizon & roads API", () => {
   it("home is empty before anything is named", async () => {
     const home = await h(request(api).get("/api/home"));
     expect(home.status).toBe(200);
-    expect(home.body).toEqual({ horizon: null, roads: [], maxRoads: MAX_ROADS });
+    expect(home.body).toMatchObject({ horizon: null, roads: [], maxRoads: MAX_ROADS });
   });
 
   it("horizon: set, read, rename — and it carries no numbers of any kind", async () => {

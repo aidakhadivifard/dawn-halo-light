@@ -10,6 +10,7 @@ import { canDraw, snapshot, withinTrial, type QuotaState } from "./lib/entitleme
 import { selectIllustration, NO_REPEAT_WINDOW_DAYS } from "./lib/illustrations";
 import { generateCardText, generateVowText, type MessagesClient } from "./lib/anthropic";
 import { findHalo } from "./lib/deck";
+import { drawHorizon, sketchAvailable, type SketchDeps } from "./lib/sketch";
 import type { JourneyContext } from "./lib/prompt";
 import {
   cardActionPrompt,
@@ -28,7 +29,17 @@ export interface ServiceDeps {
   client?: MessagesClient | null;
   now?: () => Date;
   timeoutMs?: number;
+  /** Horizon sketch (Gemini). Inject a fetch/apiKey in tests. */
+  sketch?: SketchDeps;
 }
+
+/**
+ * How many witnessed moments (done steps + hard nights) fully color the
+ * horizon sketch. Never shown as a number — the picture is the only readout.
+ */
+export const SKETCH_FULL_AT = 40;
+/** A horizon may be redrawn this many times in total (renames stay cheap). */
+export const SKETCH_MAX_DRAWS = 3;
 
 export type DrawResult =
   | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
@@ -53,6 +64,63 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
   const now = deps.now ?? (() => new Date());
   const client = deps.client;
   const timeoutMs = deps.timeoutMs;
+  const sketchDeps = deps.sketch ?? {};
+  /** In-flight sketch generations, so a second request never draws twice. */
+  const inflight = new Map<string, Promise<void>>();
+
+  function newToken(prefix: string): string {
+    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  /** The sketch as the client sees it: status, where to load it, how much color is due. */
+  function sketchView(deviceId: string) {
+    const h = db.getHorizon(deviceId);
+    const available = sketchAvailable(sketchDeps);
+    if (!h) return { available, status: "none" as const, lineUrl: null, colorUrl: null, lit: 0, fullAt: SKETCH_FULL_AT, stale: false };
+    const ready = h.sketch_status === "ready" && !!h.sketch_token;
+    return {
+      available,
+      status: h.sketch_status,
+      lineUrl: ready ? `/api/sketch/${h.sketch_token}/line` : null,
+      colorUrl: ready ? `/api/sketch/${h.sketch_token}/color` : null,
+      // Only the staying is counted — done steps and nights stayed through.
+      lit: Math.min(SKETCH_FULL_AT, db.countStaying(deviceId)),
+      fullAt: SKETCH_FULL_AT,
+      stale: ready && h.sketch_for_text !== h.text,
+    };
+  }
+
+  /**
+   * Draw (or redraw) the horizon in the background. Idempotent: a pending or
+   * up-to-date sketch is left alone. Returns the resulting status.
+   */
+  function requestSketch(deviceId: string): "none" | "pending" | "ready" | "failed" | "unavailable" | "capped" {
+    const h = db.getHorizon(deviceId);
+    if (!h) return "none";
+    if (!sketchAvailable(sketchDeps)) return "unavailable";
+    if (h.sketch_status === "pending" || inflight.has(deviceId)) return "pending";
+    if (h.sketch_status === "ready" && h.sketch_for_text === h.text) return "ready";
+    if (h.sketch_draws >= SKETCH_MAX_DRAWS) return h.sketch_status === "ready" ? "capped" : "failed";
+
+    const token = h.sketch_token ?? newToken("sk");
+    const text = h.text;
+    db.setSketchStatus({ deviceId, status: "pending", token, error: null });
+    db.bumpSketchDraws(deviceId);
+    const job = drawHorizon(text, sketchDeps)
+      .then(({ line, color }) => {
+        db.putSketch(deviceId, "line", line.mime, line.bytes);
+        db.putSketch(deviceId, "color", color.mime, color.bytes);
+        db.setSketchStatus({ deviceId, status: "ready", token, error: null, forText: text });
+      })
+      .catch((err: any) => {
+        // A failed redraw keeps the old pictures; a failed first draw shows none.
+        const had = !!db.getSketch(deviceId, "line");
+        db.setSketchStatus({ deviceId, status: had ? "ready" : "failed", error: String(err?.message ?? err).slice(0, 200) });
+      })
+      .finally(() => inflight.delete(deviceId));
+    inflight.set(deviceId, job);
+    return "pending";
+  }
 
   function quotaState(deviceId: string, localDate: string): QuotaState {
     const device = db.getOrCreateDevice(deviceId);
@@ -350,7 +418,27 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       db.getOrCreateDevice(deviceId);
       const horizon = db.getHorizon(deviceId)?.text ?? null;
       const roads = db.activeJourneys(deviceId).map((j) => livingJourney(j, localDate));
-      return { horizon, roads, maxRoads: MAX_ROADS };
+      return { horizon, roads, maxRoads: MAX_ROADS, sketch: sketchView(deviceId) };
+    },
+
+    // ----- The horizon sketch -----------------------------------------------
+
+    /** Ask for the drawing (idempotent). The picture arrives via getHome().sketch. */
+    requestSketch(deviceId: string) {
+      db.getOrCreateDevice(deviceId);
+      return { status: requestSketch(deviceId), sketch: sketchView(deviceId) };
+    },
+
+    /** Public image lookup by token — the only way an <img> can reach it. */
+    getSketchImage(token: string, kind: "line" | "color") {
+      const h = db.getHorizonByToken(token);
+      if (!h || h.sketch_status !== "ready") return null;
+      return db.getSketch(h.device_id, kind) ?? null;
+    },
+
+    /** Tests await this so the background job has settled. */
+    sketchSettled(deviceId: string): Promise<void> {
+      return inflight.get(deviceId) ?? Promise.resolve();
     },
 
     getHorizon(deviceId: string): string | null {
@@ -372,6 +460,8 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       }
       db.getOrCreateDevice(deviceId);
       db.setHorizon(deviceId, trimmed);
+      // Draw it — in the background, only if the words changed, only if we can.
+      requestSketch(deviceId);
       return { kind: "horizon", horizon: trimmed };
     },
 

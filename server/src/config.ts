@@ -17,6 +17,9 @@ export interface AppConfig {
   appBaseUrl: string;
   /** Admin key protecting partner creation. Unset = partner admin disabled. */
   adminKey: string | undefined;
+  /** Gemini API key for the horizon sketch. Unset = no sketch, app still works. */
+  geminiApiKey: string | undefined;
+  geminiImageModel: string;
 }
 
 export function getConfig(): AppConfig {
@@ -35,5 +38,7 @@ export function getConfig(): AppConfig {
     corsOrigins: process.env.CORS_ORIGINS ?? "*",
     appBaseUrl: process.env.APP_BASE_URL ?? "http://localhost:3000",
     adminKey: process.env.ADMIN_KEY,
+    geminiApiKey: process.env.GEMINI_API_KEY,
+    geminiImageModel: process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image",
   };
 }

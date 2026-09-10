@@ -220,6 +220,24 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     res.json({ horizon: svc.getHorizon(req.deviceId!) });
   });
 
+  // The horizon sketch: ask for it, then poll /api/home for its status.
+  app.post("/api/horizon/sketch", requireDevice, (req, res) => {
+    const out = svc.requestSketch(req.deviceId!);
+    if (out.status === "none") return res.status(404).json({ error: "no_horizon" });
+    res.json(out);
+  });
+
+  // Public, token-addressed images so an <img> tag can load them.
+  app.get("/api/sketch/:token/:kind", (req, res) => {
+    const kind = req.params.kind === "color" ? "color" : req.params.kind === "line" ? "line" : null;
+    if (!kind) return res.status(404).end();
+    const img = svc.getSketchImage(req.params.token, kind);
+    if (!img) return res.status(404).end();
+    res.setHeader("content-type", img.mime);
+    res.setHeader("cache-control", "public, max-age=86400");
+    res.send(img.bytes);
+  });
+
   app.put("/api/horizon", requireDevice, (req, res) => {
     const text = (req.body?.text ?? "").toString();
     const result = svc.setHorizon(req.deviceId!, text);

@@ -16,6 +16,22 @@ export interface DeviceRow {
   attributed_at: string | null;
 }
 
+export type SketchStatus = "none" | "pending" | "ready" | "failed";
+
+export interface HorizonRow {
+  device_id: string;
+  text: string;
+  created_at: string;
+  updated_at: string;
+  sketch_status: SketchStatus;
+  sketch_token: string | null;
+  sketch_error: string | null;
+  /** The horizon text the current sketch was drawn from (stale if it differs). */
+  sketch_for_text: string | null;
+  /** How many times this horizon has been drawn — capped, so renames stay cheap. */
+  sketch_draws: number;
+}
+
 export interface JourneyRow {
   id: string;
   device_id: string;
@@ -217,6 +233,19 @@ CREATE TABLE IF NOT EXISTS horizons (
   updated_at TEXT NOT NULL
 );
 
+-- The horizon sketch: the person's own words drawn once as a thin ink line
+-- (kind='line') and once more as a soft watercolor (kind='color'). The app
+-- reveals the color slowly, by the staying. Bytes live here so Litestream
+-- replicates them with everything else; a public token serves them to <img>.
+CREATE TABLE IF NOT EXISTS horizon_sketches (
+  device_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  bytes BLOB NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (device_id, kind)
+);
+
 CREATE TABLE IF NOT EXISTS partners (
   code TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -252,6 +281,11 @@ export function createDb(path = ":memory:") {
     "ALTER TABLE devices ADD COLUMN attributed_at TEXT",
     // The sealed letter: written at vow time, unsealed only on fulfillment,
     // burned (hard-deleted) on release.
+    "ALTER TABLE horizons ADD COLUMN sketch_status TEXT NOT NULL DEFAULT 'none'",
+    "ALTER TABLE horizons ADD COLUMN sketch_token TEXT",
+    "ALTER TABLE horizons ADD COLUMN sketch_error TEXT",
+    "ALTER TABLE horizons ADD COLUMN sketch_for_text TEXT",
+    "ALTER TABLE horizons ADD COLUMN sketch_draws INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE journeys ADD COLUMN letter_to TEXT",
     "ALTER TABLE journeys ADD COLUMN letter_text TEXT",
     "ALTER TABLE journeys ADD COLUMN letter_token TEXT",
@@ -345,6 +379,23 @@ export function createDb(path = ":memory:") {
       "SELECT * FROM journeys WHERE device_id = ? AND status = 'active' ORDER BY created_at ASC",
     ),
     getHorizon: sqlite.prepare<[string]>("SELECT * FROM horizons WHERE device_id = ?"),
+    getHorizonByToken: sqlite.prepare<[string]>("SELECT * FROM horizons WHERE sketch_token = ?"),
+    setSketchStatus: sqlite.prepare(
+      `UPDATE horizons SET sketch_status = @status, sketch_error = @error, sketch_token = COALESCE(@token, sketch_token),
+         sketch_for_text = COALESCE(@for_text, sketch_for_text) WHERE device_id = @device_id`,
+    ),
+    putSketch: sqlite.prepare(
+      `INSERT INTO horizon_sketches (device_id, kind, mime, bytes, created_at)
+       VALUES (@device_id, @kind, @mime, @bytes, @now)
+       ON CONFLICT(device_id, kind) DO UPDATE SET mime = @mime, bytes = @bytes, created_at = @now`,
+    ),
+    getSketch: sqlite.prepare<[string, string]>("SELECT * FROM horizon_sketches WHERE device_id = ? AND kind = ?"),
+    countStaying: sqlite.prepare<[string, string]>(
+      `SELECT (SELECT COUNT(*) FROM vow_steps WHERE device_id = ? AND status = 'done')
+            + (SELECT COUNT(*) FROM dark_nights WHERE device_id = ?) AS n`,
+    ),
+    bumpSketchDraws: sqlite.prepare<[string]>("UPDATE horizons SET sketch_draws = sketch_draws + 1 WHERE device_id = ?"),
+    deleteSketches: sqlite.prepare<[string]>("DELETE FROM horizon_sketches WHERE device_id = ?"),
     upsertHorizon: sqlite.prepare(
       `INSERT INTO horizons (device_id, text, created_at, updated_at)
        VALUES (@device_id, @text, @now, @now)
@@ -555,11 +606,36 @@ export function createDb(path = ":memory:") {
     activeJourneys(deviceId: string): JourneyRow[] {
       return stmts.activeJourneys.all(deviceId) as JourneyRow[];
     },
-    getHorizon(deviceId: string): { device_id: string; text: string; created_at: string; updated_at: string } | undefined {
-      return stmts.getHorizon.get(deviceId) as any;
+    getHorizon(deviceId: string): HorizonRow | undefined {
+      return stmts.getHorizon.get(deviceId) as HorizonRow | undefined;
+    },
+    getHorizonByToken(token: string): HorizonRow | undefined {
+      return stmts.getHorizonByToken.get(token) as HorizonRow | undefined;
     },
     setHorizon(deviceId: string, text: string) {
       stmts.upsertHorizon.run({ device_id: deviceId, text, now: new Date().toISOString() });
+    },
+    setSketchStatus(args: { deviceId: string; status: SketchStatus; error?: string | null; token?: string | null; forText?: string | null }) {
+      stmts.setSketchStatus.run({
+        device_id: args.deviceId, status: args.status, error: args.error ?? null,
+        token: args.token ?? null, for_text: args.forText ?? null,
+      });
+    },
+    putSketch(deviceId: string, kind: "line" | "color", mime: string, bytes: Buffer) {
+      stmts.putSketch.run({ device_id: deviceId, kind, mime, bytes, now: new Date().toISOString() });
+    },
+    getSketch(deviceId: string, kind: "line" | "color"): { mime: string; bytes: Buffer; created_at: string } | undefined {
+      return stmts.getSketch.get(deviceId, kind) as any;
+    },
+    deleteSketches(deviceId: string) {
+      stmts.deleteSketches.run(deviceId);
+    },
+    /** Done steps + hard nights stayed through, across every road. Never the failing. */
+    countStaying(deviceId: string): number {
+      return (stmts.countStaying.get(deviceId, deviceId) as { n: number }).n;
+    },
+    bumpSketchDraws(deviceId: string) {
+      stmts.bumpSketchDraws.run(deviceId);
     },
     getJourney(id: string): JourneyRow | undefined {
       return stmts.getJourney.get(id) as JourneyRow | undefined;

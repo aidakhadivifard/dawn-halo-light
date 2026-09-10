@@ -17,6 +17,8 @@ services:
         sync: false
       - key: ADMIN_KEY
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
       - key: CORS_ORIGINS
         value: "*"
       - key: APP_BASE_URL
