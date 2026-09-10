@@ -13,6 +13,7 @@ import { OracleCardView } from "@/components/OracleCard";
 import { BottomNav } from "@/components/BottomNav";
 import { VowOnboarding, VowPanel } from "@/components/Vow";
 import { getHome, setHorizon, type Home } from "@/lib/vow";
+import { HorizonSketch } from "@/components/HorizonSketch";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -57,10 +58,16 @@ function TodayPage() {
   const [adding, setAdding] = useState(false);
   const [editingHorizon, setEditingHorizon] = useState(false);
   const [horizonDraft, setHorizonDraft] = useState("");
+  // Onboarding stays mounted until it says it is done — background refreshes
+  // (the sketch being drawn) must never yank the person out of the ritual.
+  const [onboarding, setOnboarding] = useState(false);
   const roads = home?.roads ?? [];
   const current = home === undefined ? undefined : (roads[activeRoad] ?? roads[0] ?? null);
   // The vow the page is about: undefined = loading, null = onboarding, Vow = a road.
-  const vow = adding ? null : current;
+  const vow = adding || onboarding ? null : current;
+  useEffect(() => {
+    if (home && home.roads.length === 0) setOnboarding(true);
+  }, [home]);
   // The daily oracle reading is subordinate to the vow: folded behind a quiet
   // link so the vow card keeps its scarcity as the page's one card.
   const [showDaily, setShowDaily] = useState(false);
@@ -77,6 +84,19 @@ function TodayPage() {
     setAdding(false);
   }, []);
 
+  /** Re-read home without touching which road is shown or an onboarding in progress. */
+  const refreshHome = useCallback(async () => {
+    const h = await getHome();
+    setHome(h);
+  }, []);
+
+  // While the horizon is being drawn, look again every few seconds.
+  useEffect(() => {
+    if (home?.sketch.status !== "pending") return;
+    const t = setInterval(() => void refreshHome(), 4000);
+    return () => clearInterval(t);
+  }, [home?.sketch.status, refreshHome]);
+
   const saveHorizon = async () => {
     if (!horizonDraft.trim()) return;
     const out = await setHorizon(horizonDraft.trim());
@@ -84,8 +104,8 @@ function TodayPage() {
       navigate({ to: "/support" });
       return;
     }
-    setHome((h) => (h ? { ...h, horizon: out.horizon } : h));
     setEditingHorizon(false);
+    await refreshHome(); // the server may have begun redrawing
   };
 
   const INTENTIONS = ["I need clarity", "I need calm", "I need courage"];
@@ -224,49 +244,55 @@ function TodayPage() {
           </div>
         </header>
 
-        {/* THE HORIZON — the far thing. It has no number and no end. */}
+        {/* THE HORIZON — the far thing. It has no number and no end. Drawn once
+            in thin lines; the staying brings its color back. */}
         {home !== undefined && home.horizon && !adding && (
-          <section className="mb-8 text-center">
-            <p className="text-[12px] uppercase tracking-[0.2em] font-medium text-dawn-muted mb-2">
-              Horizon
-            </p>
+          <section className="mb-8">
+            <div className="flex items-baseline justify-between mb-2 px-1">
+              <p className="text-[12px] uppercase tracking-[0.2em] font-medium text-dawn-muted">Your horizon</p>
+              {!editingHorizon && (
+                <button
+                  onClick={() => {
+                    setHorizonDraft(home.horizon ?? "");
+                    setEditingHorizon(true);
+                  }}
+                  className="text-[12px] uppercase tracking-[0.14em] text-dawn-ink/60 hover:text-dawn-ink/80 transition-colors"
+                >
+                  Reword
+                </button>
+              )}
+            </div>
             {editingHorizon ? (
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center rounded-2xl border border-dawn-haze/15 bg-dawn-surface/80 p-5">
                 <textarea
                   autoFocus
                   value={horizonDraft}
                   onChange={(e) => setHorizonDraft(e.target.value)}
-                  rows={2}
+                  rows={3}
                   maxLength={500}
-                  className="w-full max-w-sm bg-dawn-surface/70 text-dawn-ink border border-dawn-haze/15 rounded-2xl p-4 text-base leading-relaxed text-center focus:outline-none focus:ring-1 ring-dawn-rose/30 resize-none"
+                  className="w-full bg-dawn-sky/60 text-dawn-ink border border-dawn-haze/15 rounded-2xl p-4 text-base leading-relaxed focus:outline-none focus:ring-1 ring-dawn-rose/30 resize-none"
                 />
+                <p className="mt-2 text-[13px] text-dawn-muted text-center">
+                  Your words stay exactly as you write them. If they change, the drawing is made again.
+                </p>
                 <div className="mt-3 flex items-center gap-4">
                   <button
                     onClick={saveHorizon}
                     disabled={!horizonDraft.trim()}
-                    className="px-6 py-2.5 bg-dawn-rose text-dawn-sky text-[12px] uppercase tracking-[0.18em] font-bold rounded-full hover:bg-dawn-haze transition-colors disabled:opacity-60"
+                    className="px-6 py-2.5 bg-dawn-rose text-dawn-sky text-[12px] uppercase tracking-[0.12em] font-bold rounded-full hover:bg-dawn-haze transition-colors disabled:opacity-60"
                   >
                     Keep this
                   </button>
                   <button
                     onClick={() => setEditingHorizon(false)}
-                    className="text-[12px] uppercase tracking-[0.18em] text-dawn-ink/60 hover:text-dawn-ink/80 transition-colors"
+                    className="text-[12px] uppercase tracking-[0.14em] text-dawn-ink/60 hover:text-dawn-ink/80 transition-colors"
                   >
                     Cancel
                   </button>
                 </div>
               </div>
             ) : (
-              <button
-                onClick={() => {
-                  setHorizonDraft(home.horizon ?? "");
-                  setEditingHorizon(true);
-                }}
-                className="font-serif italic text-2xl leading-snug text-dawn-ink/90 text-balance max-w-[30ch] mx-auto hover:text-dawn-ink transition-colors"
-                title="Tap to reword your horizon"
-              >
-                “{home.horizon}”
-              </button>
+              <HorizonSketch sketch={home.sketch} words={home.horizon} />
             )}
           </section>
         )}
@@ -295,13 +321,18 @@ function TodayPage() {
         {vow === null && (
           <VowOnboarding
             horizon={home?.horizon ?? null}
-            onHorizon={(hz) => setHome((h) => (h ? { ...h, horizon: hz } : { horizon: hz, roads: [], maxRoads: 2 }))}
+            onHorizon={() => void refreshHome()}
             roadsOpen={roads.length}
             onCancel={roads.length > 0 ? () => setAdding(false) : undefined}
-            onCreated={(v) => void reloadHome(v.id)}
+            onCreated={(v) => {
+              setOnboarding(false);
+              void reloadHome(v.id);
+            }}
           />
         )}
-        {vow && <VowPanel key={vow.id} vow={vow} onEnded={() => void reloadHome()} />}
+        {vow && (
+          <VowPanel key={vow.id} vow={vow} onEnded={() => void reloadHome()} onWitnessed={() => void refreshHome()} />
+        )}
 
         {/* A second road — offered quietly, never pushed. Two is the limit. */}
         {vow && home && roads.length < home.maxRoads && (

@@ -9,6 +9,7 @@ import {
   api,
   RoadsFullError,
   type ApiJourney,
+  type ApiSketch,
   type ApiDarkNightContext,
   type ApiKeepsake,
   type ApiLetter,
@@ -62,9 +63,34 @@ export type VowOutcome =
 /** One horizon, at most this many roads — mirrors the server invariant. */
 export const MAX_ROADS = 2;
 
-/** The home screen: the horizon (never measured) and the open roads. */
+/** The horizon sketch as the UI needs it: absolute image URLs, and how much color is due. */
+export interface Sketch {
+  status: "none" | "pending" | "ready" | "failed";
+  lineUrl: string | null;
+  colorUrl: string | null;
+  lit: number;
+  fullAt: number;
+  stale: boolean;
+}
+
+const NO_SKETCH: Sketch = { status: "none", lineUrl: null, colorUrl: null, lit: 0, fullAt: 40, stale: false };
+
+function apiToSketch(s: ApiSketch | undefined): Sketch {
+  if (!s) return NO_SKETCH;
+  return {
+    status: s.status,
+    lineUrl: api.sketchUrl(s.lineUrl),
+    colorUrl: api.sketchUrl(s.colorUrl),
+    lit: s.lit,
+    fullAt: s.fullAt,
+    stale: s.stale,
+  };
+}
+
+/** The home screen: the horizon (never measured), its sketch, and the open roads. */
 export interface Home {
   horizon: string | null;
+  sketch: Sketch;
   roads: Vow[];
   maxRoads: number;
 }
@@ -347,14 +373,25 @@ export async function getHome(): Promise<Home> {
       const stored = loadStored();
       if (stored && stored.status === "active") roads.push(storedToVow(stored));
     }
-    return { horizon: home.horizon, roads, maxRoads: home.maxRoads ?? MAX_ROADS };
+    return { horizon: home.horizon, sketch: apiToSketch(home.sketch), roads, maxRoads: home.maxRoads ?? MAX_ROADS };
   } catch {
     const stored = loadStored();
     return {
       horizon: loadHorizon(),
+      sketch: NO_SKETCH,
       roads: stored && stored.status === "active" ? [storedToVow(stored)] : [],
       maxRoads: MAX_ROADS,
     };
+  }
+}
+
+/** Ask the server to draw the horizon (idempotent). Offline: nothing to do. */
+export async function requestSketch(): Promise<Sketch> {
+  try {
+    const { sketch } = await api.requestSketch();
+    return apiToSketch(sketch);
+  } catch {
+    return NO_SKETCH;
   }
 }
 

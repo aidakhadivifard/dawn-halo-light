@@ -25,6 +25,8 @@ export interface SketchDeps {
   apiKey?: string | null;
   model?: string;
   timeoutMs?: number;
+  /** Override for local testing against a mock (GEMINI_BASE_URL). */
+  baseUrl?: string;
 }
 
 /** Style only. The horizon text is quoted exactly as written. */
@@ -60,9 +62,9 @@ function pickImage(json: any): SketchImage | null {
 
 async function generate(
   parts: any[],
-  deps: Required<Pick<SketchDeps, "fetch" | "model" | "timeoutMs">> & { apiKey: string },
+  deps: Required<Pick<SketchDeps, "fetch" | "model" | "timeoutMs" | "baseUrl">> & { apiKey: string },
 ): Promise<SketchImage> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${deps.model}:generateContent`;
+  const url = `${deps.baseUrl}/v1beta/models/${deps.model}:generateContent`;
   const body = JSON.stringify({
     contents: [{ role: "user", parts }],
     generationConfig: { responseModalities: ["IMAGE"] },
@@ -92,6 +94,7 @@ export async function drawHorizon(
     fetch: deps.fetch ?? (globalThis.fetch as unknown as FetchLike),
     model: deps.model ?? cfg.geminiImageModel,
     timeoutMs: deps.timeoutMs ?? 90_000,
+    baseUrl: (deps.baseUrl ?? process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com").replace(/\/$/, ""),
     apiKey,
   };
   const line = await generate([{ text: linePrompt(horizon) }], d);

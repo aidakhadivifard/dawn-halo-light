@@ -27,7 +27,7 @@ const RITUAL_FLOOR_MS = 1600;
 // ---------------------------------------------------------------------------
 // Onboarding: (horizon, once) -> enduring -> hope -> letter -> the one draw.
 
-type OnboardingPhase = "horizon" | "enduring" | "hope" | "letter" | "drawing" | "reveal";
+type OnboardingPhase = "welcome" | "horizon" | "enduring" | "hope" | "letter" | "drawing" | "reveal";
 
 export function VowOnboarding({
   onCreated,
@@ -46,7 +46,7 @@ export function VowOnboarding({
   onCancel?: () => void;
 }) {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<OnboardingPhase>(horizon ? "enduring" : "horizon");
+  const [phase, setPhase] = useState<OnboardingPhase>(horizon ? "enduring" : "welcome");
   const [horizonText, setHorizonText] = useState("");
   const [label, setLabel] = useState("");
   const [enduring, setEnduring] = useState("");
@@ -55,7 +55,8 @@ export function VowOnboarding({
   const [letterText, setLetterText] = useState("");
   const [vow, setVow] = useState<Vow | null>(null);
   const [busy, setBusy] = useState(false);
-  const secondRoad = roadsOpen > 0;
+  // Fixed at mount: a background refresh mid-ritual must not turn this into "a second road".
+  const [secondRoad] = useState(roadsOpen > 0);
 
   const nameHorizon = async () => {
     if (busy || !horizonText.trim()) return;
@@ -101,17 +102,43 @@ export function VowOnboarding({
 
   return (
     <section className="animate-card-rise">
+      {phase === "welcome" && (
+        <div className="flex flex-col items-center text-center py-10">
+          <div className="relative w-36 h-36 mb-4">
+            <div
+              aria-hidden
+              className="absolute inset-0 rounded-full blur-[50px] opacity-80 animate-halo"
+              style={{ background: "radial-gradient(circle, rgba(201,162,74,0.55) 0%, rgba(201,162,74,0.2) 45%, transparent 72%)" }}
+            />
+          </div>
+          <h2 className="text-3xl font-serif font-light tracking-tight text-balance leading-tight">
+            The far thing first.
+          </h2>
+          <p className="mt-4 text-dawn-ink/75 text-base leading-relaxed max-w-[34ch]">
+            Say the life you are walking toward, in your own words. It is drawn once, in one thin line.
+            Then one card for the road — drawn once, never redrawn. The staying is yours; the app keeps
+            count of nothing but that.
+          </p>
+          <button
+            onClick={() => setPhase("horizon")}
+            className="mt-8 px-10 py-4 bg-dawn-rose text-dawn-sky text-[14px] uppercase tracking-[0.16em] font-bold rounded-full shadow-[0_12px_40px_-12px_rgba(201,162,74,0.45)] hover:bg-dawn-haze transition-all"
+          >
+            Name my horizon
+          </button>
+        </div>
+      )}
+
       {phase === "horizon" && (
-        <div className="flex flex-col items-center text-center py-8">
+        <div className="flex flex-col items-center text-center py-8 animate-card-rise">
           <p className="text-[12px] uppercase tracking-[0.2em] font-medium text-dawn-rose mb-3">
-            First, the far thing
+            Your horizon
           </p>
           <h2 className="text-2xl font-serif font-light tracking-tight text-balance">
             What is the life you are walking toward?
           </h2>
           <p className="mt-3 text-dawn-ink/70 text-base leading-relaxed max-w-[34ch]">
-            Say it the way you see it in your head. This is your horizon — it is never measured, never
-            counted. It only has to be true.
+            Say it in your own words. Not one of them will be changed. It is never measured — only kept,
+            and drawn.
           </p>
           <textarea
             autoFocus
@@ -119,7 +146,7 @@ export function VowOnboarding({
             onChange={(e) => setHorizonText(e.target.value)}
             rows={3}
             maxLength={500}
-            placeholder="A house with light in it. Work that is mine. Two kids and enough."
+            placeholder="In your own words."
             className="mt-6 w-full max-w-sm bg-dawn-surface/70 text-dawn-ink placeholder:text-dawn-ink/45 border border-dawn-haze/15 rounded-2xl p-5 text-base leading-relaxed focus:outline-none focus:ring-1 ring-dawn-rose/30 resize-none"
           />
           <button
@@ -138,10 +165,10 @@ export function VowOnboarding({
             {secondRoad ? "A second road" : "Now, the first road"}
           </p>
           <h2 className="text-2xl font-serif font-light tracking-tight text-balance">
-            What are you enduring?
+            What are you walking through, for it?
           </h2>
           <p className="mt-3 text-dawn-ink/70 text-base leading-relaxed max-w-[34ch]">
-            The hard thing you are living through right now — in your own words.
+            The hard thing you are living through right now — the road, in your own words.
           </p>
           <textarea
             autoFocus
@@ -176,7 +203,7 @@ export function VowOnboarding({
             And on the other side of it
           </p>
           <h2 className="text-2xl font-serif font-light tracking-tight text-balance">
-            What do you hope for?
+            What do you hope for, on this road?
           </h2>
           <p className="mt-3 text-dawn-ink/70 text-base leading-relaxed max-w-[34ch]">
             Name it plainly. The card will hold it with you — the hope stays yours.
@@ -276,10 +303,11 @@ export function VowOnboarding({
               }}
             />
           </div>
-          <p className="font-serif text-lg italic text-dawn-ink/80 animate-card-rise leading-relaxed">
-            Take a slow breath.
-            <br />
-            This card is drawn once.
+          <p className="font-serif text-xl italic text-dawn-ink/85 animate-card-rise leading-relaxed">
+            The deck is choosing for you.
+          </p>
+          <p className="mt-2 text-base text-dawn-ink/70 animate-card-rise">
+            Take a slow breath. This card is drawn once.
           </p>
         </div>
       )}
@@ -328,7 +356,7 @@ export function VowOnboarding({
                 onClick={() => onCreated(vow)}
                 className="mt-8 w-full py-4 bg-dawn-rose text-dawn-sky text-[14px] uppercase tracking-[0.16em] font-bold rounded-full hover:bg-dawn-haze transition-colors"
               >
-                {secondRoad ? "Open the road — Day 1" : "Begin the count — Day 1"}
+                {secondRoad ? "Open the road — Day 1" : horizon || horizonText ? "Show me my horizon — Day 1" : "Begin the count — Day 1"}
               </button>
             </div>
           </article>
@@ -343,7 +371,16 @@ export function VowOnboarding({
 
 type PanelMode = "idle" | "reading" | "night" | "nightDone" | "closing" | "closed";
 
-export function VowPanel({ vow, onEnded }: { vow: Vow; onEnded: () => void }) {
+export function VowPanel({
+  vow,
+  onEnded,
+  onWitnessed,
+}: {
+  vow: Vow;
+  onEnded: () => void;
+  /** A done step or a hard night was written down — the horizon may take color. */
+  onWitnessed?: () => void;
+}) {
   const navigate = useNavigate();
   const [mode, setMode] = useState<PanelMode>("idle");
   const [nightText, setNightText] = useState("");
@@ -401,6 +438,7 @@ export function VowPanel({ vow, onEnded }: { vow: Vow; onEnded: () => void }) {
       const line = await resolveStep(done, vow.id);
       setStepLine(line);
       setStepPhase("witness");
+      if (done) onWitnessed?.();
     } finally {
       setBusy(false);
     }
@@ -422,6 +460,7 @@ export function VowPanel({ vow, onEnded }: { vow: Vow; onEnded: () => void }) {
       setNightCtx(out.context);
       setNightText("");
       setMode("nightDone");
+      onWitnessed?.();
     } finally {
       setBusy(false);
     }

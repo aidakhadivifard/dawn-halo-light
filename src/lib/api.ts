@@ -148,6 +148,13 @@ export const api = {
   async getHorizon(): Promise<{ horizon: string | null }> {
     return req(`/horizon`);
   },
+  async requestSketch(): Promise<{ status: string; sketch: ApiSketch }> {
+    return req(`/horizon/sketch`, { method: "POST", body: JSON.stringify({}) });
+  },
+  /** Absolute URL for a sketch image path returned by the API. */
+  sketchUrl(path: string | null): string | null {
+    return path ? `${BASE}${path}` : null;
+  },
   async setHorizon(text: string): Promise<{
     horizon?: string;
     isCrisis?: boolean;
@@ -242,11 +249,26 @@ export class RoadsFullError extends Error {
   }
 }
 
-/** The home screen in one call: the horizon (never measured) and the open roads. */
+/** The horizon sketch: drawn once in ink, colored by the staying. */
+export interface ApiSketch {
+  available: boolean;
+  status: "none" | "pending" | "ready" | "failed";
+  /** API-relative paths (prefix with the API base). */
+  lineUrl: string | null;
+  colorUrl: string | null;
+  /** Done steps + hard nights — the only thing that brings color. */
+  lit: number;
+  fullAt: number;
+  /** The words changed after the picture was drawn (redraw cap reached). */
+  stale: boolean;
+}
+
+/** The home screen in one call: the horizon (never measured), its sketch, and the open roads. */
 export interface ApiHome {
   horizon: string | null;
   roads: ApiJourney[];
   maxRoads: number;
+  sketch: ApiSketch;
 }
 
 export interface ApiJourney {
