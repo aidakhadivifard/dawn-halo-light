@@ -53,6 +53,9 @@ function WishPage() {
   const [deedText, setDeedText] = useState("");
   const [justAnswered, setJustAnswered] = useState(false);
   const [witness, setWitness] = useState<string | null>(null);
+  // Once she has touched the draft, it is hers — we never rewrite it under her.
+  const [witnessEdited, setWitnessEdited] = useState(false);
+  const [witnessSeed, setWitnessSeed] = useState<string | null>(null);
   // The ladder of tiny steps. Null means it was never opened — which is always
   // the case after "I endured": that answer is never followed by an ask.
   const [ladder, setLadder] = useState<{
@@ -69,6 +72,14 @@ function WishPage() {
     document.documentElement.setAttribute("dir", dir);
     document.documentElement.setAttribute("lang", lang);
   }, [dir, lang]);
+
+  // Switching language rewrites the draft message — unless she has already
+  // made it her own, in which case her words stay exactly as she left them.
+  useEffect(() => {
+    if (witness === null || witnessEdited || !witnessSeed) return;
+    setWitness(dict(lang).witnessMessage(witnessSeed));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
 
   const load = useCallback(async () => {
     const h = await getHome();
@@ -142,7 +153,11 @@ function WishPage() {
     if (kind === "did") setLadder({ state: "offer", rung: 0 });
     // The witness is offered now and then — never every day, never nagging.
     const deed = kind === "did" ? (body ?? "").trim() : null;
-    if (Math.random() < 0.34) setWitness(t.witnessMessage(deed ?? shorten(h.horizon)));
+    if (Math.random() < 0.34) {
+      setWitnessSeed(deed ?? shorten(h.horizon));
+      setWitnessEdited(false);
+      setWitness(t.witnessMessage(deed ?? shorten(h.horizon)));
+    }
   }
 
   /** Ask for the next rung. No step to offer means the ladder simply ends. */
@@ -386,7 +401,10 @@ function WishPage() {
               <p className="text-[13px] text-wish-muted mb-4">{t.witnessEdit}</p>
               <textarea
                 value={witness}
-                onChange={(e) => setWitness(e.target.value)}
+                onChange={(e) => {
+                  setWitnessEdited(true);
+                  setWitness(e.target.value);
+                }}
                 rows={3}
                 className="w-full rounded-xl border border-wish-line bg-wish-paper px-4 py-3 text-[15px] text-wish-ink
                            outline-none focus:border-wish-blue/60 transition-colors resize-none"
