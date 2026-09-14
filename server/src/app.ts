@@ -244,7 +244,29 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     if (result.kind === "crisis")
       return res.json({ isCrisis: true, message: result.message, resources: result.resources });
     if (result.kind === "invalid") return res.status(400).json({ error: "missing_text" });
+    if (result.kind === "sealed") return res.status(409).json({ error: "sealed" });
     res.json({ horizon: result.horizon });
+  });
+
+  // The road card — drawn once, and drawing it seals the wish forever.
+  app.post("/api/card", requireDevice, async (req, res) => {
+    const out = await svc.drawRoadCard(req.deviceId!);
+    if (out.kind === "no_horizon") return res.status(404).json({ error: "no_horizon" });
+    res.json({ card: out.card, sealed: true, alreadyDrawn: out.alreadyDrawn });
+  });
+
+  // What I did today for my wish. 'stayed' counts exactly as much as 'did'.
+  app.post("/api/deed", requireDevice, resolveLocalDate, (req, res) => {
+    const kind = req.body?.kind === "stayed" ? "stayed" : "did";
+    const out = svc.recordDeed(req.deviceId!, req.localDate!, kind, req.body?.text);
+    if (out.kind === "crisis")
+      return res.json({ isCrisis: true, message: out.message, resources: out.resources });
+    if (out.kind === "invalid") return res.status(400).json({ error: "missing_text" });
+    res.json({ deed: out.deed, sketch: svc.getHome(req.deviceId!, req.localDate!).sketch });
+  });
+
+  app.get("/api/deeds", requireDevice, (req, res) => {
+    res.json({ deeds: svc.listDeeds(req.deviceId!) });
   });
 
   // A road is a vow. Every road route accepts an optional `journeyId` (body or

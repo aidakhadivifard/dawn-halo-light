@@ -8,7 +8,8 @@ import { detectCrisis, CRISIS_RESOURCES } from "./lib/crisis";
 import { classifyInput } from "./lib/classify";
 import { canDraw, snapshot, withinTrial, type QuotaState } from "./lib/entitlement";
 import { selectIllustration, NO_REPEAT_WINDOW_DAYS } from "./lib/illustrations";
-import { generateCardText, generateVowText, type MessagesClient } from "./lib/anthropic";
+import { generateCardText, generateVowText, chooseRoadCard, type MessagesClient } from "./lib/anthropic";
+import { findCard, fallbackCard as fallbackRoadCard, type RoadCard } from "./lib/roadcards";
 import { findHalo } from "./lib/deck";
 import { drawHorizon, sketchAvailable, type SketchDeps } from "./lib/sketch";
 import type { JourneyContext } from "./lib/prompt";
@@ -416,9 +417,24 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
      */
     getHome(deviceId: string, localDate: string) {
       db.getOrCreateDevice(deviceId);
-      const horizon = db.getHorizon(deviceId)?.text ?? null;
+      const h = db.getHorizon(deviceId);
+      const horizon = h?.text ?? null;
       const roads = db.activeJourneys(deviceId).map((j) => livingJourney(j, localDate));
-      return { horizon, roads, maxRoads: MAX_ROADS, sketch: sketchView(deviceId) };
+      const card = findCard(h?.card_id);
+      const today = h ? db.deedsOn(deviceId, localDate) : [];
+      return {
+        horizon,
+        // The wish is sealed the moment the card is drawn; the client hides edit.
+        sealed: !!h?.card_id,
+        card: card ? { id: card.id, name: card.name, line: card.line } : null,
+        // Today's answer, if it has already been given. Both kinds count the same.
+        todayDeed: today[0]
+          ? { id: today[0].id, kind: today[0].kind, text: today[0].text }
+          : null,
+        roads,
+        maxRoads: MAX_ROADS,
+        sketch: sketchView(deviceId),
+      };
     },
 
     // ----- The horizon sketch -----------------------------------------------
@@ -452,9 +468,12 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     ):
       | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
       | { kind: "invalid" }
+      | { kind: "sealed" }
       | { kind: "horizon"; horizon: string } {
       const trimmed = (text ?? "").trim().slice(0, 500);
       if (!trimmed) return { kind: "invalid" };
+      // Once the card has been drawn the words are sealed — forever.
+      if (db.getHorizon(deviceId)?.card_id) return { kind: "sealed" };
       if (detectCrisis(trimmed).isCrisis) {
         return { kind: "crisis", message: CRISIS_RESOURCES.message, resources: CRISIS_RESOURCES.resources };
       }
@@ -463,6 +482,78 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       // Draw it — in the background, only if the words changed, only if we can.
       requestSketch(deviceId);
       return { kind: "horizon", horizon: trimmed };
+    },
+
+    // ----- The road card ----------------------------------------------------
+
+    /**
+     * Draw the ONE road card for the wish. Every card says the wish CAN happen;
+     * they differ only in the shape of the road. Drawing it SEALS the words —
+     * from this moment the wish can never be edited, and its picture is drawn
+     * from these words forever. Drawn once: asking again returns the same card.
+     */
+    async drawRoadCard(deviceId: string): Promise<
+      { kind: "no_horizon" } | { kind: "card"; card: RoadCard; sealed: true; alreadyDrawn: boolean }
+    > {
+      db.getOrCreateDevice(deviceId);
+      const h = db.getHorizon(deviceId);
+      if (!h) return { kind: "no_horizon" };
+
+      const existing = findCard(h.card_id);
+      if (existing) return { kind: "card", card: existing, sealed: true, alreadyDrawn: true };
+
+      const { id } = await chooseRoadCard(h.text, { client, timeoutMs });
+      const card = findCard(id) ?? fallbackRoadCard(h.text);
+      db.setCard(deviceId, card.id, now().toISOString());
+      // The wish is sealed — make sure its picture exists.
+      requestSketch(deviceId);
+      return { kind: "card", card, sealed: true, alreadyDrawn: false };
+    },
+
+    // ----- The deeds (what I did today for my wish) -------------------------
+
+    /**
+     * Record today's deed. Two kinds, and they count EXACTLY the same: 'did'
+     * (a small act, with words) and 'stayed' (endured and kept going). There is
+     * no better answer. Every deed brings a little more color into the picture.
+     */
+    recordDeed(
+      deviceId: string,
+      localDate: string,
+      kind: "did" | "stayed",
+      text?: string | null,
+    ):
+      | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
+      | { kind: "invalid" }
+      | { kind: "deed"; deed: { id: string; kind: "did" | "stayed"; text: string | null; localDate: string } } {
+      if (kind !== "did" && kind !== "stayed") return { kind: "invalid" };
+      const trimmed = (text ?? "").trim().slice(0, 500) || null;
+      if (kind === "did" && !trimmed) return { kind: "invalid" };
+      if (trimmed && detectCrisis(trimmed).isCrisis) {
+        return { kind: "crisis", message: CRISIS_RESOURCES.message, resources: CRISIS_RESOURCES.resources };
+      }
+      db.getOrCreateDevice(deviceId);
+      const row = {
+        id: newId("deed"),
+        device_id: deviceId,
+        kind,
+        text: trimmed,
+        local_date: localDate,
+        created_at: now().toISOString(),
+      } as const;
+      db.insertDeed(row);
+      return { kind: "deed", deed: { id: row.id, kind, text: trimmed, localDate } };
+    },
+
+    /** The deeds so far, newest first — the wish book's spine. */
+    listDeeds(deviceId: string, limit = 60) {
+      return db.listDeeds(deviceId, limit).map((d) => ({
+        id: d.id,
+        kind: d.kind,
+        text: d.text,
+        localDate: d.local_date,
+        createdAt: d.created_at,
+      }));
     },
 
     // ----- One Small Step ---------------------------------------------------

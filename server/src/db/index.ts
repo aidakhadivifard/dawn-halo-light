@@ -30,6 +30,18 @@ export interface HorizonRow {
   sketch_for_text: string | null;
   /** How many times this horizon has been drawn — capped, so renames stay cheap. */
   sketch_draws: number;
+  /** The road card drawn for this wish. Once set, the wish is sealed forever. */
+  card_id: string | null;
+  card_at: string | null;
+}
+
+export interface DeedRow {
+  id: string;
+  device_id: string;
+  kind: "did" | "stayed";
+  text: string | null;
+  local_date: string;
+  created_at: string;
 }
 
 export interface JourneyRow {
@@ -246,6 +258,19 @@ CREATE TABLE IF NOT EXISTS horizon_sketches (
   PRIMARY KEY (device_id, kind)
 );
 
+-- The deeds: what a person did today for their wish. Two kinds, and BOTH count
+-- exactly the same — 'did' (a small act) and 'stayed' (endured and kept going).
+-- Every deed lets a little more color through the wish picture.
+CREATE TABLE IF NOT EXISTS deeds (
+  id TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL,
+  kind TEXT NOT NULL,          -- 'did' | 'stayed'
+  text TEXT,                   -- what it was, in their words (optional for 'stayed')
+  local_date TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_deeds_device ON deeds(device_id, local_date);
+
 CREATE TABLE IF NOT EXISTS partners (
   code TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -286,6 +311,10 @@ export function createDb(path = ":memory:") {
     "ALTER TABLE horizons ADD COLUMN sketch_error TEXT",
     "ALTER TABLE horizons ADD COLUMN sketch_for_text TEXT",
     "ALTER TABLE horizons ADD COLUMN sketch_draws INTEGER NOT NULL DEFAULT 0",
+    // The road card, drawn once. Drawing it SEALS the wish: the words can never
+    // be edited again, and the picture is drawn from them forever.
+    "ALTER TABLE horizons ADD COLUMN card_id TEXT",
+    "ALTER TABLE horizons ADD COLUMN card_at TEXT",
     "ALTER TABLE journeys ADD COLUMN letter_to TEXT",
     "ALTER TABLE journeys ADD COLUMN letter_text TEXT",
     "ALTER TABLE journeys ADD COLUMN letter_token TEXT",
@@ -390,9 +419,30 @@ export function createDb(path = ":memory:") {
        ON CONFLICT(device_id, kind) DO UPDATE SET mime = @mime, bytes = @bytes, created_at = @now`,
     ),
     getSketch: sqlite.prepare<[string, string]>("SELECT * FROM horizon_sketches WHERE device_id = ? AND kind = ?"),
-    countStaying: sqlite.prepare<[string, string]>(
+    // Everything that counts as staying. A deed counts the same whether the
+    // person did something small or only endured — that is the whole point.
+    countStaying: sqlite.prepare<[string, string, string]>(
       `SELECT (SELECT COUNT(*) FROM vow_steps WHERE device_id = ? AND status = 'done')
-            + (SELECT COUNT(*) FROM dark_nights WHERE device_id = ?) AS n`,
+            + (SELECT COUNT(*) FROM dark_nights WHERE device_id = ?)
+            + (SELECT COUNT(*) FROM deeds WHERE device_id = ?) AS n`,
+    ),
+
+    // --- Deeds (what I did today for my wish) ---
+    insertDeed: sqlite.prepare(
+      `INSERT INTO deeds (id, device_id, kind, text, local_date, created_at)
+       VALUES (@id, @device_id, @kind, @text, @local_date, @created_at)`,
+    ),
+    listDeeds: sqlite.prepare<[string, number]>(
+      "SELECT * FROM deeds WHERE device_id = ? ORDER BY created_at DESC LIMIT ?",
+    ),
+    deedsOn: sqlite.prepare<[string, string]>(
+      "SELECT * FROM deeds WHERE device_id = ? AND local_date = ? ORDER BY created_at DESC",
+    ),
+    getDeed: sqlite.prepare<[string, string]>(
+      "SELECT * FROM deeds WHERE device_id = ? AND id = ?",
+    ),
+    setCard: sqlite.prepare(
+      "UPDATE horizons SET card_id = @card_id, card_at = @card_at WHERE device_id = @device_id",
     ),
     bumpSketchDraws: sqlite.prepare<[string]>("UPDATE horizons SET sketch_draws = sketch_draws + 1 WHERE device_id = ?"),
     deleteSketches: sqlite.prepare<[string]>("DELETE FROM horizon_sketches WHERE device_id = ?"),
@@ -630,9 +680,25 @@ export function createDb(path = ":memory:") {
     deleteSketches(deviceId: string) {
       stmts.deleteSketches.run(deviceId);
     },
-    /** Done steps + hard nights stayed through, across every road. Never the failing. */
+    /** Done steps, hard nights stayed through, and deeds. Never the failing. */
     countStaying(deviceId: string): number {
-      return (stmts.countStaying.get(deviceId, deviceId) as { n: number }).n;
+      return (stmts.countStaying.get(deviceId, deviceId, deviceId) as { n: number }).n;
+    },
+    /** Seal the wish with its road card. Called once, ever. */
+    setCard(deviceId: string, cardId: string, at: string) {
+      stmts.setCard.run({ device_id: deviceId, card_id: cardId, card_at: at });
+    },
+    insertDeed(row: DeedRow) {
+      stmts.insertDeed.run(row as any);
+    },
+    listDeeds(deviceId: string, limit = 60): DeedRow[] {
+      return stmts.listDeeds.all(deviceId, limit) as DeedRow[];
+    },
+    deedsOn(deviceId: string, localDate: string): DeedRow[] {
+      return stmts.deedsOn.all(deviceId, localDate) as DeedRow[];
+    },
+    getDeed(deviceId: string, id: string): DeedRow | undefined {
+      return stmts.getDeed.get(deviceId, id) as DeedRow | undefined;
     },
     bumpSketchDraws(deviceId: string) {
       stmts.bumpSketchDraws.run(deviceId);
