@@ -95,7 +95,7 @@ export interface Home {
   /** The road card, drawn once. Only the id matters; the words come from i18n. */
   card: { id: string; name: string; line: string } | null;
   /** Today's answer, if it has been given. Both kinds count the same. */
-  todayDeed: { id: string; kind: "did" | "stayed"; text: string | null } | null;
+  todayDeed: { id: string; kind: "did" | "stayed" | "stuck"; text: string | null } | null;
   sketch: Sketch;
   roads: Vow[];
   maxRoads: number;
@@ -435,7 +435,7 @@ export async function nextTinyStep(): Promise<string | null> {
  * one small thing" — same row, same weight, same color returned to the picture.
  */
 export async function recordDeed(
-  kind: "did" | "stayed",
+  kind: "did" | "stayed" | "stuck",
   text?: string | null,
 ): Promise<
   | { kind: "deed"; sketch: Sketch }

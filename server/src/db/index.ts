@@ -38,7 +38,13 @@ export interface HorizonRow {
 export interface DeedRow {
   id: string;
   device_id: string;
-  kind: "did" | "stayed";
+  /**
+   * 'did'    — I did one small thing (always carries text)
+   * 'stayed' — I endured and kept going
+   * 'stuck'  — I did nothing, and it bothers me
+   * All three count exactly the same. Showing up is the thing being counted.
+   */
+  kind: "did" | "stayed" | "stuck";
   text: string | null;
   local_date: string;
   created_at: string;
@@ -264,7 +270,7 @@ CREATE TABLE IF NOT EXISTS horizon_sketches (
 CREATE TABLE IF NOT EXISTS deeds (
   id TEXT PRIMARY KEY,
   device_id TEXT NOT NULL,
-  kind TEXT NOT NULL,          -- 'did' | 'stayed'
+  kind TEXT NOT NULL,          -- 'did' | 'stayed' | 'stuck'
   text TEXT,                   -- what it was, in their words (optional for 'stayed')
   local_date TEXT NOT NULL,
   created_at TEXT NOT NULL

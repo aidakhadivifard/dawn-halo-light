@@ -170,7 +170,7 @@ export const api = {
     return req(`/card`, { method: "POST", body: JSON.stringify({}) });
   },
   /** Today's answer. 'stayed' counts exactly as much as 'did'. */
-  async recordDeed(kind: "did" | "stayed", text?: string | null): Promise<{
+  async recordDeed(kind: "did" | "stayed" | "stuck", text?: string | null): Promise<{
     deed?: ApiDeed;
     sketch?: ApiSketch;
     isCrisis?: boolean;
@@ -296,7 +296,7 @@ export interface ApiRoadCard {
 
 export interface ApiDeed {
   id: string;
-  kind: "did" | "stayed";
+  kind: "did" | "stayed" | "stuck";
   text: string | null;
   localDate?: string;
   createdAt?: string;

@@ -527,13 +527,13 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     recordDeed(
       deviceId: string,
       localDate: string,
-      kind: "did" | "stayed",
+      kind: "did" | "stayed" | "stuck",
       text?: string | null,
     ):
       | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
       | { kind: "invalid" }
-      | { kind: "deed"; deed: { id: string; kind: "did" | "stayed"; text: string | null; localDate: string } } {
-      if (kind !== "did" && kind !== "stayed") return { kind: "invalid" };
+      | { kind: "deed"; deed: { id: string; kind: "did" | "stayed" | "stuck"; text: string | null; localDate: string } } {
+      if (kind !== "did" && kind !== "stayed" && kind !== "stuck") return { kind: "invalid" };
       const trimmed = (text ?? "").trim().slice(0, 500) || null;
       if (kind === "did" && !trimmed) return { kind: "invalid" };
       if (trimmed && detectCrisis(trimmed).isCrisis) {
@@ -564,11 +564,15 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       if (!h) return null;
       // Oldest first: their own answer, then each rung they've taken since.
       const todays = db.deedsOn(deviceId, localDate).slice().reverse();
-      const first = todays.find((d) => d.kind === "did" && d.text);
-      if (!first?.text) return null;
+      const first = todays[0];
+      if (!first) return null;
+      // "I endured and kept going" is a finished sentence. We ask nothing after
+      // it. Only the two answers that reach for something open the ladder.
+      if (first.kind === "stayed") return null;
+      if (first.kind === "did" && !first.text) return null;
       const done = todays.filter((d) => d.id !== first.id && d.text).map((d) => d.text as string);
       if (done.length >= MAX_RUNGS) return null;
-      return nextTinyStep({ wish: h.text, today: first.text, done }, { client, timeoutMs });
+      return nextTinyStep({ wish: h.text, today: first.text ?? null, done }, { client, timeoutMs });
     },
 
     /** The deeds so far, newest first — the wish book's spine. */

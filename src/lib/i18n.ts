@@ -41,6 +41,13 @@ const EN = {
   todayAsk: "What did you do today for your wish?",
   todayStayed: "I endured and kept going",
   todayDid: "I did one small thing",
+  todayStuck: "I did nothing, and it bothers me",
+  // What the app says the moment someone admits they couldn't. Acknowledgment
+  // first — always. A task offered before this line would say: your sadness is
+  // a productivity problem.
+  stuckAck: "I know. Coming here and saying it was something, today.",
+  stuckOffer: "Want to do one very small thing together? Small enough to be funny.",
+  stuckNo: "No, I just wanted to say it",
   todayWhat: "What was it? Tell me.",
   todayPlaceholder: "Today I…",
   todaySave: "Save",
@@ -97,6 +104,10 @@ const FA: Dict = {
   todayAsk: "امروز برای آرزویت چه کردی؟",
   todayStayed: "تحمل کردم و ادامه دادم",
   todayDid: "یک کار کوچک کردم",
+  todayStuck: "کاری نکردم و ناراحتم",
+  stuckAck: "می‌دانم. همین که امروز آمدی و گفتی، خودش چیزی بود.",
+  stuckOffer: "می‌خواهی یک کار خیلی کوچک با هم انجام دهیم؟ آن‌قدر کوچک که خنده‌دار باشد.",
+  stuckNo: "نه، فقط خواستم بگویم",
   todayWhat: "چه کار کردی؟ برایم بنویس.",
   todayPlaceholder: "امروز…",
   todaySave: "ثبت کن",

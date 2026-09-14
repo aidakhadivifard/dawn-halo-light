@@ -259,7 +259,8 @@ export function createApp(db: DB, opts: AppOptions = {}) {
 
   // What I did today for my wish. 'stayed' counts exactly as much as 'did'.
   app.post("/api/deed", requireDevice, resolveLocalDate, (req, res) => {
-    const kind = req.body?.kind === "stayed" ? "stayed" : "did";
+    const raw = req.body?.kind;
+    const kind = raw === "stayed" ? "stayed" : raw === "stuck" ? "stuck" : "did";
     const out = svc.recordDeed(req.deviceId!, req.localDate!, kind, req.body?.text);
     if (out.kind === "crisis")
       return res.json({ isCrisis: true, message: out.message, resources: out.resources });

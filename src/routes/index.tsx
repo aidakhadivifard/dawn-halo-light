@@ -62,6 +62,8 @@ function WishPage() {
     state: "offer" | "thinking" | "step" | "closed";
     text?: string;
     rung: number;
+    /** Opened from "I did nothing, and it bothers me" — a gentler first screen. */
+    stuck?: boolean;
   } | null>(null);
 
   const t = dict(lang);
@@ -132,12 +134,12 @@ function WishPage() {
     setBadgeLanding(false);
   }
 
-  async function answer(kind: "did" | "stayed") {
+  async function answer(kind: "did" | "stayed" | "stuck") {
     if (kind === "did") return setDeedKind("did");
-    await save("stayed", null);
+    await save(kind, null);
   }
 
-  async function save(kind: "did" | "stayed", body: string | null) {
+  async function save(kind: "did" | "stayed" | "stuck", body: string | null) {
     if (busy) return;
     setBusy(true);
     const res = await recordDeed(kind, body);
@@ -148,9 +150,11 @@ function WishPage() {
     setDeedText("");
     setJustAnswered(true);
     const h = await load();
-    // One more, smaller — but ONLY after "I did one small thing". After "I
-    // endured and kept going" we ask for nothing. That branch stays untouched.
-    if (kind === "did") setLadder({ state: "offer", rung: 0 });
+    // The ladder opens for the two answers that reach for something: "I did one
+    // small thing", and "I did nothing, and it bothers me" — the second being
+    // the one this technique was actually built for. After "I endured and kept
+    // going" we ask for nothing at all; that answer is already complete.
+    if (kind === "did" || kind === "stuck") setLadder({ state: "offer", rung: 0, stuck: kind === "stuck" });
     // The witness is offered now and then — never every day, never nagging.
     const deed = kind === "did" ? (body ?? "").trim() : null;
     if (Math.random() < 0.34) {
@@ -161,10 +165,10 @@ function WishPage() {
   }
 
   /** Ask for the next rung. No step to offer means the ladder simply ends. */
-  async function askStep(rung: number) {
-    setLadder({ state: "thinking", rung });
+  async function askStep(rung: number, stuck?: boolean) {
+    setLadder({ state: "thinking", rung, stuck });
     const step = await nextTinyStep();
-    setLadder(step ? { state: "step", text: step, rung } : { state: "closed", rung });
+    setLadder(step ? { state: "step", text: step, rung, stuck } : { state: "closed", rung, stuck });
   }
 
   /** A finished step is an ordinary deed — so it brings color like any other. */
@@ -174,7 +178,7 @@ function WishPage() {
     await recordDeed("did", text);
     setBusy(false);
     await load();
-    setLadder({ state: "offer", rung: rung + 1 });
+    setLadder((l) => ({ state: "offer", rung: rung + 1, stuck: l?.stuck }));
   }
 
   function shorten(s: string | null): string {
@@ -307,7 +311,14 @@ function WishPage() {
 
           {home.todayDeed && !deedKind ? (
             <div className="mt-8 rounded-2xl border border-wish-line bg-wish-tint px-5 py-5 text-center">
-              <p className="font-serif text-xl text-wish-ink">{justAnswered ? t.todayDone : t.todayAlready}</p>
+              {/* Acknowledgment sits above the offer, never below it. */}
+              <p className="font-serif text-xl text-wish-ink leading-relaxed">
+                {home.todayDeed.kind === "stuck"
+                  ? t.stuckAck
+                  : justAnswered
+                    ? t.todayDone
+                    : t.todayAlready}
+              </p>
               {home.todayDeed.text && <p className="mt-2 text-[15px] text-wish-muted">{home.todayDeed.text}</p>}
             </div>
           ) : (
@@ -335,12 +346,18 @@ function WishPage() {
                   </Primary>
                 </div>
               ) : (
+                // Three doors, identical on purpose. None of them is the good
+                // one; none of them is the bad one. Whichever she opens, she
+                // came — and that is the only thing this app counts.
                 <div className="space-y-3">
                   <Choice onClick={() => answer("stayed")} disabled={busy}>
                     {t.todayStayed}
                   </Choice>
                   <Choice onClick={() => answer("did")} disabled={busy}>
                     {t.todayDid}
+                  </Choice>
+                  <Choice onClick={() => answer("stuck")} disabled={busy}>
+                    {t.todayStuck}
                   </Choice>
                 </div>
               )}
@@ -352,14 +369,17 @@ function WishPage() {
             <div className="mt-6 rounded-2xl border border-wish-line bg-wish-paper px-5 py-5 animate-rise-line">
               {ladder.state === "offer" && (
                 <>
+                  {/* Acknowledgment first, always. A task handed to someone who
+                      just said they're unhappy would say: your sadness is a
+                      productivity problem. It isn't. */}
                   <p className="font-serif text-xl text-wish-ink leading-snug mb-4">
-                    {ladder.rung === 0 ? t.stepOffer : t.stepMore}
+                    {ladder.rung > 0 ? t.stepMore : ladder.stuck ? t.stuckOffer : t.stepOffer}
                   </p>
-                  <Primary onClick={() => askStep(ladder.rung)} className="w-full">
+                  <Primary onClick={() => askStep(ladder.rung, ladder.stuck)} className="w-full">
                     {t.stepYes}
                   </Primary>
                   <Secondary onClick={() => setLadder({ ...ladder, state: "closed" })} className="mt-2 w-full">
-                    {ladder.rung === 0 ? t.stepNo : t.stepEnough}
+                    {ladder.rung > 0 ? t.stepEnough : ladder.stuck ? t.stuckNo : t.stepNo}
                   </Secondary>
                 </>
               )}

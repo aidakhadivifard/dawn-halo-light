@@ -59,6 +59,17 @@ describe("shaping the step", () => {
     expect(p).toContain("1. opened the laptop");
     expect(p).toContain("Invent nothing");
   });
+
+  it("the stuck prompt asks for the smallest possible thing, and never scolds", () => {
+    const p = tinyStepPrompt({ wish: "a body I trust", today: null, done: [] });
+    expect(p).toContain("a body I trust");
+    expect(p).toContain("SMALLEST POSSIBLE");
+    expect(p).toContain("no feeling ready");
+    // The model is told explicitly not to hold the day against them.
+    expect(p).toContain("Never refer to what they failed to do");
+    expect(p).toContain("not lazy");
+    expect(p).toContain("Invent nothing");
+  });
 });
 
 describe("asking for a step", () => {
@@ -138,6 +149,32 @@ describe("the ladder, end to end", () => {
     await h(request(api).post("/api/deed"), "2026-09-02").send({ kind: "did", text: "a new day" });
     const tomorrow = await h(request(api).post("/api/step/next"), "2026-09-02");
     expect(tomorrow.body.step).not.toBeNull();
+  });
+
+  it("'I did nothing, and it bothers me' opens the ladder — this is who it is for", async () => {
+    const { client, prompts } = recording("Put on your running clothes. That's all.");
+    const api = createApp(db, { client });
+    await h(request(api).put("/api/horizon")).send({ text: "a body I trust" });
+
+    const said = await h(request(api).post("/api/deed")).send({ kind: "stuck" });
+    expect(said.status).toBe(200);
+    expect(said.body.deed.kind).toBe("stuck");
+    // Saying it out loud counts exactly as much as anything else. She came.
+    expect(said.body.sketch.lit).toBe(1);
+
+    const step = await h(request(api).post("/api/step/next"));
+    expect(step.body.step).toBe("Put on your running clothes. That's all.");
+    expect(prompts[0]).toContain("SMALLEST POSSIBLE");
+    expect(prompts[0]).toContain("a body I trust");
+  });
+
+  it("all three answers bring back exactly the same amount of color", async () => {
+    const api = createApp(db, { client: null });
+    await h(request(api).put("/api/horizon")).send({ text: "a body I trust" });
+    const a = await h(request(api).post("/api/deed"), "2026-09-01").send({ kind: "stayed" });
+    const b = await h(request(api).post("/api/deed"), "2026-09-02").send({ kind: "stuck" });
+    const c = await h(request(api).post("/api/deed"), "2026-09-03").send({ kind: "did", text: "walked" });
+    expect([a.body.sketch.lit, b.body.sketch.lit, c.body.sketch.lit]).toEqual([1, 2, 3]);
   });
 
   it("no wish, and no answer given yet, mean no step", async () => {
