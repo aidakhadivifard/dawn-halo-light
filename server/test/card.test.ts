@@ -116,6 +116,8 @@ describe("drawing the card seals the wish", () => {
     expect(drawn.status).toBe(200);
     expect(drawn.body.card.id).toBe("crown");
     expect(drawn.body.card.name).toBe("The Crown");
+    // The model's private hint about when a card fits never leaves the server.
+    expect(drawn.body.card.when).toBeUndefined();
     expect(drawn.body.alreadyDrawn).toBe(false);
 
     // Sealed: the words can never be edited again.

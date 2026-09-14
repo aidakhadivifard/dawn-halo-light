@@ -90,6 +90,12 @@ function apiToSketch(s: ApiSketch | undefined): Sketch {
 /** The home screen: the horizon (never measured), its sketch, and the open roads. */
 export interface Home {
   horizon: string | null;
+  /** True once the card is drawn — from then on the words can never change. */
+  sealed: boolean;
+  /** The road card, drawn once. Only the id matters; the words come from i18n. */
+  card: { id: string; name: string; line: string } | null;
+  /** Today's answer, if it has been given. Both kinds count the same. */
+  todayDeed: { id: string; kind: "did" | "stayed"; text: string | null } | null;
   sketch: Sketch;
   roads: Vow[];
   maxRoads: number;
@@ -373,15 +379,66 @@ export async function getHome(): Promise<Home> {
       const stored = loadStored();
       if (stored && stored.status === "active") roads.push(storedToVow(stored));
     }
-    return { horizon: home.horizon, sketch: apiToSketch(home.sketch), roads, maxRoads: home.maxRoads ?? MAX_ROADS };
+    return {
+      horizon: home.horizon,
+      sealed: !!home.sealed,
+      card: home.card ?? null,
+      todayDeed: home.todayDeed ?? null,
+      sketch: apiToSketch(home.sketch),
+      roads,
+      maxRoads: home.maxRoads ?? MAX_ROADS,
+    };
   } catch {
     const stored = loadStored();
     return {
       horizon: loadHorizon(),
+      sealed: false,
+      card: null,
+      todayDeed: null,
       sketch: NO_SKETCH,
       roads: stored && stored.status === "active" ? [storedToVow(stored)] : [],
       maxRoads: MAX_ROADS,
     };
+  }
+}
+
+/**
+ * Draw the one road card. Drawing it seals the wish forever, so the caller
+ * must have shown that warning first. Offline there is no card — the wish is
+ * only sealed by a card that actually arrived.
+ */
+export async function drawRoadCard(): Promise<{ id: string; name: string; line: string } | null> {
+  try {
+    const { card } = await api.drawRoadCard();
+    return card ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Today's answer. "I endured and kept going" is recorded exactly like "I did
+ * one small thing" — same row, same weight, same color returned to the picture.
+ */
+export async function recordDeed(
+  kind: "did" | "stayed",
+  text?: string | null,
+): Promise<
+  | { kind: "deed"; sketch: Sketch }
+  | { kind: "crisis"; message: string; resources: { region: string; label: string; detail: string }[] }
+  | { kind: "error" }
+> {
+  const trimmed = (text ?? "").trim();
+  if (kind === "did" && !trimmed) return { kind: "error" };
+  if (trimmed && classifyInput(trimmed) === "crisis")
+    return { kind: "crisis", message: CRISIS_MESSAGE, resources: CRISIS_RESOURCES };
+  try {
+    const res = await api.recordDeed(kind, trimmed || null);
+    if (res.isCrisis)
+      return { kind: "crisis", message: res.message ?? CRISIS_MESSAGE, resources: res.resources ?? CRISIS_RESOURCES };
+    return { kind: "deed", sketch: apiToSketch(res.sketch) };
+  } catch {
+    return { kind: "error" };
   }
 }
 

@@ -164,6 +164,25 @@ export const api = {
     return req(`/horizon`, { method: "PUT", body: JSON.stringify({ text }) });
   },
 
+  // --- The road card and the deeds ---
+  /** Draw the one card. Drawing it seals the wish forever. */
+  async drawRoadCard(): Promise<{ card: ApiRoadCard; sealed: true; alreadyDrawn: boolean }> {
+    return req(`/card`, { method: "POST", body: JSON.stringify({}) });
+  },
+  /** Today's answer. 'stayed' counts exactly as much as 'did'. */
+  async recordDeed(kind: "did" | "stayed", text?: string | null): Promise<{
+    deed?: ApiDeed;
+    sketch?: ApiSketch;
+    isCrisis?: boolean;
+    message?: string;
+    resources?: CrisisPayload["resources"];
+  }> {
+    return req(`/deed`, { method: "POST", body: JSON.stringify({ kind, text: text ?? null }) });
+  },
+  async listDeeds(): Promise<{ deeds: ApiDeed[] }> {
+    return req(`/deeds`);
+  },
+
   // --- The Vow (journey / road) — journeyId is required only with two roads ---
   async getJourney(journeyId?: string): Promise<{ journey: ApiJourney | null }> {
     return req(`/journey${journeyId ? `?journeyId=${encodeURIComponent(journeyId)}` : ""}`);
@@ -264,8 +283,27 @@ export interface ApiSketch {
 }
 
 /** The home screen in one call: the horizon (never measured), its sketch, and the open roads. */
+/** The road card, drawn once. Its id is also the badge glyph. */
+export interface ApiRoadCard {
+  id: string;
+  name: string;
+  line: string;
+}
+
+export interface ApiDeed {
+  id: string;
+  kind: "did" | "stayed";
+  text: string | null;
+  localDate?: string;
+  createdAt?: string;
+}
+
 export interface ApiHome {
   horizon: string | null;
+  /** True once the card has been drawn: the words can never be edited again. */
+  sealed?: boolean;
+  card?: ApiRoadCard | null;
+  todayDeed?: ApiDeed | null;
   roads: ApiJourney[];
   maxRoads: number;
   sketch: ApiSketch;

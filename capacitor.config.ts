@@ -19,13 +19,13 @@ const config: CapacitorConfig = {
   // and renames the SPA shell to index.html).
   webDir: "dist/cap",
   ...(serverUrl ? { server: { url: serverUrl, cleartext: false } } : {}),
-  backgroundColor: "#fdfcfb",
+  backgroundColor: "#FFFFFF",
   ios: { contentInset: "always" },
-  android: { backgroundColor: "#fdfcfb" },
+  android: { backgroundColor: "#FFFFFF" },
   plugins: {
     SplashScreen: {
       launchShowDuration: 800,
-      backgroundColor: "#fdfcfb",
+      backgroundColor: "#FFFFFF",
       showSpinner: false,
     },
   },

@@ -16,6 +16,7 @@ import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as SavedRouteImport } from './routes/saved'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SupportRouteImport } from './routes/support'
+import { Route as TodayRouteImport } from './routes/today'
 import { Route as KeepsakeTokenRouteImport } from './routes/keepsake.$token'
 import { Route as LetterTokenRouteImport } from './routes/letter.$token'
 import { Route as PartnerCodeRouteImport } from './routes/partner.$code'
@@ -56,6 +57,11 @@ const SupportRoute = SupportRouteImport.update({
   path: '/support',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TodayRoute = TodayRouteImport.update({
+  id: '/today',
+  path: '/today',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const KeepsakeTokenRoute = KeepsakeTokenRouteImport.update({
   id: '/keepsake/$token',
   path: '/keepsake/$token',
@@ -85,6 +91,7 @@ export interface FileRoutesByFullPath {
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/today': typeof TodayRoute
   '/keepsake/$token': typeof KeepsakeTokenRoute
   '/letter/$token': typeof LetterTokenRoute
   '/partner/$code': typeof PartnerCodeRoute
@@ -98,6 +105,7 @@ export interface FileRoutesByTo {
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/today': typeof TodayRoute
   '/keepsake/$token': typeof KeepsakeTokenRoute
   '/letter/$token': typeof LetterTokenRoute
   '/partner/$code': typeof PartnerCodeRoute
@@ -112,6 +120,7 @@ export interface FileRoutesById {
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/today': typeof TodayRoute
   '/keepsake/$token': typeof KeepsakeTokenRoute
   '/letter/$token': typeof LetterTokenRoute
   '/partner/$code': typeof PartnerCodeRoute
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/saved'
     | '/settings'
     | '/support'
+    | '/today'
     | '/keepsake/$token'
     | '/letter/$token'
     | '/partner/$code'
@@ -140,6 +150,7 @@ export interface FileRouteTypes {
     | '/saved'
     | '/settings'
     | '/support'
+    | '/today'
     | '/keepsake/$token'
     | '/letter/$token'
     | '/partner/$code'
@@ -153,6 +164,7 @@ export interface FileRouteTypes {
     | '/saved'
     | '/settings'
     | '/support'
+    | '/today'
     | '/keepsake/$token'
     | '/letter/$token'
     | '/partner/$code'
@@ -167,6 +179,7 @@ export interface RootRouteChildren {
   SavedRoute: typeof SavedRoute
   SettingsRoute: typeof SettingsRoute
   SupportRoute: typeof SupportRoute
+  TodayRoute: typeof TodayRoute
   KeepsakeTokenRoute: typeof KeepsakeTokenRoute
   LetterTokenRoute: typeof LetterTokenRoute
   PartnerCodeRoute: typeof PartnerCodeRoute
@@ -224,6 +237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SupportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/today': {
+      id: '/today'
+      path: '/today'
+      fullPath: '/today'
+      preLoaderRoute: typeof TodayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/keepsake/$token': {
       id: '/keepsake/$token'
       path: '/keepsake/$token'
@@ -263,6 +283,7 @@ const rootRouteChildren: RootRouteChildren = {
   SavedRoute: SavedRoute,
   SettingsRoute: SettingsRoute,
   SupportRoute: SupportRoute,
+  TodayRoute: TodayRoute,
   KeepsakeTokenRoute: KeepsakeTokenRoute,
   LetterTokenRoute: LetterTokenRoute,
   PartnerCodeRoute: PartnerCodeRoute,

@@ -18,8 +18,29 @@
   --color-dawn-cream: #fdf0dc;     /* the warm bottom of the sky */
   --color-dawn-muted: #7a6b8c;     /* secondary text */
 
+  /* "Wish" — white and blue, very little of anything else. One accent blue
+     carries every action; the gold appears only on the halo and the badge. */
+  --color-wish-paper: #ffffff;
+  --color-wish-ink: #17233b;       /* navy — the only text color */
+  --color-wish-blue: #2f6bff;      /* the one accent: buttons, the seal, links */
+  --color-wish-gold: #c9a24a;      /* the halo and the badge, nothing else */
+  --color-wish-muted: #6b7794;     /* the second voice */
+  --color-wish-line: #e6ebf5;      /* hairlines and card edges */
+  --color-wish-tint: #f4f7ff;      /* the palest blue wash */
+
   --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
   --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-fa: "Vazirmatn", "Segoe UI", Tahoma, ui-sans-serif, sans-serif;
+}
+
+/* Farsi: its own face, and a little more line-height — Persian needs the room. */
+[dir="rtl"] {
+  font-family: var(--font-fa);
+  line-height: 1.85;
+}
+[dir="rtl"] .font-serif {
+  font-family: var(--font-fa);
+  font-style: normal;
 }
 
 @theme inline {
@@ -160,4 +181,27 @@
 }
 @utility animate-float-drift {
   animation: float-drift 6s ease-in-out infinite;
+}
+
+/* The badge leaving the card and landing on the corner of the wish picture. */
+@keyframes badgeland {
+  0%   { opacity: 0; transform: translateY(-38px) scale(2.1); }
+  55%  { opacity: 1; transform: translateY(4px)   scale(0.94); }
+  100% { opacity: 1; transform: translateY(0)     scale(1); }
+}
+/* The card turning face-up. */
+@keyframes cardturn {
+  0%   { opacity: 0; transform: rotateY(90deg) scale(0.94); }
+  100% { opacity: 1; transform: rotateY(0)     scale(1); }
+}
+@utility animate-card-turn {
+  animation: cardturn 800ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/* A line of text arriving a beat after the thing above it. */
+@keyframes riseline {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@utility animate-rise-line {
+  animation: riseline 600ms cubic-bezier(0.19, 1, 0.22, 1) both;
 }
