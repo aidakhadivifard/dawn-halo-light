@@ -48,6 +48,17 @@ const EN = {
   todayAlready: "You already answered today.",
   bothCount: "Both count the same.",
 
+  // The tiny step — offered only after "I did one small thing", never after
+  // "I endured". Put on your running clothes. That's all. Don't exercise.
+  stepOffer: "Want to take one more, right now? A tiny one.",
+  stepYes: "Alright, tell me",
+  stepNo: "No, that's enough",
+  stepDid: "Did it",
+  stepEnough: "Enough for today",
+  stepMore: "A little more?",
+  stepClosed: "That's plenty. You showed up today.",
+  stepThinking: "Thinking of something small…",
+
   // The witness
   witnessAsk: "Would you like someone to see this?",
   witnessYes: "Yes, show someone",
@@ -92,6 +103,15 @@ const FA: Dict = {
   todayDone: "این به حساب می‌آید. همیشه به حساب می‌آید.",
   todayAlready: "امروز جوابت را داده‌ای.",
   bothCount: "هر دو یک‌اندازه به حساب می‌آیند.",
+
+  stepOffer: "می‌خوای همین حالا یکی دیگه هم برداری؟ خیلی کوچیک.",
+  stepYes: "باشه، بگو",
+  stepNo: "نه، همین کافیه",
+  stepDid: "انجامش دادم",
+  stepEnough: "برای امروز بس است",
+  stepMore: "یک کم بیشتر؟",
+  stepClosed: "همین کافی است. امروز آمدی، و همین مهم بود.",
+  stepThinking: "دارم یک چیز کوچک پیدا می‌کنم…",
 
   witnessAsk: "دوست داری کسی این تلاشت را ببیند؟",
   witnessYes: "بله، به کسی نشان بده",

@@ -15,7 +15,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { BottomNav } from "@/components/BottomNav";
 import { WishPicture } from "@/components/WishPicture";
-import { getHome, setHorizon, requestSketch, drawRoadCard, recordDeed, type Home } from "@/lib/vow";
+import {
+  getHome,
+  setHorizon,
+  requestSketch,
+  drawRoadCard,
+  recordDeed,
+  nextTinyStep,
+  type Home,
+} from "@/lib/vow";
 import { dict, dirOf, initialLang, saveLang, cardText, CARD_GLYPH, LANGS, type Lang } from "@/lib/i18n";
 
 export const Route = createFileRoute("/")({
@@ -45,6 +53,13 @@ function WishPage() {
   const [deedText, setDeedText] = useState("");
   const [justAnswered, setJustAnswered] = useState(false);
   const [witness, setWitness] = useState<string | null>(null);
+  // The ladder of tiny steps. Null means it was never opened — which is always
+  // the case after "I endured": that answer is never followed by an ask.
+  const [ladder, setLadder] = useState<{
+    state: "offer" | "thinking" | "step" | "closed";
+    text?: string;
+    rung: number;
+  } | null>(null);
 
   const t = dict(lang);
   const dir = dirOf(lang);
@@ -122,9 +137,29 @@ function WishPage() {
     setDeedText("");
     setJustAnswered(true);
     const h = await load();
+    // One more, smaller — but ONLY after "I did one small thing". After "I
+    // endured and kept going" we ask for nothing. That branch stays untouched.
+    if (kind === "did") setLadder({ state: "offer", rung: 0 });
     // The witness is offered now and then — never every day, never nagging.
     const deed = kind === "did" ? (body ?? "").trim() : null;
     if (Math.random() < 0.34) setWitness(t.witnessMessage(deed ?? shorten(h.horizon)));
+  }
+
+  /** Ask for the next rung. No step to offer means the ladder simply ends. */
+  async function askStep(rung: number) {
+    setLadder({ state: "thinking", rung });
+    const step = await nextTinyStep();
+    setLadder(step ? { state: "step", text: step, rung } : { state: "closed", rung });
+  }
+
+  /** A finished step is an ordinary deed — so it brings color like any other. */
+  async function stepDone(text: string, rung: number) {
+    if (busy) return;
+    setBusy(true);
+    await recordDeed("did", text);
+    setBusy(false);
+    await load();
+    setLadder({ state: "offer", rung: rung + 1 });
   }
 
   function shorten(s: string | null): string {
@@ -297,8 +332,55 @@ function WishPage() {
             </div>
           )}
 
+          {/* 5b — one more, smaller. Never after "I endured". */}
+          {ladder && ladder.state !== "closed" && (
+            <div className="mt-6 rounded-2xl border border-wish-line bg-wish-paper px-5 py-5 animate-rise-line">
+              {ladder.state === "offer" && (
+                <>
+                  <p className="font-serif text-xl text-wish-ink leading-snug mb-4">
+                    {ladder.rung === 0 ? t.stepOffer : t.stepMore}
+                  </p>
+                  <Primary onClick={() => askStep(ladder.rung)} className="w-full">
+                    {t.stepYes}
+                  </Primary>
+                  <Secondary onClick={() => setLadder({ ...ladder, state: "closed" })} className="mt-2 w-full">
+                    {ladder.rung === 0 ? t.stepNo : t.stepEnough}
+                  </Secondary>
+                </>
+              )}
+
+              {ladder.state === "thinking" && (
+                <p className="text-[15px] text-wish-muted text-center py-2">{t.stepThinking}</p>
+              )}
+
+              {ladder.state === "step" && (
+                <>
+                  <p className="font-serif text-2xl text-wish-ink leading-snug mb-5 text-balance">
+                    {ladder.text}
+                  </p>
+                  <Primary
+                    onClick={() => stepDone(ladder.text!, ladder.rung)}
+                    disabled={busy}
+                    className="w-full"
+                  >
+                    {t.stepDid}
+                  </Primary>
+                  <Secondary onClick={() => setLadder({ ...ladder, state: "closed" })} className="mt-2 w-full">
+                    {t.stepEnough}
+                  </Secondary>
+                </>
+              )}
+            </div>
+          )}
+
+          {ladder?.state === "closed" && ladder.rung > 0 && (
+            <p className="mt-6 text-center font-serif text-xl text-wish-ink/75 animate-rise-line">
+              {t.stepClosed}
+            </p>
+          )}
+
           {/* 6 — the witness */}
-          {witness !== null && (
+          {witness !== null && (!ladder || ladder.state === "closed") && (
             <div className="mt-8 rounded-2xl border border-wish-blue/25 bg-wish-tint px-5 py-5 animate-rise-line">
               <p className="font-serif text-xl text-wish-ink mb-1">{t.witnessAsk}</p>
               <p className="text-[13px] text-wish-muted mb-4">{t.witnessEdit}</p>

@@ -417,6 +417,20 @@ export async function drawRoadCard(): Promise<{ id: string; name: string; line: 
 }
 
 /**
+ * One more, smaller. Null means we have nothing honest to offer — no model, or
+ * the ladder has run its length. The app then says nothing rather than making
+ * something up about a life it doesn't know.
+ */
+export async function nextTinyStep(): Promise<string | null> {
+  try {
+    const { step } = await api.nextTinyStep();
+    return step && step.trim() ? step.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Today's answer. "I endured and kept going" is recorded exactly like "I did
  * one small thing" — same row, same weight, same color returned to the picture.
  */

@@ -182,6 +182,10 @@ export const api = {
   async listDeeds(): Promise<{ deeds: ApiDeed[] }> {
     return req(`/deeds`);
   },
+  /** One more, smaller. `step: null` means the ladder is over — not an error. */
+  async nextTinyStep(): Promise<{ step: string | null }> {
+    return req(`/step/next`, { method: "POST", body: JSON.stringify({}) });
+  },
 
   // --- The Vow (journey / road) — journeyId is required only with two roads ---
   async getJourney(journeyId?: string): Promise<{ journey: ApiJourney | null }> {

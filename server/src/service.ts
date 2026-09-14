@@ -8,7 +8,14 @@ import { detectCrisis, CRISIS_RESOURCES } from "./lib/crisis";
 import { classifyInput } from "./lib/classify";
 import { canDraw, snapshot, withinTrial, type QuotaState } from "./lib/entitlement";
 import { selectIllustration, NO_REPEAT_WINDOW_DAYS } from "./lib/illustrations";
-import { generateCardText, generateVowText, chooseRoadCard, type MessagesClient } from "./lib/anthropic";
+import {
+  generateCardText,
+  generateVowText,
+  chooseRoadCard,
+  nextTinyStep,
+  type MessagesClient,
+} from "./lib/anthropic";
+import { MAX_RUNGS } from "./lib/tinystep";
 import { findCard, fallbackCard as fallbackRoadCard, type RoadCard } from "./lib/roadcards";
 import { findHalo } from "./lib/deck";
 import { drawHorizon, sketchAvailable, type SketchDeps } from "./lib/sketch";
@@ -543,6 +550,25 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       } as const;
       db.insertDeed(row);
       return { kind: "deed", deed: { id: row.id, kind, text: trimmed, localDate } };
+    },
+
+    /**
+     * One more, smaller. Built only from the wish and what they already said
+     * they did — never from anything we assumed. Returns null when there is no
+     * model (we offer nothing rather than invent), when today's answer hasn't
+     * been given yet, or once the ladder has run its length: at some point the
+     * honest thing is to stop asking.
+     */
+    async nextTinyStep(deviceId: string, localDate: string): Promise<string | null> {
+      const h = db.getHorizon(deviceId);
+      if (!h) return null;
+      // Oldest first: their own answer, then each rung they've taken since.
+      const todays = db.deedsOn(deviceId, localDate).slice().reverse();
+      const first = todays.find((d) => d.kind === "did" && d.text);
+      if (!first?.text) return null;
+      const done = todays.filter((d) => d.id !== first.id && d.text).map((d) => d.text as string);
+      if (done.length >= MAX_RUNGS) return null;
+      return nextTinyStep({ wish: h.text, today: first.text, done }, { client, timeoutMs });
     },
 
     /** The deeds so far, newest first — the wish book's spine. */

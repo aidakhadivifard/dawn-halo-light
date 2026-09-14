@@ -267,6 +267,13 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     res.json({ deed: out.deed, sketch: svc.getHome(req.deviceId!, req.localDate!).sketch });
   });
 
+  // One more, smaller. `step: null` means "don't offer anything" — the client
+  // must treat that as the end of the ladder, not as an error.
+  app.post("/api/step/next", requireDevice, resolveLocalDate, async (req, res) => {
+    const step = await svc.nextTinyStep(req.deviceId!, req.localDate!);
+    res.json({ step });
+  });
+
   app.get("/api/deeds", requireDevice, (req, res) => {
     res.json({ deeds: svc.listDeeds(req.deviceId!) });
   });

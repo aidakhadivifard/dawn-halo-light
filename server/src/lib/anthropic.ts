@@ -7,6 +7,7 @@ import { SYSTEM_PROMPT, buildUserPrompt, buildVowPrompt, type JourneyContext } f
 import { pickOpener } from "./openers";
 import { findHalo, halosForTheme, HALO_DECK } from "./deck";
 import { CARD_IDS, cardPrompt, fallbackCard as fallbackRoadCard } from "./roadcards";
+import { TINY_STEP_SYSTEM, tinyStepPrompt, cleanStep, type TinyStepInput } from "./tinystep";
 import { CARD_THEMES, type CardTheme } from "../types";
 
 export interface GenInput {
@@ -271,6 +272,40 @@ export async function generateVowText(
 }
 
 export { fallbackCard };
+
+/**
+ * One tiny next step, built only from the person's own words.
+ *
+ * There is deliberately NO fallback. If the model is missing, slow or
+ * unreachable we return null and the app simply doesn't offer a step — far
+ * better than inventing something about a life we know nothing about.
+ */
+export async function nextTinyStep(
+  input: TinyStepInput,
+  opts: { client?: MessagesClient | null; timeoutMs?: number } = {},
+): Promise<string | null> {
+  const client = opts.client !== undefined ? opts.client : getClient();
+  if (!client) return null;
+
+  const { anthropicModel } = getConfig();
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  try {
+    const result = await Promise.race([
+      client.messages.create({
+        model: anthropicModel,
+        max_tokens: 120,
+        system: TINY_STEP_SYSTEM,
+        messages: [{ role: "user", content: tinyStepPrompt(input) }],
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("anthropic_timeout")), timeoutMs),
+      ),
+    ]);
+    return cleanStep(result.content?.find((b) => b.type === "text")?.text ?? "");
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Pick the ONE road card for a wish. The model only chooses an id from the
