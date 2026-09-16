@@ -82,6 +82,19 @@ const EN = {
   witnessUntilColor: "Wait until the picture has its colors",
   witnessMessage: (deed: string) => `Today I ${deed}, and I'm proud of myself. I wanted you to know.`,
 
+  // The shell
+  navWish: "Wish",
+  navNotebook: "Notebook",
+  tellToday: "Tell me about today",
+  switchLang: "فارسی",
+
+  // The notebook — every line the witness has written, each one a card she can send.
+  notebookTitle: "What he wrote",
+  notebookEmpty: "Nothing written yet. The first line comes the first day you answer.",
+  nthTime: (n: number) => `The ${ordinalEn(n)} time she came for it. I saw it.`,
+  share: "Send this",
+  shared: "Sent",
+
   // Misc
   language: "Language",
   back: "Back",
@@ -143,12 +156,37 @@ const FA: Dict = {
   witnessUntilColor: "صبر کن تا تصویر رنگی شود",
   witnessMessage: (deed: string) => `امروز ${deed} و از خودم راضی‌ام. خواستم تو هم بدانی.`,
 
+  navWish: "آرزو",
+  navNotebook: "دفتر",
+  tellToday: "از امروز بگو",
+  switchLang: "English",
+
+  notebookTitle: "آنچه او نوشت",
+  notebookEmpty: "هنوز چیزی نوشته نشده. اولین خط، اولین روزی می‌آید که جواب بدهی.",
+  nthTime: (n: number) => `${ordinalFa(n)} بار برای آرزویش آمد. دیدم.`,
+  share: "این را بفرست",
+  shared: "فرستاده شد",
+
   language: "زبان",
   back: "بازگشت",
   crisisTitle: "لازم نیست این را تنها نگه داری",
 };
 
 const DICTS: Record<Lang, Dict> = { en: EN, fa: FA };
+
+function ordinalEn(n: number): string {
+  const words = ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
+    "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth"];
+  if (n < words.length) return words[n];
+  const s = ["th", "st", "nd", "rd"], v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+}
+function ordinalFa(n: number): string {
+  const words = ["", "اولین", "دومین", "سومین", "چهارمین", "پنجمین", "ششمین", "هفتمین", "هشتمین", "نهمین", "دهمین",
+    "یازدهمین", "دوازدهمین", "سیزدهمین", "چهاردهمین", "پانزدهمین", "شانزدهمین", "هفدهمین", "هجدهمین", "نوزدهمین", "بیستمین"];
+  if (n < words.length) return words[n];
+  return `${n.toLocaleString("fa-IR")}مین`;
+}
 
 /** The deck, in each language. Keyed by the card id the server returns. */
 export const CARD_TEXT: Record<Lang, Record<string, { name: string; line: string }>> = {

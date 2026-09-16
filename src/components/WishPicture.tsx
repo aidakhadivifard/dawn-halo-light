@@ -123,42 +123,42 @@ export function WishPicture({ sketch, words, lang, card, badgeLanding }: WishPic
   const t = cardText(lang, card?.id ?? "");
 
   return (
-    <div className="relative rounded-3xl bg-wish-paper overflow-hidden">
+    // No box, no border, no shadow: the drawing sits on the page like ink on
+    // paper. The charm hangs beside it, off the drawing's edge, like a pendant.
+    <div className="relative">
       {sketch.status === "ready" && (
         <canvas ref={canvasRef} className="block w-full h-auto" role="img" aria-label={words ?? "Your wish"} />
       )}
 
       {pending && (
-        <div className="aspect-[16/9] flex flex-col items-center justify-center gap-3 px-6 text-center bg-wish-tint">
+        <div className="aspect-[16/9] flex flex-col items-center justify-center gap-4 px-6 text-center">
           <div
             aria-hidden
-            className="w-20 h-20 rounded-full blur-2xl animate-pulse"
-            style={{ background: "radial-gradient(circle, rgba(201,162,74,0.5) 0%, transparent 70%)" }}
+            className="w-16 h-16 rounded-full blur-2xl animate-pulse"
+            style={{ background: "radial-gradient(circle, rgba(217,164,65,0.35) 0%, transparent 70%)" }}
           />
-          <p className="text-[15px] text-wish-ink/75">{words}</p>
+          <p className="font-serif text-[19px] text-wish-ink/70 text-balance">{words}</p>
         </div>
       )}
 
       {(sketch.status === "failed" || sketch.status === "none") && words && (
-        <div className="aspect-[16/9] flex items-center justify-center px-8 text-center bg-wish-tint">
-          <p className="font-serif text-2xl text-wish-ink leading-snug text-balance">{words}</p>
+        <div className="aspect-[16/9] flex items-center justify-center px-6 text-center">
+          <p className="font-serif text-[26px] leading-snug text-wish-ink text-balance">{words}</p>
         </div>
       )}
 
-      {/* The charm: one small gold token, glyph only, like a pendant on the
-          corner of the drawing. From the draw onward it is simply there. */}
       {card && (
         <div
           title={t.name}
           aria-label={t.name}
           className={
-            "absolute top-3 grid place-items-center size-11 rounded-full bg-wish-paper " +
-            "border-[1.5px] border-wish-gold text-wish-gold shadow-[0_4px_14px_-6px_rgba(217,164,65,0.7)] " +
+            "absolute top-[56%] -translate-y-1/2 grid place-items-center size-12 rounded-full bg-wish-paper " +
+            "border-[1.5px] border-wish-gold text-wish-gold " +
             (badgeLanding ? "animate-[badgeland_900ms_cubic-bezier(.2,.9,.25,1)_both] " : "") +
-            "ltr:right-3 rtl:left-3"
+            "ltr:right-2 rtl:left-2"
           }
         >
-          <span aria-hidden className="text-[20px] leading-none">{CARD_GLYPH[card.id] ?? "✦"}</span>
+          <span aria-hidden className="text-[22px] leading-none">{CARD_GLYPH[card.id] ?? "✦"}</span>
         </div>
       )}
     </div>

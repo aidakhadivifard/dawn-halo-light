@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CalendarRouteImport } from './routes/calendar'
+import { Route as NotebookRouteImport } from './routes/notebook'
 import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as SavedRouteImport } from './routes/saved'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -35,6 +36,11 @@ const AdminRoute = AdminRouteImport.update({
 const CalendarRoute = CalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotebookRoute = NotebookRouteImport.update({
+  id: '/notebook',
+  path: '/notebook',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaywallRoute = PaywallRouteImport.update({
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/calendar': typeof CalendarRoute
+  '/notebook': typeof NotebookRoute
   '/paywall': typeof PaywallRoute
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/calendar': typeof CalendarRoute
+  '/notebook': typeof NotebookRoute
   '/paywall': typeof PaywallRoute
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/calendar': typeof CalendarRoute
+  '/notebook': typeof NotebookRoute
   '/paywall': typeof PaywallRoute
   '/saved': typeof SavedRoute
   '/settings': typeof SettingsRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/calendar'
+    | '/notebook'
     | '/paywall'
     | '/saved'
     | '/settings'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/calendar'
+    | '/notebook'
     | '/paywall'
     | '/saved'
     | '/settings'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/calendar'
+    | '/notebook'
     | '/paywall'
     | '/saved'
     | '/settings'
@@ -175,6 +187,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   CalendarRoute: typeof CalendarRoute
+  NotebookRoute: typeof NotebookRoute
   PaywallRoute: typeof PaywallRoute
   SavedRoute: typeof SavedRoute
   SettingsRoute: typeof SettingsRoute
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/calendar'
       fullPath: '/calendar'
       preLoaderRoute: typeof CalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notebook': {
+      id: '/notebook'
+      path: '/notebook'
+      fullPath: '/notebook'
+      preLoaderRoute: typeof NotebookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/paywall': {
@@ -279,6 +299,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   CalendarRoute: CalendarRoute,
+  NotebookRoute: NotebookRoute,
   PaywallRoute: PaywallRoute,
   SavedRoute: SavedRoute,
   SettingsRoute: SettingsRoute,

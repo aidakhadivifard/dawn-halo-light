@@ -13,8 +13,10 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { BottomNav } from "@/components/BottomNav";
 import { WishPicture } from "@/components/WishPicture";
+import { WitnessLine } from "@/components/WitnessLine";
+import { Shell, Primary, Secondary, Choice } from "@/components/WishShell";
+import { useLang } from "@/hooks/useLang";
 import {
   getHome,
   setHorizon,
@@ -24,7 +26,7 @@ import {
   nextTinyStep,
   type Home,
 } from "@/lib/vow";
-import { dict, dirOf, initialLang, saveLang, cardText, CARD_GLYPH, LANGS, type Lang } from "@/lib/i18n";
+import { dict, cardText, CARD_GLYPH } from "@/lib/i18n";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -42,8 +44,10 @@ type Stage = "loading" | "wish" | "picture" | "confirm" | "revealing" | "card" |
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function WishPage() {
-  const [lang, setLang] = useState<Lang>("en");
+  const { lang, setLang, dir } = useLang();
   const [home, setHome] = useState<Home | null>(null);
+  // The coral button opens the three doors. Until then, the day is only the picture.
+  const [asking, setAsking] = useState(false);
   const [stage, setStage] = useState<Stage>("loading");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,13 +71,6 @@ function WishPage() {
   } | null>(null);
 
   const t = dict(lang);
-  const dir = dirOf(lang);
-
-  useEffect(() => setLang(initialLang()), []);
-  useEffect(() => {
-    document.documentElement.setAttribute("dir", dir);
-    document.documentElement.setAttribute("lang", lang);
-  }, [dir, lang]);
 
   // Switching language rewrites the draft message — unless she has already
   // made it her own, in which case her words stay exactly as she left them.
@@ -148,6 +145,7 @@ function WishPage() {
     if (res.kind === "error") return;
     setDeedKind(null);
     setDeedText("");
+    setAsking(false);
     setJustAnswered(true);
     const h = await load();
     // The ladder opens for the two answers that reach for something: "I did one
@@ -197,12 +195,12 @@ function WishPage() {
 
   if (crisis) {
     return (
-      <Shell lang={lang} setLang={pick(setLang)} dir={dir}>
+      <Shell lang={lang} setLang={setLang} dir={dir}>
         <h1 className="font-serif text-3xl text-wish-ink mb-4">{t.crisisTitle}</h1>
         <p className="text-wish-ink/80 leading-relaxed mb-6">{crisis.message}</p>
         <ul className="space-y-3 mb-8">
           {crisis.resources.map((r) => (
-            <li key={r.label} className="rounded-2xl border border-wish-line bg-wish-tint px-4 py-3">
+            <li key={r.label} className="border-b border-wish-line pb-3">
               <p className="font-medium text-wish-ink">{r.label}</p>
               <p className="text-sm text-wish-muted">{r.detail}</p>
             </li>
@@ -214,19 +212,19 @@ function WishPage() {
   }
 
   return (
-    <Shell lang={lang} setLang={pick(setLang)} dir={dir}>
+    <Shell lang={lang} setLang={setLang} dir={dir}>
       {/* 1 — the wish, in their own words */}
       {(stage === "wish" || stage === "loading") && (
         <div className="animate-rise-line">
-          <h1 className="font-serif text-[2.1rem] leading-tight text-wish-ink mb-2">{t.wishAsk}</h1>
-          <p className="text-[15px] text-wish-muted mb-7">{t.wishHint}</p>
+          <h1 className="font-serif text-[2.4rem] leading-tight text-wish-ink mb-2 text-balance">{t.wishAsk}</h1>
+          <p className="font-serif text-[17px] text-wish-muted mb-8">{t.wishHint}</p>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={t.wishPlaceholder}
             rows={5}
-            className="w-full rounded-2xl border border-wish-line bg-wish-paper px-4 py-4 text-[17px] text-wish-ink
-                       placeholder:text-wish-muted/60 outline-none focus:border-wish-blue/60 transition-colors resize-none"
+            className="w-full rounded-2xl border border-wish-ink/20 bg-transparent px-4 py-4 font-serif text-[20px] text-wish-ink
+                       placeholder:text-wish-muted/60 outline-none focus:border-wish-ink/60 transition-colors resize-none"
           />
           <Primary onClick={saveWish} disabled={!text.trim() || busy} className="mt-5 w-full">
             {t.wishSave}
@@ -241,7 +239,7 @@ function WishPage() {
 
           {stage === "picture" && (
             <>
-              <p className="mt-6 text-center font-serif text-2xl text-wish-ink leading-snug">{t.cardAsk}</p>
+              <p className="mt-8 text-center font-serif text-[26px] text-wish-ink leading-snug text-balance">{t.cardAsk}</p>
               <Primary onClick={() => setStage("confirm")} className="mt-5 w-full">
                 {t.cardDraw}
               </Primary>
@@ -258,7 +256,7 @@ function WishPage() {
           )}
 
           {stage === "confirm" && (
-            <div className="mt-6 rounded-2xl border border-wish-blue/25 bg-wish-tint px-5 py-5 animate-rise-line">
+            <div className="mt-8 animate-rise-line">
               <p className="text-[15px] text-wish-ink leading-relaxed mb-5">{t.cardWarn}</p>
               <Primary onClick={draw} disabled={busy} className="w-full">
                 {t.cardDraw}
@@ -285,7 +283,7 @@ function WishPage() {
       {/* 4 — the card */}
       {stage === "card" && home?.card && (
         <div className="min-h-[70vh] flex flex-col items-center justify-center text-center">
-          <div className="animate-card-turn rounded-3xl border border-wish-line bg-wish-paper px-8 py-12 w-full max-w-xs shadow-[0_30px_70px_-45px_rgba(23,35,59,0.5)]">
+          <div className="animate-card-turn px-8 py-12 w-full max-w-xs">
             <div className="text-5xl text-wish-gold leading-none mb-5">{CARD_GLYPH[home.card.id] ?? "✦"}</div>
             <p className="font-serif text-3xl text-wish-ink mb-4">{cardText(lang, home.card.id).name}</p>
             <p className="text-[17px] text-wish-ink/80 leading-relaxed">{cardText(lang, home.card.id).line}</p>
@@ -312,34 +310,36 @@ function WishPage() {
           />
 
           {home.todayDeed && !deedKind ? (
-            <div className="mt-8">
+            <div className="mt-6">
               {/* The witness's line, in his own hand, with the gold stroke of his pen
                   running out from under it. Acknowledgment sits above the offer, never below. */}
-              <p className="font-hand text-[26px] leading-snug text-wish-ink">
-                {home.todayDeed.kind === "stuck" ? t.sawStuck : home.todayDeed.kind === "stayed" ? t.sawStayed : t.sawDid}
-              </p>
-              {home.todayDeed.text && (
-                <p className="mt-1 font-hand text-[20px] text-wish-muted">{home.todayDeed.text}</p>
-              )}
-              <svg aria-hidden viewBox="0 0 320 24" className="mt-1 w-full h-6 text-wish-gold" fill="none">
-                <path d="M2 14 C 60 4, 120 22, 180 12 S 290 6, 318 16" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
+              <WitnessLine
+                line={home.todayDeed.kind === "stuck" ? t.sawStuck : home.todayDeed.kind === "stayed" ? t.sawStayed : t.sawDid}
+                deed={home.todayDeed.text}
+              />
+            </div>
+          ) : !asking && !deedKind ? (
+            <div className="mt-10">
+              <Primary onClick={() => setAsking(true)} className="w-full">
+                {t.tellToday}
+              </Primary>
             </div>
           ) : (
-            <div className="mt-8">
-              <p className="font-serif text-2xl text-wish-ink leading-snug mb-1">{t.todayAsk}</p>
-              <p className="text-[13px] text-wish-muted mb-5">{t.bothCount}</p>
+            <div className="mt-10 animate-rise-line">
+              <p className="font-serif text-[26px] text-wish-ink leading-snug mb-1 text-center text-balance">{t.todayAsk}</p>
+              <p className="font-serif text-[15px] text-wish-muted mb-6 text-center">{t.bothCount}</p>
 
               {deedKind === "did" ? (
                 <div className="animate-rise-line">
-                  <p className="text-[15px] text-wish-ink mb-3">{t.todayWhat}</p>
+                  <p className="font-serif text-[18px] text-wish-ink mb-3 text-center">{t.todayWhat}</p>
                   <textarea
                     value={deedText}
                     onChange={(e) => setDeedText(e.target.value)}
                     placeholder={t.todayPlaceholder}
                     rows={3}
-                    className="w-full rounded-2xl border border-wish-line bg-wish-paper px-4 py-3 text-[16px] text-wish-ink
-                               placeholder:text-wish-muted/60 outline-none focus:border-wish-blue/60 transition-colors resize-none"
+                    autoFocus
+                    className="w-full rounded-2xl border border-wish-ink/20 bg-transparent px-4 py-3 font-serif text-[19px] text-wish-ink
+                               placeholder:text-wish-muted/60 outline-none focus:border-wish-ink/60 transition-colors resize-none"
                   />
                   <Primary
                     onClick={() => save("did", deedText)}
@@ -370,13 +370,13 @@ function WishPage() {
 
           {/* 5b — one more, smaller. Never after "I endured". */}
           {ladder && ladder.state !== "closed" && (
-            <div className="mt-6 rounded-2xl border border-wish-line bg-wish-paper px-5 py-5 animate-rise-line">
+            <div className="mt-10 text-center animate-rise-line">
               {ladder.state === "offer" && (
                 <>
                   {/* Acknowledgment first, always. A task handed to someone who
                       just said they're unhappy would say: your sadness is a
                       productivity problem. It isn't. */}
-                  <p className="font-serif text-xl text-wish-ink leading-snug mb-4">
+                  <p className="font-serif text-[24px] text-wish-ink leading-snug mb-5 text-balance">
                     {ladder.rung > 0 ? t.stepMore : ladder.stuck ? t.stuckOffer : t.stepOffer}
                   </p>
                   <Primary onClick={() => askStep(ladder.rung, ladder.stuck)} className="w-full">
@@ -394,7 +394,7 @@ function WishPage() {
 
               {ladder.state === "step" && (
                 <>
-                  <p className="font-serif text-2xl text-wish-ink leading-snug mb-5 text-balance">
+                  <p className="font-serif text-[28px] text-wish-ink leading-snug mb-6 text-balance">
                     {ladder.text}
                   </p>
                   <Primary
@@ -420,7 +420,7 @@ function WishPage() {
 
           {/* 6 — the witness */}
           {witness !== null && (!ladder || ladder.state === "closed") && (
-            <div className="mt-8 rounded-2xl border border-wish-blue/25 bg-wish-tint px-5 py-5 animate-rise-line">
+            <div className="mt-10 animate-rise-line">
               <p className="font-serif text-xl text-wish-ink mb-1">{t.witnessAsk}</p>
               <p className="text-[13px] text-wish-muted mb-4">{t.witnessEdit}</p>
               <textarea
@@ -430,8 +430,8 @@ function WishPage() {
                   setWitness(e.target.value);
                 }}
                 rows={3}
-                className="w-full rounded-xl border border-wish-line bg-wish-paper px-4 py-3 text-[15px] text-wish-ink
-                           outline-none focus:border-wish-blue/60 transition-colors resize-none"
+                className="w-full rounded-2xl border border-wish-ink/20 bg-transparent px-4 py-3 font-serif text-[18px] text-wish-ink
+                           outline-none focus:border-wish-ink/60 transition-colors resize-none"
               />
               <Primary onClick={() => share(witness)} className="mt-4 w-full">
                 {t.witnessSendNow}
@@ -444,96 +444,5 @@ function WishPage() {
         </div>
       )}
     </Shell>
-  );
-}
-
-/** Setting the language is one line; this keeps it out of the markup. */
-function pick(setLang: (l: Lang) => void) {
-  return (l: Lang) => {
-    setLang(l);
-    saveLang(l);
-  };
-}
-
-function Shell({
-  children,
-  lang,
-  setLang,
-  dir,
-}: {
-  children: React.ReactNode;
-  lang: Lang;
-  setLang: (l: Lang) => void;
-  dir: "ltr" | "rtl";
-}) {
-  return (
-    <div dir={dir} className="min-h-dvh bg-wish-paper text-wish-ink">
-      <header className="flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-2">
-        <span className="text-[13px] tracking-[0.22em] uppercase text-wish-muted">Dawnhalo</span>
-        <div className="flex gap-1">
-          {LANGS.map((l) => (
-            <button
-              key={l.code}
-              onClick={() => setLang(l.code)}
-              className={
-                "rounded-full px-3 py-1 text-[13px] transition-colors " +
-                (lang === l.code ? "bg-wish-blue text-wish-white" : "text-wish-muted hover:text-wish-ink")
-              }
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
-      </header>
-      <main className="mx-auto max-w-md px-5 pt-4 pb-32">{children}</main>
-      <BottomNav />
-    </div>
-  );
-}
-
-function Primary({
-  children,
-  className = "",
-  ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      {...rest}
-      className={
-        "rounded-full bg-wish-blue px-6 py-3.5 text-[16px] font-medium text-wish-white transition-all " +
-        "active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 " +
-        "shadow-[0_12px_30px_-14px_rgba(242,118,107,0.8)] " +
-        className
-      }
-    >
-      {children}
-    </button>
-  );
-}
-
-function Secondary({ children, className = "", ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      {...rest}
-      className={"rounded-full px-6 py-3 text-[15px] text-wish-muted transition-colors hover:text-wish-ink " + className}
-    >
-      {children}
-    </button>
-  );
-}
-
-/** The two answers. They look identical on purpose: neither is the better one. */
-function Choice({ children, className = "", ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      {...rest}
-      className={
-        "w-full rounded-2xl border border-wish-line bg-wish-paper px-5 py-4 text-start text-[16px] text-wish-ink " +
-        "transition-colors hover:border-wish-blue/50 active:scale-[0.99] disabled:opacity-40 " +
-        className
-      }
-    >
-      {children}
-    </button>
   );
 }

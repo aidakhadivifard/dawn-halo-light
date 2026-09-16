@@ -2,6 +2,16 @@
 @source "../src";
 @import "tw-animate-css";
 
+/* The witness's hand. URW Z003 (AGPL-3 with the font exception), shipped in
+   public/fonts with its licence — see public/fonts/LICENSE-urw-base35.txt. */
+@font-face {
+  font-family: "Witness";
+  src: url("/fonts/witness.otf") format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme {
@@ -36,7 +46,7 @@
   --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
   --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
   --font-fa: "Vazirmatn", "Segoe UI", Tahoma, ui-sans-serif, sans-serif;
-  --font-hand: "Caveat", "Segoe Script", cursive;
+  --font-hand: "Witness", "Segoe Script", cursive;
 }
 
 /* Farsi: its own face, and a little more line-height — Persian needs the room. */
