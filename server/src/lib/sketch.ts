@@ -34,7 +34,7 @@ export function linePrompt(horizon: string): string {
   return (
     `Draw me: ${horizon}\n\n` +
     `Style only — do not add or change any element, and never make it childlike: an inline sketch, ` +
-    `a single thin ink line on warm ivory paper, in the manner of a fashion-illustration croquis. ` +
+    `a single thin ink line on clean white paper, in the manner of a fashion-illustration croquis. ` +
     `No gray shading, no cross-hatching, no textures, no text or logos except a brand I named myself. ` +
     `The person who wrote this — a woman — is the largest figure, slightly off-center; everyone else she ` +
     `names stands beside her, smaller; places she names frame the scene with a few long lines; objects ` +
@@ -46,8 +46,8 @@ export function colorPrompt(): string {
   return (
     `Add a soft, translucent watercolor wash to this line drawing. Keep every ink line exactly as it is; ` +
     `add nothing, remove nothing, move nothing. Use only these colors: pale apricot #F8D9C8, muted ` +
-    `lavender #A38CB4, warm gold #D7A83C, dusty rose #E28C9B, and a little sage #8FB3A0. Leave plenty ` +
-    `of paper untouched.`
+    `lavender #A38CB4, dusty rose #E28C9B, soft sky #A9C4E8, and a little sage #8FB3A0. No yellow, no ` +
+    `ochre, no sepia — the paper must stay clean white. Leave plenty of paper untouched.`
   );
 }
 
