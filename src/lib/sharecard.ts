@@ -6,7 +6,6 @@
 // real PNG and handed to the share sheet as a FILE — never a link.
 
 import type { Lang } from "@/lib/i18n";
-import { witnessHandSvg } from "@/components/WitnessHand";
 
 export interface CardContent {
   /** The witness's line, e.g. "One small step today. I saw it." */
@@ -121,15 +120,19 @@ export async function renderCard(c: CardContent): Promise<Blob> {
     }
   }
 
-  // His hand, signing under the words.
-  y += 8;
-  const handW = 300, handH = 150;
-  const handSvg = new Blob([witnessHandSvg(GOLD, rtl)], { type: "image/svg+xml" });
-  const handUrl = URL.createObjectURL(handSvg);
-  const handImg = await load(handUrl);
-  URL.revokeObjectURL(handUrl);
-  if (handImg) ctx.drawImage(handImg, rtl ? 96 : W - 96 - handW, y - 20, handW, handH);
-  y += handH - 10;
+  // The stroke of his pen, running out from under the words. (The hand itself
+  // waits for an asset that actually reads as a hand.)
+  y += 28;
+  ctx.strokeStyle = GOLD;
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  const sx = rtl ? W - 96 : 96;
+  const dir = rtl ? -1 : 1;
+  ctx.moveTo(sx, y);
+  ctx.bezierCurveTo(sx + dir * 160, y - 16, sx + dir * 300, y + 18, sx + dir * 460, y - 4);
+  ctx.stroke();
+  y += 18;
 
   // His count, small.
   if (c.count) {

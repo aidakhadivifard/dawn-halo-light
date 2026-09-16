@@ -1,10 +1,10 @@
-// The witness's line — one thing, not two.
+// The witness's line — his sentence, and the stroke of his pen running out
+// from under it.
 //
-// His sentence, and his hand at the end of it, with the stroke of the pen
-// running back underneath the words. In Farsi the whole thing mirrors, so the
-// hand enters from the other side and the stroke runs the other way.
-
-import { WitnessHand } from "@/components/WitnessHand";
+// The hand itself is not here yet: the asset we had did not read as a hand,
+// and a wrong hand is worse than none. The stroke alone is honest — it is
+// what a pen leaves behind. When the real hand arrives it drops in at the
+// end of this stroke, where the pen would be.
 
 export function WitnessLine({
   line,
@@ -17,18 +17,28 @@ export function WitnessLine({
 }) {
   const big = size === "md";
   return (
-    <div className="relative">
+    <div>
       <p className={"font-hand text-wish-ink leading-tight " + (big ? "text-[30px]" : "text-[25px]")}>{line}</p>
       {deed && (
         <p className={"font-hand text-wish-muted leading-tight mt-0.5 " + (big ? "text-[23px]" : "text-[20px]")}>
           {deed}
         </p>
       )}
-      {/* The hand signs at the end of the last line, and the stroke of its pen
-          runs back underneath the words — so it sits ON the text, not below it. */}
-      <div className={"flex ltr:justify-end rtl:justify-start " + (big ? "-mt-7" : "-mt-6")}>
-        <WitnessHand className={"text-wish-gold " + (big ? "w-48" : "w-36")} />
-      </div>
+      <svg
+        aria-hidden
+        viewBox="0 0 400 16"
+        preserveAspectRatio="none"
+        className={"mt-2 text-wish-gold " + (big ? "w-52 h-3.5" : "w-40 h-3")}
+        fill="none"
+      >
+        {/* One unhurried stroke, thinning as it lifts — the way a pen leaves the page. */}
+        <path
+          d="M2 9 C 80 2, 150 14, 230 7 S 350 3, 396 11"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+      </svg>
     </div>
   );
 }
