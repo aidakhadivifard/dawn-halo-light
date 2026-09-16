@@ -52,6 +52,12 @@ const EN = {
   todayPlaceholder: "Today I…",
   todaySave: "Save",
   todayDone: "That counts. It always counts.",
+  // The headline over the picture once today has been answered.
+  aliveLine: "A little more alive.",
+  // The witness's line, in his hand. Third person, no name yet — never praise.
+  sawDid: "One small step today. I saw it.",
+  sawStayed: "Stayed today. I saw it.",
+  sawStuck: "Came today, and said it. I saw it.",
   todayAlready: "You already answered today.",
   bothCount: "Both count the same.",
 
@@ -112,6 +118,10 @@ const FA: Dict = {
   todayPlaceholder: "امروز…",
   todaySave: "ثبت کن",
   todayDone: "این به حساب می‌آید. همیشه به حساب می‌آید.",
+  aliveLine: "یک کم زنده‌تر.",
+  sawDid: "امروز یک قدم کوچک. دیدم.",
+  sawStayed: "امروز ماند. دیدم.",
+  sawStuck: "امروز آمد و گفت. دیدم.",
   todayAlready: "امروز جوابت را داده‌ای.",
   bothCount: "هر دو یک‌اندازه به حساب می‌آیند.",
 

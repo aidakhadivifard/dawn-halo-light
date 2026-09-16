@@ -18,19 +18,25 @@
   --color-dawn-cream: #fdf0dc;     /* the warm bottom of the sky */
   --color-dawn-muted: #7a6b8c;     /* secondary text */
 
-  /* "Wish" — white and blue, very little of anything else. One accent blue
-     carries every action; the gold appears only on the halo and the badge. */
-  --color-wish-paper: #ffffff;
-  --color-wish-ink: #17233b;       /* navy — the only text color */
-  --color-wish-blue: #2f6bff;      /* the one accent: buttons, the seal, links */
-  --color-wish-gold: #c9a24a;      /* the halo and the badge, nothing else */
-  --color-wish-muted: #6b7794;     /* the second voice */
-  --color-wish-line: #e6ebf5;      /* hairlines and card edges */
-  --color-wish-tint: #f4f7ff;      /* the palest blue wash */
+  /* "Wish" — luminous ivory, deep-plum ink, and ONE living colour.
+     Coral belongs only to things that mean "coming alive": the coloured parts
+     of the wish drawing, movement, the step that was taken. Gold belongs only
+     to the oracle world: the card charm and the witness's hand. Nothing else
+     gets a colour. */
+  --color-wish-paper: #fff9f4;      /* dawn ivory — almost white, warm, never yellow */
+  --color-wish-ink: #3d2947;        /* deep plum — text and every drawn line */
+  --color-wish-blue: #f2766b;       /* living coral — the one accent (token name kept for the classes) */
+  --color-wish-coral-soft: #f7a097; /* the wash inside the drawing */
+  --color-wish-gold: #d9a441;       /* oracle gold — the charm, the witness's hand */
+  --color-wish-muted: #756579;      /* muted plum — the second voice */
+  --color-wish-line: #eeeaf2;       /* pale lilac — hairlines, inactive */
+  --color-wish-tint: #fdf6f0;       /* a breath warmer than the paper; never a panel colour */
+  --color-wish-white: #fffdfc;      /* warm white, only on the coral button */
 
   --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
   --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
   --font-fa: "Vazirmatn", "Segoe UI", Tahoma, ui-sans-serif, sans-serif;
+  --font-hand: "Caveat", "Segoe Script", cursive;
 }
 
 /* Farsi: its own face, and a little more line-height — Persian needs the room. */
@@ -41,6 +47,13 @@
 [dir="rtl"] .font-serif {
   font-family: var(--font-fa);
   font-style: normal;
+}
+/* No good Farsi handwriting face exists on the web yet — the witness writes
+   in Vazirmatn, a little lighter, until we find one. */
+[dir="rtl"] .font-hand {
+  font-family: var(--font-fa);
+  font-weight: 400;
+  font-size: 0.85em;
 }
 
 @theme inline {

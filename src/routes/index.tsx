@@ -9,7 +9,7 @@
 //      "I did one small thing", and both bring a little color back
 //   6. Sometimes: would you like someone to see this?
 //
-// White and blue. One accent, one gold mark. Nothing else on the screen.
+// Dawn ivory, deep-plum ink, one living coral, one oracle gold. Nothing else.
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
@@ -300,6 +300,9 @@ function WishPage() {
       {/* 5 — the day */}
       {stage === "day" && home && (
         <div className="animate-rise-line">
+          {home.todayDeed && (
+            <h1 className="font-serif text-[2.4rem] leading-none text-wish-ink text-center mb-6 text-balance">{t.aliveLine}</h1>
+          )}
           <WishPicture
             sketch={home.sketch}
             words={home.horizon}
@@ -307,19 +310,20 @@ function WishPage() {
             card={home.card}
             badgeLanding={badgeLanding}
           />
-          <p className="mt-4 text-center font-serif text-xl text-wish-ink/80 leading-snug">{home.horizon}</p>
 
           {home.todayDeed && !deedKind ? (
-            <div className="mt-8 rounded-2xl border border-wish-line bg-wish-tint px-5 py-5 text-center">
-              {/* Acknowledgment sits above the offer, never below it. */}
-              <p className="font-serif text-xl text-wish-ink leading-relaxed">
-                {home.todayDeed.kind === "stuck"
-                  ? t.stuckAck
-                  : justAnswered
-                    ? t.todayDone
-                    : t.todayAlready}
+            <div className="mt-8">
+              {/* The witness's line, in his own hand, with the gold stroke of his pen
+                  running out from under it. Acknowledgment sits above the offer, never below. */}
+              <p className="font-hand text-[26px] leading-snug text-wish-ink">
+                {home.todayDeed.kind === "stuck" ? t.sawStuck : home.todayDeed.kind === "stayed" ? t.sawStayed : t.sawDid}
               </p>
-              {home.todayDeed.text && <p className="mt-2 text-[15px] text-wish-muted">{home.todayDeed.text}</p>}
+              {home.todayDeed.text && (
+                <p className="mt-1 font-hand text-[20px] text-wish-muted">{home.todayDeed.text}</p>
+              )}
+              <svg aria-hidden viewBox="0 0 320 24" className="mt-1 w-full h-6 text-wish-gold" fill="none">
+                <path d="M2 14 C 60 4, 120 22, 180 12 S 290 6, 318 16" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
             </div>
           ) : (
             <div className="mt-8">
@@ -473,7 +477,7 @@ function Shell({
               onClick={() => setLang(l.code)}
               className={
                 "rounded-full px-3 py-1 text-[13px] transition-colors " +
-                (lang === l.code ? "bg-wish-blue text-white" : "text-wish-muted hover:text-wish-ink")
+                (lang === l.code ? "bg-wish-blue text-wish-white" : "text-wish-muted hover:text-wish-ink")
               }
             >
               {l.label}
@@ -496,9 +500,9 @@ function Primary({
     <button
       {...rest}
       className={
-        "rounded-full bg-wish-blue px-6 py-3.5 text-[16px] font-medium text-white transition-all " +
+        "rounded-full bg-wish-blue px-6 py-3.5 text-[16px] font-medium text-wish-white transition-all " +
         "active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 " +
-        "shadow-[0_12px_30px_-14px_rgba(47,107,255,0.9)] " +
+        "shadow-[0_12px_30px_-14px_rgba(242,118,107,0.8)] " +
         className
       }
     >

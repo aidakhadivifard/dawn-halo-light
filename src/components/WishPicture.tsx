@@ -123,7 +123,7 @@ export function WishPicture({ sketch, words, lang, card, badgeLanding }: WishPic
   const t = cardText(lang, card?.id ?? "");
 
   return (
-    <div className="relative rounded-3xl border border-wish-line bg-wish-paper overflow-hidden shadow-[0_24px_60px_-40px_rgba(23,35,59,0.35)]">
+    <div className="relative rounded-3xl bg-wish-paper overflow-hidden">
       {sketch.status === "ready" && (
         <canvas ref={canvasRef} className="block w-full h-auto" role="img" aria-label={words ?? "Your wish"} />
       )}
@@ -145,20 +145,20 @@ export function WishPicture({ sketch, words, lang, card, badgeLanding }: WishPic
         </div>
       )}
 
-      {/* The badge: one small mark, in the corner, from the draw onward. */}
+      {/* The charm: one small gold token, glyph only, like a pendant on the
+          corner of the drawing. From the draw onward it is simply there. */}
       {card && (
         <div
+          title={t.name}
+          aria-label={t.name}
           className={
-            "absolute top-3 flex items-center gap-2 rounded-full bg-wish-paper/90 backdrop-blur px-3 py-1.5 " +
-            "border border-wish-gold/40 shadow-[0_6px_20px_-8px_rgba(201,162,74,0.8)] " +
+            "absolute top-3 grid place-items-center size-11 rounded-full bg-wish-paper " +
+            "border-[1.5px] border-wish-gold text-wish-gold shadow-[0_4px_14px_-6px_rgba(217,164,65,0.7)] " +
             (badgeLanding ? "animate-[badgeland_900ms_cubic-bezier(.2,.9,.25,1)_both] " : "") +
             "ltr:right-3 rtl:left-3"
           }
         >
-          <span aria-hidden className="text-wish-gold text-lg leading-none">
-            {CARD_GLYPH[card.id] ?? "✦"}
-          </span>
-          <span className="text-[13px] font-medium text-wish-ink">{t.name}</span>
+          <span aria-hidden className="text-[20px] leading-none">{CARD_GLYPH[card.id] ?? "✦"}</span>
         </div>
       )}
     </div>
