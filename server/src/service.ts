@@ -11,7 +11,6 @@ import { selectIllustration, NO_REPEAT_WINDOW_DAYS } from "./lib/illustrations";
 import {
   generateCardText,
   generateVowText,
-  chooseRoadCard,
   nextTinyStep,
   hearWishes,
   cardReading,
@@ -19,7 +18,7 @@ import {
 } from "./lib/anthropic";
 import { MAX_RUNGS } from "./lib/tinystep";
 import { MAX_WISHES, type HeardWish } from "./lib/hearing";
-import { findCard, fallbackCard as fallbackRoadCard, type RoadCard } from "./lib/roadcards";
+import { findCard, pickRoadCard, type RoadCard } from "./lib/roadcards";
 import { findHalo } from "./lib/deck";
 import { drawHorizon, sketchAvailable, type SketchDeps } from "./lib/sketch";
 import type { JourneyContext } from "./lib/prompt";
@@ -637,8 +636,10 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       if (existing)
         return { kind: "card", card: existing, reading: h.card_reading ?? null, sealed: true, alreadyDrawn: true };
 
-      const { id } = await chooseRoadCard(h.text, { client, timeoutMs });
-      const card = findCard(id) ?? fallbackRoadCard(h.text);
+      // A real draw from a fixed deck. Nothing reads the wish and decides what
+      // it deserves — the Oracle is not a judge. The recent draws only keep a
+      // card from coming back too soon, or following one that means the same.
+      const card = pickRoadCard(db.recentCardIds(deviceId, 4));
       db.setCard(h.id, card.id, now().toISOString());
       // The wish is sealed — make sure its picture exists.
       requestSketch(h.id);

@@ -10,9 +10,14 @@
 // speaking. "Start with twenty minutes of exercise" is an app they did not ask
 // for.
 //
-// The rule: it does not promise arrival. Every card leaves the door open —
-// that is the deck's whole principle — so the reading describes the shape of
-// the road and never says the wish will come true.
+// The two rules, and they pull against each other on purpose. It does not
+// promise arrival — it never says the wish will come true, or when. And it
+// never says the opposite either: not impossible, not going to fail, not time
+// to let it go. It leaves a person with hope and somewhere to put their feet.
+//
+// The card was DRAWN, not chosen for this wish, so sometimes it will not
+// obviously fit. That is the reading's job: find what is true in it. It never
+// says the card does not suit the wish, and it never mentions the draw.
 //
 // And it must not abstract her away. "Two children" is two children, not
 // "building a secure family". The moment the app paraphrases a person's life
@@ -58,11 +63,18 @@ It must:
 
 It must NOT:
 - promise the wish will happen, or say when it will
+- say the wish is impossible, unlikely, too much, or out of reach; predict that
+  it will fail; or suggest letting it go or wanting something smaller
+- say that the card does not fit their wish, or mention how the card was chosen
 - replace what they said with an abstract idea ("security", "fulfilment",
   "growth"), or add a wish they did not write
 - give advice about their actual life: no plans, no steps, no numbers, no
   timetable, nothing they should go and do today
 - greet them, name the card twice, or explain what an oracle is
+
+This card was drawn, not picked to match their wish, so it may not fit at first
+glance. Find what is true in it for them and write from that. They should
+finish reading with hope and somewhere to put their feet.
 
 Answer with the paragraph alone.`;
 }

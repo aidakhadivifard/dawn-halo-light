@@ -1,12 +1,22 @@
 // The road cards.
 //
-// Every card says the same thing — it CAN happen. What differs is the SHAPE of
-// the road: near, slow, helped, unclear, heavy. That is the honest part: we
-// never promise arrival, but we never say no either. Each card reduces to one
-// small object — a badge — that sits on the corner of the wish from then on.
+// The deck's principle, which is for us and never for the person reading:
+// EVERY CARD POINTS TOWARD POSSIBILITY, BUT NOT EVERY CARD PROMISES AN EASY
+// ROAD. None of them says no. None of them says yes either. What differs is
+// the shape of the road — open, slow, steep, helped, unclear, or one that
+// asks for something to be put down first.
 //
-// The deck is fixed and small on purpose: twelve names a person can remember,
-// twelve lines short enough to translate by hand into every language.
+// We do not tell anyone that. A person who is told the deck is kind stops
+// believing the card, and the card is the whole point. So the app never says
+// "there is no bad card" — it just never deals one.
+//
+// The card is DRAWN, not chosen. Nothing reads the wish and decides what it
+// deserves; that would make the Oracle a judge, and the deck a verdict on a
+// life. It is a fixed deck and a real draw, and only the reading underneath
+// is written for the person.
+//
+// The deck is fixed and small on purpose: a handful of names a person can
+// remember, and lines short enough to translate by hand into every language.
 
 export interface RoadCard {
   /** Stable id — the badge glyph and every translation key hang off this. */
@@ -44,7 +54,54 @@ export const ROAD_CARDS: RoadCard[] = [
     when: "a home, a new chapter, a relationship, something waiting to be walked into" },
   { id: "sun", name: "The Sun", line: "Already begun. Warmer every day.",
     when: "after a hard season; a wish that has quietly already started" },
+  { id: "stone", name: "The Stone", line: "Put one thing down. The road opens after.",
+    when: "something has to be released, ended or set down before the wish can move — " +
+      "an obligation, a grudge, a plan being gripped, someone else's expectations" },
 ];
+
+/** A card cannot come back until this many other cards have been drawn. */
+export const NO_REPEAT_WITHIN = 3;
+
+/**
+ * Cards that read as the same idea. Two of these back to back feels like a
+ * repeat even though the ids differ — which makes the draw look rigged.
+ */
+const KIN: Record<string, string[]> = {
+  key: ["door"],
+  door: ["key"],
+  ladder: ["mountain"],
+  mountain: ["ladder"],
+  lantern: ["sun", "compass"],
+  sun: ["lantern", "seed"],
+  seed: ["sun"],
+  compass: ["lantern"],
+  boat: ["bridge"],
+  bridge: ["boat"],
+  hammer: [],
+  crown: [],
+  stone: [],
+};
+
+/**
+ * Draw one. A real draw from a fixed deck — the wish is never read here.
+ *
+ * Two things keep it from feeling mechanical: a card cannot repeat until three
+ * others have been drawn, and it will not follow a card that means nearly the
+ * same thing. If those rules leave nothing, they relax in that order, because
+ * a card must always come.
+ */
+export function pickRoadCard(
+  /** The ids drawn before, newest first. */
+  recent: string[] = [],
+  random: () => number = Math.random,
+): RoadCard {
+  const tooSoon = new Set(recent.slice(0, NO_REPEAT_WITHIN));
+  const kin = new Set(KIN[recent[0] ?? ""] ?? []);
+  const fresh = ROAD_CARDS.filter((c) => !tooSoon.has(c.id));
+  const pool = fresh.filter((c) => !kin.has(c.id));
+  const deck = pool.length ? pool : fresh.length ? fresh : ROAD_CARDS;
+  return deck[Math.min(deck.length - 1, Math.floor(random() * deck.length))];
+}
 
 export const CARD_IDS = ROAD_CARDS.map((c) => c.id);
 
@@ -52,23 +109,9 @@ export function findCard(id: string | null | undefined): RoadCard | undefined {
   return ROAD_CARDS.find((c) => c.id === id);
 }
 
-/** The prompt that picks ONE card for a wish. Nothing is written by the model. */
-export function cardPrompt(wish: string): string {
-  const list = ROAD_CARDS.map((c) => `${c.id} — ${c.name}: ${c.when}`).join("\n");
-  return (
-    `A person wrote down the life they wish for, in their own words (any language):\n\n` +
-    `"${wish}"\n\n` +
-    `Choose the ONE card below whose shape of road best matches this wish. Every card ` +
-    `means the wish CAN happen — they differ only in how the road runs. Read the ` +
-    `feeling as much as the facts: if the person sounds tired or afraid, that matters; ` +
-    `if they already have what they need, that matters.\n\n${list}\n\n` +
-    `Answer with ONLY the id, lowercase, nothing else.`
-  );
-}
-
 /**
- * Deterministic fallback when no model is available: the same wish always gets
- * the same card, so a flaky network can never change someone's card.
+ * A card from the wish alone, with no randomness — used only where a draw has
+ * to be reproducible (a lost card_id, a test). Never the normal path.
  */
 export function fallbackCard(wish: string): RoadCard {
   let h = 0;

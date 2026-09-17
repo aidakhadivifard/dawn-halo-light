@@ -1,9 +1,10 @@
 // The reading — what a card means for one particular wish.
 //
 // What these tests protect:
-//   1. It never promises the wish will happen. Every card leaves the door
-//      open; that is the deck's whole principle, and one enthusiastic sentence
-//      would turn the app into a fortune teller.
+//   1. It never promises the wish will happen — one enthusiastic sentence and
+//      the app is a fortune teller. And it never says the opposite either: no
+//      impossible, no predicting failure, no suggesting she want something
+//      smaller. A person must finish reading with somewhere to put their feet.
 //   2. It keeps her concrete words. Two children are two children, not
 //      "building a secure family". The moment the app paraphrases a person's
 //      life into a concept, it stops sounding like it heard her.
@@ -73,6 +74,20 @@ describe("asking for the reading", () => {
 
   it("says out loud when a wish holds several things at once", () => {
     expect(readingPrompt(INPUT)).toContain("will not move at the same speed");
+  });
+
+  it("forbids the other direction too — no impossible, no failure, no giving up", () => {
+    const p = readingPrompt(INPUT);
+    expect(p).toContain("impossible, unlikely, too much, or out of reach");
+    expect(p).toContain("predict that\n  it will fail");
+    expect(p).toContain("suggest letting it go");
+    expect(p).toContain("hope and somewhere to put their feet");
+  });
+
+  it("tells it the card was drawn, and never to say it does not fit", () => {
+    const p = readingPrompt(INPUT);
+    expect(p).toContain("drawn, not picked to match their wish");
+    expect(p).toContain("does not fit their wish, or mention how the card was chosen");
   });
 
   it("asks in her language", () => {

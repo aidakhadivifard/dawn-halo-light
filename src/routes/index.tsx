@@ -487,7 +487,7 @@ function WishPage() {
               <p className="mt-8 text-center font-hand text-[25px] text-wish-muted leading-snug">
                 {t.wishTookShape}
               </p>
-              <p className="mt-2 text-center font-serif text-[25px] text-wish-ink leading-snug text-balance">
+              <p className="mt-2 text-center font-serif text-[22px] text-wish-ink leading-snug text-balance">
                 {t.cardAsk}
               </p>
               <Primary onClick={() => setStage("confirm")} className="mt-6 w-full">
@@ -611,17 +611,11 @@ function WishPage() {
                 </p>
               </div>
 
-              <p
-                className="mt-8 text-center text-[13px] leading-relaxed text-wish-muted"
-                style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 620ms both" }}
-              >
-                {t.cardAll}
-              </p>
               <Primary
                 onClick={keepCard}
                 disabled={!!flight}
-                className="mt-6 w-full"
-                style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 780ms both" }}
+                className="mt-10 w-full"
+                style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 640ms both" }}
               >
                 {t.cardKeep}
               </Primary>

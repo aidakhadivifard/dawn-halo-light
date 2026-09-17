@@ -54,7 +54,7 @@ const EN = {
   // The card. The Oracle does not compute odds — it says what KIND of road
   // this is: slow, steep, unclear, one that asks for patience.
   wishTookShape: "Your wish has taken shape.",
-  cardAsk: "Shall we ask the Oracle what kind of road lies between you and this wish?",
+  cardAsk: "Draw a card to see what kind of road lies between you and your wish.",
   cardDraw: "Draw my card",
   notNow: "Not now",
   askOracle: "Ask the Oracle",
@@ -65,7 +65,6 @@ const EN = {
   cardKeep: "Keep this card",
   cardBelongs: (name: string) => `${name} now belongs to your wish.`,
   beginToday: "Begin with today",
-  cardAll: "There is no bad card. All twelve leave the door open — what changes is the road they show you.",
   labelMeaning: "What this card is",
   labelForYou: "For your wish",
 
@@ -162,7 +161,7 @@ const FA: Dict = {
   answeredTodayShort: "امروز جواب داده",
 
   wishTookShape: "آرزویت شکل گرفت.",
-  cardAsk: "از اوراکل بپرسیم چه راهی بین تو و این آرزوست؟",
+  cardAsk: "یک کارت بکش تا ببینی چه راهی بین تو و آرزویت هست.",
   cardDraw: "کارتم را بکش",
   notNow: "الان نه",
   askOracle: "از اوراکل بپرس",
@@ -171,7 +170,6 @@ const FA: Dict = {
   cardKeep: "این کارت را نگه می‌دارم",
   cardBelongs: (name: string) => `${name} حالا مال آرزوی توست.`,
   beginToday: "از امروز شروع کن",
-  cardAll: "کارت بد وجود ندارد. هر دوازده‌تا در را باز می‌گذارند — آنچه فرق می‌کند راهی است که نشانت می‌دهند.",
   labelMeaning: "این کارت چیست",
   labelForYou: "برای آرزوی تو",
 
@@ -312,6 +310,9 @@ export const CARD_TEXT: Record<Lang, Record<string, { name: string; line: string
     sun: { name: "The Sun", line: "Already begun. Warmer every day.",
       appears: "The Sun appears when it began before you noticed it had.",
       carry: "Today is not the beginning. It already began." },
+    stone: { name: "The Stone", line: "Put one thing down. The road opens after.",
+      appears: "The Stone appears when the way opens by setting something down, not by carrying more.",
+      carry: "Today, set one thing down." },
   },
   fa: {
     key: { name: "کلید", line: "نزدیک است. چیزی که لازم داری همین حالا دستت است.",
@@ -350,6 +351,9 @@ export const CARD_TEXT: Record<Lang, Record<string, { name: string; line: string
     sun: { name: "خورشید", line: "شروع شده. هر روز گرم‌تر.",
       appears: "خورشید وقتی می‌آید که پیش از آنکه بفهمی، شروع شده بود.",
       carry: "امروز شروع نیست. از قبل شروع شده بود." },
+    stone: { name: "سنگ", line: "یک چیز را زمین بگذار. راه بعدش باز می‌شود.",
+      appears: "سنگ وقتی می‌آید که راه با زمین‌گذاشتن باز می‌شود، نه با بیشتر برداشتن.",
+      carry: "امروز یک چیز را زمین بگذار." },
   },
 };
 

@@ -6,7 +6,6 @@ import { getConfig } from "../config";
 import { SYSTEM_PROMPT, buildUserPrompt, buildVowPrompt, type JourneyContext } from "./prompt";
 import { pickOpener } from "./openers";
 import { findHalo, halosForTheme, HALO_DECK } from "./deck";
-import { CARD_IDS, cardPrompt, fallbackCard as fallbackRoadCard } from "./roadcards";
 import { TINY_STEP_SYSTEM, tinyStepPrompt, cleanStep, type TinyStepInput } from "./tinystep";
 import { HEAR_SYSTEM, hearPrompt, parseHeard, fallbackHearing, type HeardWish } from "./hearing";
 import { READING_SYSTEM, readingPrompt, cleanReading, type ReadingInput } from "./reading";
@@ -313,43 +312,6 @@ export async function nextTinyStep(
  * Pick the ONE road card for a wish. The model only chooses an id from the
  * fixed deck — it writes nothing. Falls back deterministically, so the same
  * wish always gets the same card even with no network.
- */
-export async function chooseRoadCard(
-  wish: string,
-  opts: { client?: MessagesClient | null; timeoutMs?: number } = {},
-): Promise<{ id: string; fallback: boolean }> {
-  const client = opts.client !== undefined ? opts.client : getClient();
-  if (!client) return { id: fallbackRoadCard(wish).id, fallback: true };
-
-  const { anthropicModel } = getConfig();
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  try {
-    const result = await Promise.race([
-      client.messages.create({
-        model: anthropicModel,
-        max_tokens: 16,
-        system: "You choose one card from a fixed deck. You answer with one lowercase id and nothing else.",
-        messages: [{ role: "user", content: cardPrompt(wish) }],
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("anthropic_timeout")), timeoutMs),
-      ),
-    ]);
-    const text = (result.content?.find((b) => b.type === "text")?.text ?? "").trim().toLowerCase();
-    const id = CARD_IDS.find((c) => text === c) ?? CARD_IDS.find((c) => text.includes(c));
-    return id ? { id, fallback: false } : { id: fallbackRoadCard(wish).id, fallback: true };
-  } catch {
-    return { id: fallbackRoadCard(wish).id, fallback: true };
-  }
-}
-
-/**
- * Separate what someone wrote into the distinct wishes inside it.
- *
- * Unlike the tiny step, this one ALWAYS answers: a person who has just written
- * their wish must never hit a dead end. With no model, or a bad answer, the
- * splitter falls back to the punctuation people list things with — and if even
- * that finds one thing, it is one wish, kept in their exact words.
  */
 export async function hearWishes(
   text: string,

@@ -514,6 +514,10 @@ export function createDb(path = ":memory:") {
     listHorizons: sqlite.prepare<[string]>(
       "SELECT * FROM horizons WHERE device_id = ? ORDER BY created_at ASC",
     ),
+    recentCards: sqlite.prepare<[string, number]>(
+      `SELECT card_id FROM horizons WHERE device_id = ? AND card_id IS NOT NULL
+       ORDER BY card_at DESC LIMIT ?`,
+    ),
     newestHorizon: sqlite.prepare<[string]>(
       "SELECT * FROM horizons WHERE device_id = ? ORDER BY updated_at DESC LIMIT 1",
     ),
@@ -822,6 +826,10 @@ export function createDb(path = ":memory:") {
     getHorizonById(deviceId: string, id: string): HorizonRow | undefined {
       const row = stmts.getHorizonById.get(id) as HorizonRow | undefined;
       return row && row.device_id === deviceId ? row : undefined;
+    },
+    /** The cards this person has drawn, newest first — so one does not repeat. */
+    recentCardIds(deviceId: string, limit = 4): string[] {
+      return (stmts.recentCards.all(deviceId, limit) as { card_id: string }[]).map((r) => r.card_id);
     },
     getHorizonByToken(token: string): HorizonRow | undefined {
       return stmts.getHorizonByToken.get(token) as HorizonRow | undefined;

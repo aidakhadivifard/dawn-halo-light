@@ -12,7 +12,7 @@
 
 export type SymbolId =
   | "key" | "bridge" | "ladder" | "lantern" | "boat" | "seed"
-  | "compass" | "hammer" | "mountain" | "crown" | "door" | "sun";
+  | "compass" | "hammer" | "mountain" | "crown" | "door" | "sun" | "stone";
 
 /** Each symbol as a list of strokes, laid down in the order a hand would. */
 export const STROKES: Record<string, string[]> = {
@@ -110,6 +110,13 @@ export const STROKES: Record<string, string[]> = {
     "M39 56 L 39 20.5",
     "M35 39 m -1.6 0 a 1.6 1.6 0 1 0 3.2 0 a 1.6 1.6 0 1 0 -3.2 0",
     "M12 56 L 52 56",
+  ],
+  // A stone already set down, and the short arc of it coming to rest. The
+  // road that opens by putting something down rather than carrying more.
+  stone: [
+    "M17 46 C 13.5 39, 21 31, 32 31 C 43 31, 50.5 39, 47 46 C 45 50, 19 50.5, 17 46 Z",
+    "M7 51 L 57 51",
+    "M41 10 C 36 13.5, 32.5 17.5, 31.5 22",
   ],
   // Already begun: a disc, and eight rays around it.
   sun: [
