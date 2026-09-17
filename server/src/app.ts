@@ -291,11 +291,16 @@ export function createApp(db: DB, opts: AppOptions = {}) {
 
   // The road card — drawn once, and drawing it seals the wish forever.
   app.post("/api/card", requireDevice, async (req, res) => {
-    const out = await svc.drawRoadCard(req.deviceId!);
+    const lang = req.body?.lang === "fa" ? "fa" : "en";
+    const out = await svc.drawRoadCard(req.deviceId!, lang);
     if (out.kind === "no_horizon") return res.status(404).json({ error: "no_horizon" });
     // `when` is the model's private hint — it never leaves the server.
     const { id, name, line } = out.card;
-    res.json({ card: { id, name, line }, sealed: true, alreadyDrawn: out.alreadyDrawn });
+    res.json({
+      card: { id, name, line, reading: out.reading },
+      sealed: true,
+      alreadyDrawn: out.alreadyDrawn,
+    });
   });
 
   // What I did today for my wish. 'stayed' counts exactly as much as 'did'.

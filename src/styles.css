@@ -249,3 +249,36 @@
   50%  { opacity: 1;   transform: scale(1.5); }
   100% { opacity: 0.2; transform: scale(0.8); }
 }
+
+/* A stroke arriving, as if a pen were laying it down. Every path that uses
+   this carries pathLength="1", so a long curve and a short line draw at the
+   same speed and the symbol assembles evenly. */
+@keyframes inkin {
+  to { stroke-dashoffset: 0; }
+}
+
+/* The card coming up out of a deck just outside the frame. */
+@keyframes cardrise {
+  0%   { opacity: 0; transform: translateY(46%) scale(0.88); }
+  100% { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+/* Something written on the card a beat after the card exists. */
+@keyframes risein {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* The wish stepping back while the card is drawn — never gone, just quiet. */
+@keyframes recede {
+  to { opacity: 0.28; filter: blur(3px); transform: scale(0.97); }
+}
+
+/* The symbol leaving the card and going to sit on the corner of the wish.
+   Aimed by --fx/--fy/--fs, measured from the two elements at the moment the
+   card is kept, so it lands exactly where the badge lives. */
+@keyframes fly {
+  0%   { transform: translate(0, 0) scale(1); opacity: 0; }
+  12%  { opacity: 1; }
+  100% { transform: translate(var(--fx), var(--fy)) scale(var(--fs)); opacity: 1; }
+}

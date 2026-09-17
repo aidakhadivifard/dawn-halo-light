@@ -94,7 +94,7 @@ export interface Home {
   /** True once the card is drawn — from then on the words can never change. */
   sealed: boolean;
   /** The road card, drawn once. Only the id matters; the words come from i18n. */
-  card: { id: string; name: string; line: string } | null;
+  card: { id: string; name: string; line: string; reading?: string | null } | null;
   /** Today's answer, if it has been given. Both kinds count the same. */
   todayDeed: { id: string; kind: "did" | "stayed" | "stuck"; text: string | null } | null;
   sketch: Sketch;
@@ -422,9 +422,11 @@ export async function getHome(): Promise<Home> {
  * must have shown that warning first. Offline there is no card — the wish is
  * only sealed by a card that actually arrived.
  */
-export async function drawRoadCard(): Promise<{ id: string; name: string; line: string } | null> {
+export async function drawRoadCard(
+  lang = "en",
+): Promise<{ id: string; name: string; line: string; reading?: string | null } | null> {
   try {
-    const { card } = await api.drawRoadCard();
+    const { card } = await api.drawRoadCard(lang);
     return card ?? null;
   } catch {
     return null;

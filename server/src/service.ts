@@ -14,6 +14,7 @@ import {
   chooseRoadCard,
   nextTinyStep,
   hearWishes,
+  cardReading,
   type MessagesClient,
 } from "./lib/anthropic";
 import { MAX_RUNGS } from "./lib/tinystep";
@@ -131,6 +132,21 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       .finally(() => inflight.delete(id));
     inflight.set(id, job);
     return "pending";
+  }
+
+  /** Written once, in the background, and then it is hers. */
+  const readings = new Map<string, Promise<void>>();
+  function writeReading(horizonId: string, wish: string, card: RoadCard, lang: "en" | "fa") {
+    if (readings.has(horizonId)) return;
+    const job = cardReading({ wish, card: card.name, line: card.line, when: card.when, lang }, { client, timeoutMs })
+      .then((reading) => {
+        if (reading) db.setCard(horizonId, card.id, db.horizonRow(horizonId)?.card_at ?? now().toISOString(), reading);
+      })
+      .catch(() => {
+        /* no reading is a fine ending */
+      })
+      .finally(() => readings.delete(horizonId));
+    readings.set(horizonId, job);
   }
 
   function quotaState(deviceId: string, localDate: string): QuotaState {
@@ -436,7 +452,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         horizon,
         // The wish is sealed the moment the card is drawn; the client hides edit.
         sealed: !!h?.card_id,
-        card: card ? { id: card.id, name: card.name, line: card.line } : null,
+        card: card ? { id: card.id, name: card.name, line: card.line, reading: h?.card_reading ?? null } : null,
         // Today's answer, if it has already been given. Both kinds count the same.
         todayDeed: today[0]
           ? { id: today[0].id, kind: today[0].kind, text: today[0].text }
@@ -609,22 +625,29 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
      * from this moment the wish can never be edited, and its picture is drawn
      * from these words forever. Drawn once: asking again returns the same card.
      */
-    async drawRoadCard(deviceId: string): Promise<
-      { kind: "no_horizon" } | { kind: "card"; card: RoadCard; sealed: true; alreadyDrawn: boolean }
+    async drawRoadCard(deviceId: string, lang: "en" | "fa" = "en"): Promise<
+      | { kind: "no_horizon" }
+      | { kind: "card"; card: RoadCard; reading: string | null; sealed: true; alreadyDrawn: boolean }
     > {
       db.getOrCreateDevice(deviceId);
       const h = db.getHorizon(deviceId);
       if (!h) return { kind: "no_horizon" };
 
       const existing = findCard(h.card_id);
-      if (existing) return { kind: "card", card: existing, sealed: true, alreadyDrawn: true };
+      if (existing)
+        return { kind: "card", card: existing, reading: h.card_reading ?? null, sealed: true, alreadyDrawn: true };
 
       const { id } = await chooseRoadCard(h.text, { client, timeoutMs });
       const card = findCard(id) ?? fallbackRoadCard(h.text);
       db.setCard(h.id, card.id, now().toISOString());
       // The wish is sealed — make sure its picture exists.
       requestSketch(h.id);
-      return { kind: "card", card, sealed: true, alreadyDrawn: false };
+      // What this card means for THIS wish is written in the background and
+      // kept. The card must not wait for it: the turn is the moment, and a
+      // paragraph arriving underneath a beat later is how a reading reads.
+      // Null is a fine ending — the card's own line was written by a person.
+      writeReading(h.id, h.text, card, lang);
+      return { kind: "card", card, reading: null, sealed: true, alreadyDrawn: false };
     },
 
     // ----- The deeds (what I did today for my wish) -------------------------

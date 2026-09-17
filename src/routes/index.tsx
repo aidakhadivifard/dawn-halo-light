@@ -12,8 +12,10 @@
 // Dawn ivory, deep-plum ink, one living coral, one oracle gold. Nothing else.
 
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { WishPicture } from "@/components/WishPicture";
+import { RoadCardObject, type CardPhase } from "@/components/RoadCard";
+import { CardSymbol } from "@/components/CardSymbol";
 import { WitnessLine } from "@/components/WitnessLine";
 import { Shell, Primary, Secondary, Choice } from "@/components/WishShell";
 import { useLang } from "@/hooks/useLang";
@@ -31,7 +33,7 @@ import {
   type Home,
   type WishListItem,
 } from "@/lib/vow";
-import { dict, cardText, CARD_GLYPH } from "@/lib/i18n";
+import { dict, cardText } from "@/lib/i18n";
 import type { HeardWish } from "@/lib/api";
 
 export const Route = createFileRoute("/")({
@@ -70,6 +72,18 @@ function WishPage() {
   // True while she is writing a wish that is ADDED, not one that replaces the
   // words of the wish already open.
   const [beginning, setBeginning] = useState(false);
+  // The draw, as a sequence: the card rises with its back to us, waits for the
+  // Oracle to actually answer, turns over, and is written on.
+  const [phase, setPhase] = useState<CardPhase>("rise");
+  const [drawn, setDrawn] = useState<{ id: string; name: string; line: string; reading?: string | null } | null>(null);
+  const [told, setTold] = useState(false);
+  // The card has just been given to the wish. Stays until she acts on it —
+  // a sentence that explains what happened should not time out.
+  const [justKept, setJustKept] = useState(false);
+  // The symbol leaving the card for the corner of the wish.
+  const [flight, setFlight] = useState<{ id: string; x: number; y: number; dx: number; dy: number; s: number } | null>(null);
+  const symbolRef = useRef<HTMLDivElement | null>(null);
+  const slotRef = useRef<HTMLDivElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [crisis, setCrisis] = useState<{ message: string; resources: { label: string; detail: string }[] } | null>(null);
   const [badgeLanding, setBadgeLanding] = useState(false);
@@ -101,9 +115,12 @@ function WishPage() {
   }, [lang]);
 
   /** The screen for whichever wish is open. */
-  const load = useCallback(async () => {
+  const load = useCallback(async (keepStage = false) => {
     const h = await getHome();
     setHome(h);
+    // Mid-reveal the screen is the card's, not the server's: refreshing the
+    // data must not yank her out of the moment the card is turning over.
+    if (keepStage) return h;
     setNotNow(false);
     setStage(!h.horizon ? "wish" : h.card ? "day" : "picture");
     return h;
@@ -181,23 +198,83 @@ function WishPage() {
     setWishes(list);
   }
 
+  /**
+   * The draw, in the order it should feel like it happened.
+   *
+   * The card comes up out of a deck just outside the frame and waits there,
+   * face down, until the Oracle has actually answered — so the turn is never a
+   * lie. If the answer is quick, it still pauses; if it is slow, the card
+   * simply holds a moment longer, which is exactly what a card does.
+   */
   async function draw() {
     if (busy) return;
     setBusy(true);
-    setStage("revealing");
-    const [card] = await Promise.all([drawRoadCard(), sleep(2600)]);
-    setBusy(false);
-    if (!card) return setStage("picture");
-    await load();
+    setDrawn(null);
+    setTold(false);
+    setFlight(null);
+    setPhase("rise");
     setStage("card");
+    const started = Date.now();
+    const card = await drawRoadCard(lang);
+    if (!card) {
+      setBusy(false);
+      return setStage("picture");
+    }
+    setDrawn(card);
+    // The rise, and then a held beat before it turns.
+    await sleep(Math.max(0, 1500 - (Date.now() - started)));
+    setPhase("flip");
+    await sleep(840);
+    setPhase("front");
+    // Frame, symbol, title, line — then the reading underneath.
+    await sleep(2100);
+    setTold(true);
+    setBusy(false);
+    const h = await load(true);
+    // The reading is written while the card turns, so it arrives underneath a
+    // beat later — the way a reading reads. If it never comes, the card's own
+    // line stands on its own, which was always the point.
+    if (!card.reading) void awaitReading(h.card?.reading ?? null);
   }
 
-  /** From the card to the picture: the badge flies down and settles. */
+  async function awaitReading(already: string | null) {
+    if (already) return setDrawn((d) => (d ? { ...d, reading: already } : d));
+    for (let i = 0; i < 12; i++) {
+      await sleep(1400);
+      const h = await getHome().catch(() => null);
+      const reading = h?.card?.reading ?? null;
+      if (reading) return setDrawn((d) => (d ? { ...d, reading } : d));
+    }
+  }
+
+  /**
+   * Keeping it: the symbol lifts out of the card and goes to sit on the corner
+   * of the wish. That flight is the whole point of the action — it is what
+   * makes the card belong to this wish rather than being a page she read once.
+   */
   async function keepCard() {
+    if (flight) return;
+    setPhase("keeping");
+    const from = symbolRef.current?.getBoundingClientRect();
+    const to = slotRef.current?.getBoundingClientRect();
+    if (from && to && drawn) {
+      setFlight({
+        id: drawn.id,
+        x: from.left,
+        y: from.top,
+        dx: to.left + to.width / 2 - (from.left + from.width / 2),
+        dy: to.top + to.height / 2 - (from.top + from.height / 2),
+        s: (to.width * 0.52) / Math.max(1, from.width),
+      });
+      await sleep(980);
+    }
     setBadgeLanding(true);
+    setJustKept(true);
     setStage("day");
+    setFlight(null);
     await sleep(1200);
     setBadgeLanding(false);
+    setTold(false);
   }
 
   async function answer(kind: "did" | "stayed" | "stuck") {
@@ -296,8 +373,14 @@ function WishPage() {
                 >
                   <div className="flex items-baseline gap-3">
                     {/* A drawn card, or the empty circle of one not yet asked for. */}
-                    <span aria-hidden className="w-6 shrink-0 text-[20px] leading-none text-wish-gold">
-                      {w.card ? (CARD_GLYPH[w.card.id] ?? "✦") : "○"}
+                    <span aria-hidden className="w-6 shrink-0 text-wish-gold">
+                      {w.card ? (
+                        <CardSymbol id={w.card.id} className="w-6 h-6" />
+                      ) : (
+                        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.4">
+                          <circle cx="12" cy="12" r="8" />
+                        </svg>
+                      )}
                     </span>
                     <span className="font-serif text-[21px] leading-snug text-wish-ink">{w.text}</span>
                   </div>
@@ -456,47 +539,93 @@ function WishPage() {
         </div>
       )}
 
-      {/* the draw itself */}
-      {/* The draw. Long enough to be a pause you take before you look — the
-          beat between making a wish and seeing what was answered. Nothing is
-          written here on purpose; the waiting is the whole content. */}
-      {stage === "revealing" && (
-        <div className="min-h-[60vh] flex items-center justify-center" aria-live="polite" aria-label={t.cardDraw}>
-          <div className="relative grid place-items-center">
+      {/* 3 & 4 — the draw and the card.
+           The wish steps back but never leaves: the card is drawn FOR it, and
+           when it is kept the symbol goes to sit on its corner. No hand
+           anywhere near this — the witness's hand belongs to the notebook. */}
+      {stage === "card" && (
+        <div className="flex flex-col items-center">
+          {home?.horizon && (
             <div
+              className="w-full animate-[recede_600ms_ease-out_both]"
+              style={{ opacity: 0.28 }}
               aria-hidden
-              className="w-40 h-40 rounded-full blur-3xl animate-[gather_2600ms_ease-in-out_both]"
-              style={{ background: "radial-gradient(circle, rgba(217,164,65,0.6) 0%, transparent 70%)" }}
-            />
-            {/* Two rings leaving the light, a beat apart. */}
-            <span
-              aria-hidden
-              className="absolute size-24 rounded-full border border-wish-gold/60 animate-[ripple_2600ms_ease-out_both]"
-            />
-            <span
-              aria-hidden
-              className="absolute size-24 rounded-full border border-wish-gold/40 animate-[ripple_2600ms_ease-out_600ms_both]"
-            />
-            <span
-              aria-hidden
-              className="absolute size-2 rounded-full bg-wish-gold animate-[spark_2600ms_ease-in-out_both]"
+            >
+              <div className="relative">
+                <WishPicture sketch={home.sketch} words={home.horizon} lang={lang} card={null} />
+                {/* Where the symbol is going to land. */}
+                <div ref={slotRef} className="absolute top-[56%] -translate-y-1/2 size-12 ltr:right-2 rtl:left-2" />
+              </div>
+            </div>
+          )}
+
+          <div ref={symbolRef} className="relative w-full flex justify-center -mt-4">
+            {(phase === "rise" || phase === "hold") && (
+              <span
+                aria-hidden
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 rounded-full blur-3xl animate-halo-breathe"
+                style={{ background: "radial-gradient(circle, rgba(217,164,65,0.42) 0%, transparent 70%)" }}
+              />
+            )}
+            <RoadCardObject
+              id={drawn?.id ?? null}
+              name={drawn ? cardText(lang, drawn.id).name : ""}
+              line={drawn ? cardText(lang, drawn.id).line : ""}
+              phase={phase}
+              symbolGone={!!flight}
             />
           </div>
+
+          {told && drawn && (
+            <div className="w-full mt-9 text-center">
+              <p className="font-serif text-[18px] leading-relaxed text-wish-ink text-balance animate-rise-line">
+                {cardText(lang, drawn.id).appears}
+              </p>
+              {drawn.reading && (
+                <p
+                  className="mt-4 font-serif text-[17px] leading-relaxed text-wish-muted text-balance"
+                  style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 260ms both" }}
+                >
+                  {drawn.reading}
+                </p>
+              )}
+              <p
+                className="mt-6 text-[13px] text-wish-muted"
+                style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 460ms both" }}
+              >
+                {t.cardAll}
+              </p>
+              <Primary
+                onClick={keepCard}
+                disabled={!!flight}
+                className="mt-6 w-full"
+                style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 620ms both" }}
+              >
+                {t.cardKeep}
+              </Primary>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 4 — the card */}
-      {stage === "card" && home?.card && (
-        <div className="min-h-[70vh] flex flex-col items-center justify-center text-center">
-          <div className="animate-card-turn px-8 py-12 w-full max-w-xs">
-            <div className="text-5xl text-wish-gold leading-none mb-5">{CARD_GLYPH[home.card.id] ?? "✦"}</div>
-            <p className="font-serif text-3xl text-wish-ink mb-4">{cardText(lang, home.card.id).name}</p>
-            <p className="text-[17px] text-wish-ink/80 leading-relaxed">{cardText(lang, home.card.id).line}</p>
-          </div>
-          <p className="mt-6 text-[13px] text-wish-muted max-w-xs animate-rise-line">{t.cardAll}</p>
-          <Primary onClick={keepCard} className="mt-6 w-full max-w-xs">
-            {t.cardKeep}
-          </Primary>
+      {/* The symbol crossing from the card to the corner of the wish. */}
+      {flight && (
+        <div
+          aria-hidden
+          className="fixed z-50 pointer-events-none text-wish-gold"
+          style={{
+            left: flight.x,
+            top: flight.y,
+            width: 160,
+            height: 160,
+            animation: "fly 980ms cubic-bezier(0.4, 0, 0.2, 1) both",
+            // @ts-expect-error — custom properties are how the flight is aimed
+            "--fx": `${flight.dx}px`,
+            "--fy": `${flight.dy}px`,
+            "--fs": flight.s,
+          }}
+        >
+          <CardSymbol id={flight.id} className="w-full h-full" />
         </div>
       )}
 
@@ -525,8 +654,15 @@ function WishPage() {
             </div>
           ) : !asking && !deedKind ? (
             <div className="mt-10">
-              <Primary onClick={() => setAsking(true)} className="w-full">
-                {t.tellToday}
+              {/* Straight after the card is kept, say what just happened —
+                  the symbol on the corner of the picture is not self-evident. */}
+              {justKept && home.card && (
+                <p className="mb-5 text-center font-serif text-[19px] leading-snug text-wish-ink text-balance animate-rise-line">
+                  {t.cardBelongs(cardText(lang, home.card.id).name)}
+                </p>
+              )}
+              <Primary onClick={() => { setJustKept(false); setAsking(true); }} className="w-full">
+                {justKept ? t.beginToday : t.tellToday}
               </Primary>
             </div>
           ) : (

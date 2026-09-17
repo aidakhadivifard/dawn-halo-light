@@ -9,6 +9,7 @@ import { findHalo, halosForTheme, HALO_DECK } from "./deck";
 import { CARD_IDS, cardPrompt, fallbackCard as fallbackRoadCard } from "./roadcards";
 import { TINY_STEP_SYSTEM, tinyStepPrompt, cleanStep, type TinyStepInput } from "./tinystep";
 import { HEAR_SYSTEM, hearPrompt, parseHeard, fallbackHearing, type HeardWish } from "./hearing";
+import { READING_SYSTEM, readingPrompt, cleanReading, type ReadingInput } from "./reading";
 import { CARD_THEMES, type CardTheme } from "../types";
 
 export interface GenInput {
@@ -377,5 +378,40 @@ export async function hearWishes(
     return wishes ? { wishes, fallback: false } : { wishes: fallbackHearing(text), fallback: true };
   } catch {
     return { wishes: fallbackHearing(text), fallback: true };
+  }
+}
+
+/**
+ * What this card means for this wish.
+ *
+ * Returns null with no model, on a slow one, or on an empty answer — and null
+ * is fine: the card still has its own line and the deck's own sentence about
+ * when it appears. Both of those were written by a person. We would rather say
+ * less than invent a reading of someone's life.
+ */
+export async function cardReading(
+  input: ReadingInput,
+  opts: { client?: MessagesClient | null; timeoutMs?: number } = {},
+): Promise<string | null> {
+  const client = opts.client !== undefined ? opts.client : getClient();
+  if (!client) return null;
+
+  const { anthropicModel } = getConfig();
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  try {
+    const result = await Promise.race([
+      client.messages.create({
+        model: anthropicModel,
+        max_tokens: 300,
+        system: READING_SYSTEM,
+        messages: [{ role: "user", content: readingPrompt(input) }],
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("anthropic_timeout")), timeoutMs),
+      ),
+    ]);
+    return cleanReading(result.content?.find((b) => b.type === "text")?.text ?? "");
+  } catch {
+    return null;
   }
 }

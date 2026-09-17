@@ -62,7 +62,9 @@ const EN = {
   // someone who thinks they made a typo.
   cardWarn: "When you draw, this wish becomes the one this card will stay with.",
   cardWarnCalm: "You can always begin another wish later.",
-  cardKeep: "Keep it",
+  cardKeep: "Keep this card",
+  cardBelongs: (name: string) => `${name} now belongs to your wish.`,
+  beginToday: "Begin with today",
   cardAll: "Every card says it can happen. They only differ in how the road runs.",
 
   // The day
@@ -164,7 +166,9 @@ const FA: Dict = {
   askOracle: "از اوراکل بپرس",
   cardWarn: "وقتی بکشی، این کارت با همین آرزو می‌ماند.",
   cardWarnCalm: "هر وقت خواستی می‌توانی آرزوی دیگری را شروع کنی.",
-  cardKeep: "نگهش می‌دارم",
+  cardKeep: "این کارت را نگه می‌دارم",
+  cardBelongs: (name: string) => `${name} حالا مال آرزوی توست.`,
+  beginToday: "از امروز شروع کن",
   cardAll: "همهٔ کارت‌ها می‌گویند می‌شود. فقط راهش با هم فرق دارد.",
 
   todayAsk: "امروز برای آرزویت چه کردی؟",
@@ -258,34 +262,66 @@ function ordinalFa(n: number): string {
 }
 
 /** The deck, in each language. Keyed by the card id the server returns. */
-export const CARD_TEXT: Record<Lang, Record<string, { name: string; line: string }>> = {
+/**
+ * The deck, in each language.
+ *
+ * `line` is what is printed ON the card. `appears` is the sentence under it —
+ * what this card is FOR, written by a person and the same for everyone. The
+ * paragraph after that is the only part written for the individual, and it
+ * comes from the server.
+ */
+export const CARD_TEXT: Record<Lang, Record<string, { name: string; line: string; appears: string }>> = {
   en: {
-    key: { name: "The Key", line: "It's near. What you need is already in your hand." },
-    bridge: { name: "The Bridge", line: "Someone carries part of the way. Ask." },
-    ladder: { name: "The Ladder", line: "Yes — slowly. One rung at a time." },
-    lantern: { name: "The Lantern", line: "You can't see the end. You don't need to." },
-    boat: { name: "The Boat", line: "It's moving. Row, and the current helps." },
-    seed: { name: "The Seed", line: "Growing where you can't see it yet." },
-    compass: { name: "The Compass", line: "The direction is right. The route will bend." },
-    hammer: { name: "The Hammer", line: "The tool has come. Now build." },
-    mountain: { name: "The Mountain", line: "Hard — and yours." },
-    crown: { name: "The Crown", line: "You'll carry this one yourself. Stand tall." },
-    door: { name: "The Door", line: "It opens from your side." },
-    sun: { name: "The Sun", line: "Already begun. Warmer every day." },
+    key: { name: "The Key", line: "It's near. What you need is already in your hand.",
+      appears: "The Key appears when the thing you want is closer than it feels." },
+    bridge: { name: "The Bridge", line: "Someone carries part of the way. Ask.",
+      appears: "The Bridge appears when the way across is not something you build alone." },
+    ladder: { name: "The Ladder", line: "Yes — slowly. One rung at a time.",
+      appears: "The Ladder appears when what you want cannot arrive all at once." },
+    lantern: { name: "The Lantern", line: "You can't see the end. You don't need to.",
+      appears: "The Lantern appears when the way is real but only the next few steps are lit." },
+    boat: { name: "The Boat", line: "It's moving. Row, and the current helps.",
+      appears: "The Boat appears when something has already started moving and you are on it." },
+    seed: { name: "The Seed", line: "Growing where you can't see it yet.",
+      appears: "The Seed appears when the work is done long before anything shows." },
+    compass: { name: "The Compass", line: "The direction is right. The route will bend.",
+      appears: "The Compass appears when you are facing the right way and the route is not a straight line." },
+    hammer: { name: "The Hammer", line: "The tool has come. Now build.",
+      appears: "The Hammer appears when you already have what you need and the making is what is left." },
+    mountain: { name: "The Mountain", line: "Hard — and yours.",
+      appears: "The Mountain appears when the way is genuinely hard and still worth walking." },
+    crown: { name: "The Crown", line: "You'll carry this one yourself. Stand tall.",
+      appears: "The Crown appears when what you want is something no one can hand to you." },
+    door: { name: "The Door", line: "It opens from your side.",
+      appears: "The Door appears when what you want is waiting rather than missing." },
+    sun: { name: "The Sun", line: "Already begun. Warmer every day.",
+      appears: "The Sun appears when it has already begun, earlier than you noticed." },
   },
   fa: {
-    key: { name: "کلید", line: "نزدیک است. چیزی که لازم داری همین حالا دستت است." },
-    bridge: { name: "پل", line: "یک نفر بخشی از راه را می‌برد. بخواه." },
-    ladder: { name: "نردبان", line: "بله — آرام. پله به پله." },
-    lantern: { name: "فانوس", line: "آخر راه را نمی‌بینی. لازم هم نیست ببینی." },
-    boat: { name: "قایق", line: "در حرکت است. پارو بزن، جریان کمکت می‌کند." },
-    seed: { name: "بذر", line: "دارد رشد می‌کند، جایی که هنوز نمی‌بینی." },
-    compass: { name: "قطب‌نما", line: "جهت درست است. مسیر خم می‌شود." },
-    hammer: { name: "چکش", line: "ابزارش آمده. حالا بساز." },
-    mountain: { name: "کوه", line: "سخت است — و مال توست." },
-    crown: { name: "تاج", line: "این یکی را خودت می‌بری. سرت را بالا بگیر." },
-    door: { name: "در", line: "از سمت تو باز می‌شود." },
-    sun: { name: "خورشید", line: "شروع شده. هر روز گرم‌تر." },
+    key: { name: "کلید", line: "نزدیک است. چیزی که لازم داری همین حالا دستت است.",
+      appears: "کلید وقتی می‌آید که آنچه می‌خواهی نزدیک‌تر از آن است که به نظر می‌رسد." },
+    bridge: { name: "پل", line: "یک نفر بخشی از راه را می‌برد. بخواه.",
+      appears: "پل وقتی می‌آید که رد شدن از این راه تنهایی ساخته نمی‌شود." },
+    ladder: { name: "نردبان", line: "بله — آرام. پله به پله.",
+      appears: "نردبان وقتی می‌آید که آنچه می‌خواهی یک‌جا نمی‌رسد." },
+    lantern: { name: "فانوس", line: "آخر راه را نمی‌بینی. لازم هم نیست ببینی.",
+      appears: "فانوس وقتی می‌آید که راه واقعی است، ولی فقط چند قدم بعدی روشن است." },
+    boat: { name: "قایق", line: "در حرکت است. پارو بزن، جریان کمکت می‌کند.",
+      appears: "قایق وقتی می‌آید که چیزی از قبل به حرکت افتاده و تو سوارش هستی." },
+    seed: { name: "بذر", line: "دارد رشد می‌کند، جایی که هنوز نمی‌بینی.",
+      appears: "بذر وقتی می‌آید که کار خیلی پیش‌تر از دیده‌شدنش انجام می‌شود." },
+    compass: { name: "قطب‌نما", line: "جهت درست است. مسیر خم می‌شود.",
+      appears: "قطب‌نما وقتی می‌آید که رو به سمت درست ایستاده‌ای و مسیر خط مستقیم نیست." },
+    hammer: { name: "چکش", line: "ابزارش آمده. حالا بساز.",
+      appears: "چکش وقتی می‌آید که آنچه لازم داری را داری و فقط ساختن مانده." },
+    mountain: { name: "کوه", line: "سخت است — و مال توست.",
+      appears: "کوه وقتی می‌آید که راه واقعاً سخت است و باز هم ارزش رفتن دارد." },
+    crown: { name: "تاج", line: "این یکی را خودت می‌بری. سرت را بالا بگیر.",
+      appears: "تاج وقتی می‌آید که آنچه می‌خواهی چیزی است که کسی نمی‌تواند به تو بدهد." },
+    door: { name: "در", line: "از سمت تو باز می‌شود.",
+      appears: "در وقتی می‌آید که آنچه می‌خواهی منتظر است، نه گم‌شده." },
+    sun: { name: "خورشید", line: "شروع شده. هر روز گرم‌تر.",
+      appears: "خورشید وقتی می‌آید که از قبل شروع شده، زودتر از آنکه بفهمی." },
   },
 };
 
@@ -299,8 +335,8 @@ export function dict(lang: Lang): Dict {
   return DICTS[lang] ?? EN;
 }
 
-export function cardText(lang: Lang, id: string): { name: string; line: string } {
-  return CARD_TEXT[lang]?.[id] ?? CARD_TEXT.en[id] ?? { name: id, line: "" };
+export function cardText(lang: Lang, id: string): { name: string; line: string; appears: string } {
+  return CARD_TEXT[lang]?.[id] ?? CARD_TEXT.en[id] ?? { name: id, line: "", appears: "" };
 }
 
 const LS_LANG = "dawnhalo:lang";

@@ -10,7 +10,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Sketch } from "@/lib/vow";
-import { CARD_GLYPH, cardText, type Lang } from "@/lib/i18n";
+import { cardText, type Lang } from "@/lib/i18n";
+import { CardSymbol } from "@/components/CardSymbol";
 
 function load(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -158,7 +159,7 @@ export function WishPicture({ sketch, words, lang, card, badgeLanding }: WishPic
             "ltr:right-2 rtl:left-2"
           }
         >
-          <span aria-hidden className="text-[22px] leading-none">{CARD_GLYPH[card.id] ?? "✦"}</span>
+          <CardSymbol id={card.id} className="w-[62%]" />
         </div>
       )}
     </div>

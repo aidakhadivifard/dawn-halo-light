@@ -221,8 +221,8 @@ export const api = {
 
   // --- The road card and the deeds ---
   /** Draw the one card. Drawing it seals the wish forever. */
-  async drawRoadCard(): Promise<{ card: ApiRoadCard; sealed: true; alreadyDrawn: boolean }> {
-    return req(`/card`, { method: "POST", body: JSON.stringify({}) });
+  async drawRoadCard(lang = "en"): Promise<{ card: ApiRoadCard; sealed: true; alreadyDrawn: boolean }> {
+    return req(`/card`, { method: "POST", body: JSON.stringify({ lang }) });
   },
   /** Today's answer. 'stayed' counts exactly as much as 'did'. */
   async recordDeed(kind: "did" | "stayed" | "stuck", text?: string | null): Promise<{
@@ -345,6 +345,8 @@ export interface ApiSketch {
 /** The road card, drawn once. Its id is also the badge glyph. */
 export interface ApiRoadCard {
   id: string;
+  /** What this card meant for this wish. Null when there was nothing honest to say. */
+  reading?: string | null;
   name: string;
   line: string;
 }

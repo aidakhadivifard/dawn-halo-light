@@ -36,6 +36,8 @@ export interface HorizonRow {
   /** The road card drawn for this wish. Once set, the wish is sealed forever. */
   card_id: string | null;
   card_at: string | null;
+  /** What this card meant for this wish. Written once, at the draw. */
+  card_reading: string | null;
 }
 
 export interface DeedRow {
@@ -336,7 +338,8 @@ export function createDb(path = ":memory:") {
         sketch_for_text TEXT,
         sketch_draws INTEGER NOT NULL DEFAULT 0,
         card_id TEXT,
-        card_at TEXT
+        card_at TEXT,
+        card_reading TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_horizons_device ON horizons(device_id, created_at);`);
 
@@ -345,9 +348,9 @@ export function createDb(path = ":memory:") {
         had.includes(name) ? (r[name] ?? fallback) : fallback;
       const insert = sqlite.prepare(
         `INSERT INTO horizons (id, device_id, text, created_at, updated_at, sketch_status,
-           sketch_token, sketch_error, sketch_for_text, sketch_draws, card_id, card_at)
+           sketch_token, sketch_error, sketch_for_text, sketch_draws, card_id, card_at, card_reading)
          VALUES (@id, @device_id, @text, @created_at, @updated_at, @sketch_status,
-           @sketch_token, @sketch_error, @sketch_for_text, @sketch_draws, @card_id, @card_at)`,
+           @sketch_token, @sketch_error, @sketch_for_text, @sketch_draws, @card_id, @card_at, @card_reading)`,
       );
       const idFor = new Map<string, string>();
       for (const r of sqlite.prepare("SELECT * FROM horizons_v1").all() as Record<string, any>[]) {
@@ -366,6 +369,7 @@ export function createDb(path = ":memory:") {
           sketch_draws: col(r, "sketch_draws", 0),
           card_id: col(r, "card_id"),
           card_at: col(r, "card_at"),
+          card_reading: col(r, "card_reading"),
         });
       }
       sqlite.exec("DROP TABLE horizons_v1");
@@ -408,6 +412,8 @@ export function createDb(path = ":memory:") {
     // remembers which one is open.
     "ALTER TABLE deeds ADD COLUMN horizon_id TEXT",
     "ALTER TABLE devices ADD COLUMN current_horizon_id TEXT",
+    // The reading is written once, when the card is drawn, and then it is hers.
+    "ALTER TABLE horizons ADD COLUMN card_reading TEXT",
     // The road card, drawn once. Drawing it SEALS the wish: the words can never
     // be edited again, and the picture is drawn from them forever.
     "ALTER TABLE horizons ADD COLUMN card_id TEXT",
@@ -571,7 +577,8 @@ export function createDb(path = ":memory:") {
       "SELECT * FROM deeds WHERE device_id = ? AND id = ?",
     ),
     setCard: sqlite.prepare(
-      "UPDATE horizons SET card_id = @card_id, card_at = @card_at WHERE id = @horizon_id",
+      `UPDATE horizons SET card_id = @card_id, card_at = @card_at,
+         card_reading = COALESCE(@card_reading, card_reading) WHERE id = @horizon_id`,
     ),
     bumpSketchDraws: sqlite.prepare<[string]>("UPDATE horizons SET sketch_draws = sketch_draws + 1 WHERE id = ?"),
     deleteSketches: sqlite.prepare<[string]>("DELETE FROM horizon_sketches WHERE horizon_id = ?"),
@@ -896,8 +903,8 @@ export function createDb(path = ":memory:") {
       return (stmts.lastDeedAt.get(horizonId) as { at: string | null }).at;
     },
     /** Seal a wish with its road card. Called once per wish, ever. */
-    setCard(horizonId: string, cardId: string, at: string) {
-      stmts.setCard.run({ horizon_id: horizonId, card_id: cardId, card_at: at });
+    setCard(horizonId: string, cardId: string, at: string, reading: string | null = null) {
+      stmts.setCard.run({ horizon_id: horizonId, card_id: cardId, card_at: at, card_reading: reading });
     },
     insertDeed(row: DeedRow) {
       stmts.insertDeed.run(row as any);
