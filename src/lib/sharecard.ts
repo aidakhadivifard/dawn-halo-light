@@ -60,9 +60,9 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): st
 
 export async function renderCard(c: CardContent): Promise<Blob> {
   const rtl = c.lang === "fa";
-  const hand = rtl ? '400 60px "Vazirmatn", sans-serif' : 'italic 400 76px "Witness", cursive';
-  const body = rtl ? '400 40px "Vazirmatn", sans-serif' : '400 44px "Cormorant Garamond", serif';
-  const small = rtl ? '400 30px "Vazirmatn", sans-serif' : '400 32px "Cormorant Garamond", serif';
+  const hand = rtl ? '400 60px "Sahel", sans-serif' : 'italic 400 76px "Witness", cursive';
+  const body = rtl ? '400 40px "Sahel", sans-serif' : '400 44px "Cormorant Garamond", serif';
+  const small = rtl ? '400 30px "Sahel", sans-serif' : '400 32px "Cormorant Garamond", serif';
 
   // Make sure the faces are actually loaded before we paint with them.
   try {

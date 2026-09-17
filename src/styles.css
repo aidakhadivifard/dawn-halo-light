@@ -12,6 +12,24 @@
   font-display: swap;
 }
 
+/* Farsi: Sahel, by Saber Rastikerdar (SIL OFL 1.1), shipped in public/fonts
+   with its licence — public/fonts/LICENSE-sahel.txt. Bundled rather than
+   fetched, so the app reads the same on a train as it does on wifi. */
+@font-face {
+  font-family: "Sahel";
+  src: url("/fonts/sahel.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Sahel";
+  src: url("/fonts/sahel-bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme {
@@ -45,25 +63,26 @@
 
   --font-serif: "Cormorant Garamond", ui-serif, Georgia, serif;
   --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
-  --font-fa: "Vazirmatn", "Segoe UI", Tahoma, ui-sans-serif, sans-serif;
+  --font-fa: "Sahel", "Vazirmatn", "Segoe UI", Tahoma, ui-sans-serif, sans-serif;
   --font-hand: "Witness", "Segoe Script", cursive;
 }
 
 /* Farsi: its own face, and a little more line-height — Persian needs the room. */
 [dir="rtl"] {
   font-family: var(--font-fa);
-  line-height: 1.85;
+  line-height: 1.9;
 }
 [dir="rtl"] .font-serif {
   font-family: var(--font-fa);
   font-style: normal;
 }
 /* No good Farsi handwriting face exists on the web yet — the witness writes
-   in Vazirmatn, a little lighter, until we find one. */
+   in Sahel, a little lighter, until we find one. */
 [dir="rtl"] .font-hand {
   font-family: var(--font-fa);
   font-weight: 400;
-  font-size: 0.85em;
+  /* Sahel sits lighter on the page than the Latin hand; give it back a little. */
+  font-size: 0.92em;
 }
 
 @theme inline {
