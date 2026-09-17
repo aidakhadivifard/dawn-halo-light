@@ -58,6 +58,9 @@ function WishPage() {
   // The flowing sentence only gets said when the app could really phrase it.
   // Split on punctuation alone, it says the count and lets her lines speak.
   const [heardPolished, setHeardPolished] = useState(false);
+  // "Not now" puts the offer away without taking anything from her: the
+  // picture stays, her words stay editable, and the Oracle waits.
+  const [notNow, setNotNow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [crisis, setCrisis] = useState<{ message: string; resources: { label: string; detail: string }[] } | null>(null);
   const [badgeLanding, setBadgeLanding] = useState(false);
@@ -143,7 +146,7 @@ function WishPage() {
     if (busy) return;
     setBusy(true);
     setStage("revealing");
-    const [card] = await Promise.all([drawRoadCard(), sleep(1600)]);
+    const [card] = await Promise.all([drawRoadCard(), sleep(2600)]);
     setBusy(false);
     if (!card) return setStage("picture");
     await load();
@@ -303,27 +306,52 @@ function WishPage() {
         <div className="animate-rise-line">
           <WishPicture sketch={home.sketch} words={home.horizon} lang={lang} card={null} />
 
-          {stage === "picture" && (
+          {stage === "picture" && !notNow && (
             <>
-              <p className="mt-8 text-center font-serif text-[26px] text-wish-ink leading-snug text-balance">{t.cardAsk}</p>
-              <Primary onClick={() => setStage("confirm")} className="mt-5 w-full">
+              <p className="mt-8 text-center font-hand text-[25px] text-wish-muted leading-snug">
+                {t.wishTookShape}
+              </p>
+              <p className="mt-2 text-center font-serif text-[25px] text-wish-ink leading-snug text-balance">
+                {t.cardAsk}
+              </p>
+              <Primary onClick={() => setStage("confirm")} className="mt-6 w-full">
                 {t.cardDraw}
               </Primary>
+              <button
+                onClick={() => setNotNow(true)}
+                className="mt-3 w-full text-[14px] text-wish-muted underline underline-offset-4"
+              >
+                {t.notNow}
+              </button>
+            </>
+          )}
+
+          {/* Put away, not taken away: the picture is hers to sit with, and
+              until the card is drawn her words are still hers to change. */}
+          {stage === "picture" && notNow && (
+            <div className="mt-10 flex items-center justify-center gap-6 animate-rise-line">
               <button
                 onClick={() => {
                   setText(home.horizon ?? "");
                   setStage("wish");
                 }}
-                className="mt-3 w-full text-[14px] text-wish-muted underline underline-offset-4"
+                className="text-[14px] text-wish-muted underline underline-offset-4"
               >
                 {t.wishEdit}
               </button>
-            </>
+              <button
+                onClick={() => setNotNow(false)}
+                className="text-[14px] text-wish-blue underline underline-offset-4"
+              >
+                {t.askOracle}
+              </button>
+            </div>
           )}
 
           {stage === "confirm" && (
             <div className="mt-8 animate-rise-line">
-              <p className="text-[15px] text-wish-ink leading-relaxed mb-5">{t.cardWarn}</p>
+              <p className="font-serif text-[19px] text-wish-ink leading-snug text-balance">{t.cardWarn}</p>
+              <p className="mt-2 font-serif text-[16px] text-wish-muted leading-relaxed mb-5">{t.cardWarnCalm}</p>
               <Primary onClick={draw} disabled={busy} className="w-full">
                 {t.cardDraw}
               </Primary>
@@ -336,13 +364,31 @@ function WishPage() {
       )}
 
       {/* the draw itself */}
+      {/* The draw. Long enough to be a pause you take before you look — the
+          beat between making a wish and seeing what was answered. Nothing is
+          written here on purpose; the waiting is the whole content. */}
       {stage === "revealing" && (
-        <div className="min-h-[60vh] flex flex-col items-center justify-center">
-          <div
-            aria-hidden
-            className="w-28 h-28 rounded-full blur-3xl animate-halo-breathe"
-            style={{ background: "radial-gradient(circle, rgba(201,162,74,0.55) 0%, transparent 70%)" }}
-          />
+        <div className="min-h-[60vh] flex items-center justify-center" aria-live="polite" aria-label={t.cardDraw}>
+          <div className="relative grid place-items-center">
+            <div
+              aria-hidden
+              className="w-40 h-40 rounded-full blur-3xl animate-[gather_2600ms_ease-in-out_both]"
+              style={{ background: "radial-gradient(circle, rgba(217,164,65,0.6) 0%, transparent 70%)" }}
+            />
+            {/* Two rings leaving the light, a beat apart. */}
+            <span
+              aria-hidden
+              className="absolute size-24 rounded-full border border-wish-gold/60 animate-[ripple_2600ms_ease-out_both]"
+            />
+            <span
+              aria-hidden
+              className="absolute size-24 rounded-full border border-wish-gold/40 animate-[ripple_2600ms_ease-out_600ms_both]"
+            />
+            <span
+              aria-hidden
+              className="absolute size-2 rounded-full bg-wish-gold animate-[spark_2600ms_ease-in-out_both]"
+            />
+          </div>
         </div>
       )}
 

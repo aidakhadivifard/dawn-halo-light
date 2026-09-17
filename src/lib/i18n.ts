@@ -42,10 +42,17 @@ const EN = {
   waiting: "Waiting their turn",
   drawingWait: "It takes a minute. You can go on; it will be here.",
 
-  // The card
-  cardAsk: "Want to draw a card and see how possible it is?",
+  // The card. The Oracle does not compute odds — it says what KIND of road
+  // this is: slow, steep, unclear, one that asks for patience.
+  wishTookShape: "Your wish has taken shape.",
+  cardAsk: "Shall we ask the Oracle what kind of path lies ahead?",
   cardDraw: "Draw my card",
-  cardWarn: "Once the card is drawn, your words are sealed — they can't be changed after that.",
+  notNow: "Not now",
+  askOracle: "Ask the Oracle",
+  // Not a warning. The same commitment, said in a way that does not frighten
+  // someone who thinks they made a typo.
+  cardWarn: "When you draw, this wish becomes the one this card will stay with.",
+  cardWarnCalm: "You can always begin another wish later.",
   cardKeep: "Keep it",
   cardAll: "Every card says it can happen. They only differ in how the road runs.",
 
@@ -134,9 +141,13 @@ const FA: Dict = {
   waiting: "منتظر نوبتشان",
   drawingWait: "یک دقیقه طول می‌کشد. برو به کارت برس؛ همین‌جا می‌ماند.",
 
-  cardAsk: "می‌خواهی یک کارت بکشی، ببینی چقدر شدنی است؟",
+  wishTookShape: "آرزویت شکل گرفت.",
+  cardAsk: "از اوراکل بپرسیم چه راهی در پیش است؟",
   cardDraw: "کارتم را بکش",
-  cardWarn: "با کشیدن کارت، کلمه‌هایت ثبت می‌شوند — بعد از آن دیگر عوض نمی‌شوند.",
+  notNow: "الان نه",
+  askOracle: "از اوراکل بپرس",
+  cardWarn: "وقتی بکشی، این کارت با همین آرزو می‌ماند.",
+  cardWarnCalm: "هر وقت خواستی می‌توانی آرزوی دیگری را شروع کنی.",
   cardKeep: "نگهش می‌دارم",
   cardAll: "همهٔ کارت‌ها می‌گویند می‌شود. فقط راهش با هم فرق دارد.",
 
