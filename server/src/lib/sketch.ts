@@ -73,7 +73,18 @@ async function generate(
     deps.fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": deps.apiKey }, body }),
     new Promise<never>((_, reject) => setTimeout(() => reject(new Error("gemini_timeout")), deps.timeoutMs)),
   ]);
-  if (!res.ok) throw new Error(`gemini_http_${res.status}`);
+  if (!res.ok) {
+    // Google says WHY in the body — quota, a model that does not exist, a key
+    // without image access. A bare status code sends everyone guessing.
+    let why = "";
+    try {
+      const j: any = await res.json();
+      why = String(j?.error?.message ?? j?.error?.status ?? "").slice(0, 160);
+    } catch {
+      /* no body */
+    }
+    throw new Error(`gemini_http_${res.status}${why ? `: ${why}` : ""}`);
+  }
   const img = pickImage(await res.json());
   if (!img) throw new Error("gemini_no_image");
   return img;

@@ -83,9 +83,13 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
   }
 
   /** The sketch as the client sees it: status, where to load it, how much color is due. */
-  function sketchView(h: { id: string; sketch_status: SketchStatus; sketch_token: string | null; sketch_for_text: string | null; text: string } | undefined) {
+  function sketchView(
+    h:
+      | { id: string; sketch_status: SketchStatus; sketch_token: string | null; sketch_for_text: string | null; sketch_error?: string | null; text: string }
+      | undefined,
+  ) {
     const available = sketchAvailable(sketchDeps);
-    if (!h) return { available, status: "none" as const, lineUrl: null, colorUrl: null, lit: 0, fullAt: SKETCH_FULL_AT, stale: false };
+    if (!h) return { available, status: "none" as const, lineUrl: null, colorUrl: null, lit: 0, fullAt: SKETCH_FULL_AT, stale: false, error: null };
     const ready = h.sketch_status === "ready" && !!h.sketch_token;
     return {
       available,
@@ -97,6 +101,8 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       lit: Math.min(SKETCH_FULL_AT, db.countStayingFor(h.id)),
       fullAt: SKETCH_FULL_AT,
       stale: ready && h.sketch_for_text !== h.text,
+      /** Why it failed, when it did — so the reason is one request away. */
+      error: h.sketch_status === "failed" ? (h.sketch_error ?? null) : null,
     };
   }
 
@@ -126,7 +132,11 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       .catch((err: any) => {
         // A failed redraw keeps the old pictures; a failed first draw shows none.
         const had = !!db.getSketch(id, "line");
-        db.setSketchStatus({ horizonId: id, status: had ? "ready" : "failed", error: String(err?.message ?? err).slice(0, 200) });
+        const message = String(err?.message ?? err).slice(0, 200);
+        // Say so in the log. A drawing that silently never arrives is the
+        // kind of failure nobody notices until a person asks where it went.
+        console.warn(`[sketch] ${had ? "redraw" : "draw"} failed for ${id}: ${message}`);
+        db.setSketchStatus({ horizonId: id, status: had ? "ready" : "failed", error: message });
       })
       .finally(() => inflight.delete(id));
     inflight.set(id, job);
