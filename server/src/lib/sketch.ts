@@ -33,12 +33,15 @@ export interface SketchDeps {
 export function linePrompt(horizon: string): string {
   return (
     `Draw me: ${horizon}\n\n` +
+    `Draw ONLY what those words name. Do not add people, children, animals, objects or places the words ` +
+    `do not mention — a kitchen with no one named in it is a kitchen with one woman in it and nobody else. ` +
+    `Absolutely no words, letters, titles, captions or signatures anywhere on the page: the picture has no text.\n\n` +
     `Style only — do not add or change any element, and never make it childlike: an inline sketch, ` +
     `a single very thin deep-plum ink line (#3D2947) on luminous warm ivory paper (#FFF9F4, almost white — never yellow, never cream), in the manner of a fashion-illustration croquis. ` +
-    `No gray shading, no cross-hatching, no textures, no text or logos except a brand I named myself. ` +
-    `The person who wrote this — a woman — is the largest figure, slightly off-center; everyone else she ` +
+    `No gray shading, no cross-hatching, no textures, no frames or borders. ` +
+    `The person who wrote this — a woman — is the largest figure, slightly off-center; anyone else she ` +
     `names stands beside her, smaller; places she names frame the scene with a few long lines; objects ` +
-    `she names are small, in her hand or at her side. Generous white space. Landscape, 16:9.`
+    `she names are small, in her hand or at her side. Generous white space. Square.`
   );
 }
 

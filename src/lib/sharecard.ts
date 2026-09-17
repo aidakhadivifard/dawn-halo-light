@@ -95,9 +95,11 @@ export async function renderCard(c: CardContent): Promise<Blob> {
   let y = 190;
   const pic = c.pictureUrl ? await load(c.pictureUrl) : null;
   if (pic) {
-    // A little narrower than the text column, so the words below have room.
-    const boxW = Math.min(maxW, 712);
-    const boxH = Math.round((boxW * 9) / 16);
+    // A little narrower than the text column, so the words below have room,
+    // and in the drawing's OWN proportions — a square drawing stays square.
+    const aspect = pic.naturalWidth && pic.naturalHeight ? pic.naturalWidth / pic.naturalHeight : 16 / 9;
+    const boxH = 400;
+    const boxW = Math.min(maxW, Math.round(boxH * aspect));
     const bx = rtl ? W - 96 - boxW : 96;
     // Keep the drawing's own paper; just place it.
     ctx.drawImage(pic, bx, y, boxW, boxH);
