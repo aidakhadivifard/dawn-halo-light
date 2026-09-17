@@ -58,7 +58,7 @@ jobs:
           echo "sdk=$SDK"
           ls "$SDK" || true
           yes | "$SDKMGR" --licenses > /dev/null 2>&1 || true
-          "$SDKMGR" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          "$SDKMGR" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0" > /dev/null
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
 
@@ -75,6 +75,21 @@ jobs:
 
       - name: Add Android platform
         run: bun run cap:add:android
+
+      # Google Play wants new apps on API 35. Capacitor 6's template still says
+      # 34, so the generated project is nudged up here. Android 15 also forces
+      # edge-to-edge on apps that target it and Capacitor 6 does not draw under
+      # the system bars, so the activity opts out — allowed for targetSdk 35.
+      - name: Target Android 15 (API 35)
+        run: |
+          set -e
+          sed -i 's/compileSdkVersion = 34/compileSdkVersion = 35/; s/targetSdkVersion = 34/targetSdkVersion = 35/' android/variables.gradle
+          grep -E 'compileSdkVersion|targetSdkVersion' android/variables.gradle
+          M=android/app/src/main/AndroidManifest.xml
+          if ! grep -q windowOptOutEdgeToEdgeEnforcement "$M"; then
+            sed -i '0,/<activity/s//<activity\n            android:windowOptOutEdgeToEdgeEnforcement="true"/' "$M"
+          fi
+          grep -n 'windowOptOutEdgeToEdgeEnforcement' "$M"
 
       - name: Generate app icons & splash from the DawnHalo logo
         run: bunx @capacitor/assets generate --android --assetPath assets --iconBackgroundColor '#0e0a14' --iconBackgroundColorDark '#0e0a14' --splashBackgroundColor '#0e0a14' --splashBackgroundColorDark '#0e0a14'

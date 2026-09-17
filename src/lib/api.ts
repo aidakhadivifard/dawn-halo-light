@@ -156,9 +156,6 @@ export const api = {
   async getSpark(token: string): Promise<{ card: ApiCard; note: string }> {
     return req(`/spark/${encodeURIComponent(token)}`);
   },
-  async checkout(plan: "monthly" | "yearly"): Promise<{ url: string | null }> {
-    return req(`/stripe/checkout`, { method: "POST", body: JSON.stringify({ plan }) });
-  },
 
   // --- Horizon & Roads ---
   async home(): Promise<ApiHome> {
