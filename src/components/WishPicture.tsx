@@ -141,15 +141,22 @@ export function WishPicture({ sketch, words, lang, card, badgeLanding }: WishPic
     // paper. The charm hangs beside it, off the drawing's edge, like a pendant.
     <div className="relative">
       {sketch.status === "ready" && (
-        <canvas ref={canvasRef} className="block w-full h-auto" role="img" aria-label={words ?? "Your wish"} />
+        <canvas
+          ref={canvasRef}
+          // The picture arrives the way ink dries: from a soft blur into lines.
+          className={"block w-full h-auto transition-[opacity,filter] duration-1000 ease-out " + (ready ? "opacity-100 blur-0" : "opacity-0 blur-sm")}
+          role="img"
+          aria-label={words ?? "Your wish"}
+        />
       )}
 
       {pending && (
-        <div className="aspect-[16/9] flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="aspect-[16/9] flex flex-col items-center justify-center gap-5 px-6 text-center">
+          {/* The Oracle's light, small, while the drawing is being made. */}
           <div
             aria-hidden
-            className="w-16 h-16 rounded-full blur-2xl animate-pulse"
-            style={{ background: "radial-gradient(circle, rgba(217,164,65,0.35) 0%, transparent 70%)" }}
+            className="w-24 h-24 rounded-full blur-2xl animate-halo-breathe"
+            style={{ background: "radial-gradient(circle, rgba(217,164,65,0.5) 0%, transparent 70%)" }}
           />
           <p className="font-serif text-[19px] text-wish-ink/70 text-balance">{words}</p>
         </div>

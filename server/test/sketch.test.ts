@@ -162,3 +162,74 @@ describe("horizon sketch", () => {
     expect(all.body.currentId).toBe(second.body.wishId);
   });
 });
+
+// The picture should be there the moment she picks. So the app starts
+// drawing every wish it HEARD, before she has chosen — and a wish created
+// from those words takes the drawing that is already waiting instead of
+// asking for a new one.
+describe("drawing ahead of the choice", () => {
+  let db: DB;
+  beforeEach(() => { db = createDb(":memory:"); });
+  const h = (r: request.Test) => r.set("x-device-id", DEVICE).set("x-local-date", "2026-09-10");
+  const settle = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+
+  it("hearing four wishes starts four drawings, and saves no wish", async () => {
+    const gem = fakeGemini();
+    const api = createApp(db, { client: null, sketch: { apiKey: "k", fetch: gem.fetch } });
+    await h(request(api).post("/api/wish/hear")).send({ text: "be wealthy\nbe slim\nfamily around me\nsucceed at work" }).expect(200);
+    await settle();
+    // Two images per wish.
+    expect(gem.calls.length).toBe(8);
+    const home = await h(request(api).get("/api/home"));
+    expect(home.body.horizon).toBeNull();
+    expect((await h(request(api).get("/api/wishes"))).body.wishes).toEqual([]);
+  });
+
+  it("the wish she picks has its picture at once; the others have theirs too", async () => {
+    const gem = fakeGemini();
+    const api = createApp(db, { client: null, sketch: { apiKey: "k", fetch: gem.fetch } });
+    await h(request(api).post("/api/wish/hear")).send({ text: "be wealthy\nbe slim" }).expect(200);
+    await settle();
+    expect(gem.calls.length).toBe(4);
+
+    await h(request(api).put("/api/horizon")).send({ text: "be wealthy", park: ["be slim"] }).expect(200);
+    const home = await h(request(api).get("/api/home"));
+    expect(home.body.sketch.status).toBe("ready");
+    expect(home.body.sketch.lineUrl).toMatch(/^\/api\/sketch\//);
+    // Nothing was drawn twice.
+    expect(gem.calls.length).toBe(4);
+
+    const all = await h(request(api).get("/api/wishes"));
+    const slim = all.body.wishes.find((w: any) => w.text === "be slim");
+    expect(slim.sketch.status).toBe("ready");
+  });
+
+  it("picking before the drawing is done waits for it rather than drawing again", async () => {
+    const gem = fakeGemini({ delayMs: 40 });
+    const api = createApp(db, { client: null, sketch: { apiKey: "k", fetch: gem.fetch } });
+    await h(request(api).post("/api/wish/hear")).send({ text: "be wealthy\nbe slim" }).expect(200);
+    // Choose straight away, mid-drawing.
+    await h(request(api).put("/api/horizon")).send({ text: "be wealthy", park: [] }).expect(200);
+    let home = await h(request(api).get("/api/home"));
+    expect(home.body.sketch.status).toBe("pending");
+    await settle(250);
+    home = await h(request(api).get("/api/home"));
+    expect(home.body.sketch.status).toBe("ready");
+    expect(gem.calls.length).toBe(4);
+  });
+
+  it("a drawing interrupted by a restart is drawn again, not waited for forever", async () => {
+    const gem = fakeGemini({ delayMs: 5 });
+    // The first process starts a draw and dies before it finishes.
+    const first = createApp(db, { client: null, sketch: { apiKey: "k", fetch: async () => new Promise(() => {}) } });
+    await h(request(first).put("/api/horizon")).send({ text: "a quiet house" }).expect(200);
+    expect((await h(request(first).get("/api/home"))).body.sketch.status).toBe("pending");
+
+    // The next process, same database.
+    const second = createApp(db, { client: null, sketch: { apiKey: "k", fetch: gem.fetch } });
+    const home = await h(request(second).get("/api/home"));
+    expect(["pending", "ready"]).toContain(home.body.sketch.status);
+    await settle(80);
+    expect((await h(request(second).get("/api/home"))).body.sketch.status).toBe("ready");
+  });
+});

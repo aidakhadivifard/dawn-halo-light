@@ -76,11 +76,26 @@ function headers(extra: Record<string, string> = {}): HeadersInit {
   };
 }
 
+/**
+ * No request waits forever. A server that is restarting, or a phone that has
+ * lost its signal, answers within this or not at all — and "not at all" is an
+ * error the app knows how to live with, where a spinner that never stops is not.
+ */
+const REQUEST_TIMEOUT_MS = 20_000;
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}/api${path}`, {
-    ...init,
-    headers: headers((init?.headers as Record<string, string>) ?? {}),
-  });
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/api${path}`, {
+      ...init,
+      signal: ctl.signal,
+      headers: headers((init?.headers as Record<string, string>) ?? {}),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   if (res.status === 402) {
     const body = await res.json().catch(() => ({}));
     throw new PaywallError(body.reason ?? "paywall", body.entitlement);

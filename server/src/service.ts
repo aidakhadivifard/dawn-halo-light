@@ -20,7 +20,7 @@ import { MAX_RUNGS, MAX_ASKS, type StepAnswer } from "./lib/tinystep";
 import { MAX_WISHES, type HeardWish } from "./lib/hearing";
 import { findCard, pickRoadCard, type RoadCard } from "./lib/roadcards";
 import { findHalo } from "./lib/deck";
-import { drawHorizon, sketchAvailable, type SketchDeps } from "./lib/sketch";
+import { drawHorizon, sketchAvailable, type SketchDeps, type SketchImage } from "./lib/sketch";
 import type { JourneyContext } from "./lib/prompt";
 import {
   cardActionPrompt,
@@ -77,6 +77,23 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
   const sketchDeps = deps.sketch ?? {};
   /** In-flight sketch generations, so a second request never draws twice. */
   const inflight = new Map<string, Promise<void>>();
+  /**
+   * Drawings started the moment a wish was HEARD, before she chose one — so
+   * that whichever she picks, its picture is already there or nearly. Keyed
+   * by device and her words. Finished ones wait in sketch_cache.
+   */
+  const predraws = new Map<string, Promise<{ line: SketchImage; color: SketchImage } | null>>();
+  const textKey = (t: string) => t.trim().toLowerCase().replace(/\s+/g, " ");
+  const predrawKey = (deviceId: string, text: string) => `${deviceId}|${textKey(text)}`;
+
+  // A process that died mid-drawing left "pending" rows nothing will finish.
+  // Release them, so the next look at the wish draws it again. And forget
+  // pre-drawings nobody came back for.
+  {
+    const released = db.releaseInterruptedSketches();
+    if (released) console.warn(`[sketch] released ${released} interrupted drawing(s)`);
+    db.pruneCachedSketches(new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString());
+  }
 
   function newToken(prefix: string): string {
     return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
@@ -121,13 +138,31 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     const token = h.sketch_token ?? newToken("sk");
     const text = h.text;
     const id = h.id;
+    const key = textKey(text);
+
+    // Drawn already, while she was still choosing: hang it on the wish now.
+    const cached = db.getCachedSketch(h.device_id, key);
+    if (cached) {
+      db.putSketch(id, "line", cached.line_mime, cached.line_bytes);
+      db.putSketch(id, "color", cached.color_mime, cached.color_bytes);
+      db.setSketchStatus({ horizonId: id, status: "ready", token, error: null, forText: text });
+      db.deleteCachedSketch(h.device_id, key);
+      return "ready";
+    }
+
     db.setSketchStatus({ horizonId: id, status: "pending", token, error: null });
     db.bumpSketchDraws(id);
-    const job = drawHorizon(text, sketchDeps)
+    // Still being drawn from the hearing? Wait for that one rather than draw twice.
+    const pre = predraws.get(predrawKey(h.device_id, text));
+    const drawing = pre
+      ? pre.then((r) => r ?? drawHorizon(text, sketchDeps))
+      : drawHorizon(text, sketchDeps);
+    const job = drawing
       .then(({ line, color }) => {
         db.putSketch(id, "line", line.mime, line.bytes);
         db.putSketch(id, "color", color.mime, color.bytes);
         db.setSketchStatus({ horizonId: id, status: "ready", token, error: null, forText: text });
+        db.deleteCachedSketch(h.device_id, key);
       })
       .catch((err: any) => {
         // A failed redraw keeps the old pictures; a failed first draw shows none.
@@ -141,6 +176,44 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       .finally(() => inflight.delete(id));
     inflight.set(id, job);
     return "pending";
+  }
+
+  /**
+   * Start drawing every wish that was heard, before she has chosen. Whichever
+   * she picks should have its picture waiting; the ones she does not pick are
+   * kept as wishes anyway, and will need their pictures too. Nothing here is
+   * awaited and nothing here can fail loudly.
+   */
+  function predraw(deviceId: string, texts: string[]) {
+    if (!sketchAvailable(sketchDeps)) return;
+    for (const raw of texts.slice(0, MAX_WISHES)) {
+      const text = raw.trim().slice(0, 500);
+      if (!text) continue;
+      const key = predrawKey(deviceId, text);
+      if (predraws.has(key) || db.getCachedSketch(deviceId, textKey(text))) continue;
+      // A wish she already has, with its picture, needs no second drawing.
+      const have = db.listHorizons(deviceId).find((h) => textKey(h.text) === textKey(text));
+      if (have && (have.sketch_status === "ready" || have.sketch_status === "pending")) continue;
+      const job = drawHorizon(text, sketchDeps)
+        .then((img) => {
+          db.putCachedSketch({
+            device_id: deviceId,
+            text_key: textKey(text),
+            line_mime: img.line.mime,
+            line_bytes: img.line.bytes,
+            color_mime: img.color.mime,
+            color_bytes: img.color.bytes,
+            created_at: now().toISOString(),
+          });
+          return img;
+        })
+        .catch((err: any) => {
+          console.warn(`[sketch] pre-draw failed: ${String(err?.message ?? err).slice(0, 200)}`);
+          return null;
+        })
+        .finally(() => predraws.delete(key));
+      predraws.set(key, job);
+    }
   }
 
   /** Written once, in the background, and then it is hers. */
@@ -483,7 +556,12 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
      */
     getHome(deviceId: string, localDate: string) {
       db.getOrCreateDevice(deviceId);
-      const h = db.getHorizon(deviceId);
+      let h = db.getHorizon(deviceId);
+      // A wish without its picture — never drawn, or interrupted — is drawn now.
+      if (h && h.sketch_status === "none" && h.sketch_draws < SKETCH_MAX_DRAWS) {
+        requestSketch(h.id);
+        h = db.getHorizon(deviceId);
+      }
       const horizon = h?.text ?? null;
       const roads = db.activeJourneys(deviceId).map((j) => livingJourney(j, localDate));
       const card = findCard(h?.card_id);
@@ -598,6 +676,9 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       );
       // Draw it — in the background, only if the words changed, only if we can.
       requestSketch(row.id);
+      // The ones waiting their turn get their pictures too, so opening one
+      // later is never a wait.
+      for (const other of db.listHorizons(deviceId)) if (other.id !== row.id) requestSketch(other.id);
       return { kind: "horizon", horizon: trimmed, wishId: row.id, parked };
     },
 
@@ -628,6 +709,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       db.addWishes(deviceId, park.filter((p) => p.trim() && p.trim() !== trimmed).slice(0, MAX_WISHES));
       db.openHorizon(deviceId, row.id);
       requestSketch(row.id);
+      for (const other of db.listHorizons(deviceId)) if (other.id !== row.id) requestSketch(other.id);
       return { kind: "horizon", horizon: row.text, wishId: row.id };
     },
 
@@ -655,6 +737,9 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         return { kind: "crisis", message: CRISIS_RESOURCES.message, resources: CRISIS_RESOURCES.resources };
       }
       const { wishes, fallback } = await hearWishes(trimmed, lang, { client, timeoutMs });
+      // Start drawing all of them now. By the time she has chosen, the picture
+      // of the one she chose should already be here.
+      predraw(deviceId, wishes.map((w) => w.label));
       return { kind: "heard", wishes, fallback };
     },
 

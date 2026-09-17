@@ -36,8 +36,7 @@ const EN = {
     `I hear ${countEn(echoes.length)} wishes: ${listEn(echoes)}.`,
   /** When it only split on punctuation: say the count, and let her own lines speak. */
   heardCount: (n: number) => `I hear ${countEn(n)} wishes in this.`,
-  whichFirst: (n: number) =>
-    `These sound like ${countEn(n)} wishes. Which one should we make a card for first?`,
+  whichFirst: "Which one should we make a card for first?",
   nothingLost: "Nothing is lost. We'll keep the others here for later.",
   waiting: "Waiting their turn",
   drawingWait: "It takes a minute. You can go on; it will be here.",
@@ -155,8 +154,7 @@ const FA: Dict = {
   heardOne: (echo: string) => `یک آرزو می‌شنوم: ${echo}.`,
   heardMany: (echoes: string[]) => `${countFa(echoes.length)} آرزو می‌شنوم: ${listFa(echoes)}.`,
   heardCount: (n: number) => `${countFa(n)} آرزو در این می‌شنوم.`,
-  whichFirst: (n: number) =>
-    `این‌ها ${countFa(n)} آرزوی جداگانه‌اند. اول برای کدام کارت بکشیم؟`,
+  whichFirst: "اول برای کدام کارت بکشیم؟",
   nothingLost: "هیچ‌کدام از دست نمی‌رود. بقیه را همین‌جا نگه می‌داریم برای بعد.",
   waiting: "منتظر نوبتشان",
   drawingWait: "یک دقیقه طول می‌کشد. برو به کارت برس؛ همین‌جا می‌ماند.",

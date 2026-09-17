@@ -55,6 +55,17 @@ export interface DeedRow {
   created_at: string;
 }
 
+/** A drawing made before its wish existed, keyed by her words. */
+export interface SketchCacheRow {
+  device_id: string;
+  text_key: string;
+  line_mime: string;
+  line_bytes: Buffer;
+  color_mime: string;
+  color_bytes: Buffer;
+  created_at: string;
+}
+
 /** Something she told us when asked — kept with the wish, in her words. */
 export interface WishNoteRow {
   id: string;
@@ -298,6 +309,20 @@ CREATE TABLE IF NOT EXISTS deeds (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_deeds_device ON deeds(device_id, local_date);
+
+-- Drawings made before there was a wish to hang them on. The moment the app
+-- hears several wishes it starts drawing all of them, so that whichever one
+-- she picks, its picture is already there (or nearly). Keyed by her words.
+CREATE TABLE IF NOT EXISTS sketch_cache (
+  device_id TEXT NOT NULL,
+  text_key TEXT NOT NULL,
+  line_mime TEXT NOT NULL,
+  line_bytes BLOB NOT NULL,
+  color_mime TEXT NOT NULL,
+  color_bytes BLOB NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (device_id, text_key)
+);
 
 -- What a person told us when the app asked, instead of guessing. "Working on
 -- dawnhalo" — the app does not know what dawnhalo is, so it asks once, and
@@ -603,6 +628,19 @@ export function createDb(path = ":memory:") {
     getDeed: sqlite.prepare<[string, string]>(
       "SELECT * FROM deeds WHERE device_id = ? AND id = ?",
     ),
+    putCachedSketch: sqlite.prepare(
+      `INSERT OR REPLACE INTO sketch_cache (device_id, text_key, line_mime, line_bytes, color_mime, color_bytes, created_at)
+       VALUES (@device_id, @text_key, @line_mime, @line_bytes, @color_mime, @color_bytes, @created_at)`,
+    ),
+    getCachedSketch: sqlite.prepare<[string, string]>(
+      "SELECT * FROM sketch_cache WHERE device_id = ? AND text_key = ?",
+    ),
+    deleteCachedSketch: sqlite.prepare<[string, string]>(
+      "DELETE FROM sketch_cache WHERE device_id = ? AND text_key = ?",
+    ),
+    pruneCachedSketches: sqlite.prepare<[string]>("DELETE FROM sketch_cache WHERE created_at < ?"),
+    // A draw that was in flight when the process died. Nothing will ever finish it.
+    interruptedSketches: sqlite.prepare("SELECT id FROM horizons WHERE sketch_status = 'pending'"),
     insertNote: sqlite.prepare(
       `INSERT INTO wish_notes (id, horizon_id, question, answer, local_date, created_at)
        VALUES (@id, @horizon_id, @question, @answer, @local_date, @created_at)`,
@@ -962,6 +1000,30 @@ export function createDb(path = ":memory:") {
     },
     getDeed(deviceId: string, id: string): DeedRow | undefined {
       return stmts.getDeed.get(deviceId, id) as DeedRow | undefined;
+    },
+    /** A drawing made ahead of its wish. */
+    putCachedSketch(row: SketchCacheRow) {
+      stmts.putCachedSketch.run(row as any);
+    },
+    getCachedSketch(deviceId: string, textKey: string): SketchCacheRow | undefined {
+      return stmts.getCachedSketch.get(deviceId, textKey) as SketchCacheRow | undefined;
+    },
+    deleteCachedSketch(deviceId: string, textKey: string) {
+      stmts.deleteCachedSketch.run(deviceId, textKey);
+    },
+    pruneCachedSketches(before: string) {
+      stmts.pruneCachedSketches.run(before);
+    },
+    /**
+     * Drawings the last process never finished. Marked so the next request
+     * for them starts again instead of waiting for a job that no longer exists.
+     */
+    releaseInterruptedSketches(): number {
+      const rows = stmts.interruptedSketches.all() as { id: string }[];
+      for (const r of rows) {
+        stmts.setSketchStatus.run({ horizon_id: r.id, status: "none", error: "interrupted", token: null, for_text: null });
+      }
+      return rows.length;
     },
     insertNote(row: WishNoteRow) {
       stmts.insertNote.run(row as any);

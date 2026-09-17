@@ -18,6 +18,7 @@ import { RoadCardObject, type CardPhase } from "@/components/RoadCard";
 import { OracleLight, type LightMode } from "@/components/OracleLight";
 import { CardSymbol } from "@/components/CardSymbol";
 import { WitnessLine } from "@/components/WitnessLine";
+import { HeardWishes } from "@/components/HeardWishes";
 import { Shell, Primary, Secondary, Choice } from "@/components/WishShell";
 import { useLang } from "@/hooks/useLang";
 import {
@@ -72,9 +73,10 @@ function WishPage() {
   // What the app heard: the distinct wishes inside what she wrote. More than
   // one means she chooses which gets the card — the rest are kept, not dropped.
   const [heard, setHeard] = useState<HeardWish[] | null>(null);
-  // The flowing sentence only gets said when the app could really phrase it.
-  // Split on punctuation alone, it says the count and lets her lines speak.
-  const [heardPolished, setHeardPolished] = useState(false);
+  // The last heard wish has been written down; now the question can be asked.
+  const [heardWritten, setHeardWritten] = useState(false);
+  // The wish she pressed, while the app is making it hers.
+  const [chosen, setChosen] = useState<string | null>(null);
   // "Not now" puts the offer away without taking anything from her: the
   // picture stays, her words stay editable, and the Oracle waits.
   const [notNow, setNotNow] = useState(false);
@@ -175,12 +177,14 @@ function WishPage() {
     void loadWishes();
   }, [loadWishes]);
 
-  // While the picture is being drawn, keep looking — it arrives on its own.
+  // While the picture is being drawn, keep looking — it arrives on its own,
+  // and usually within a breath or two, since drawing began the moment the
+  // wish was heard.
   useEffect(() => {
     if (home?.sketch.status !== "pending") return;
     const id = setInterval(() => {
-      void getHome().then(setHome);
-    }, 4000);
+      void getHome().then(setHome).catch(() => undefined);
+    }, 1500);
     return () => clearInterval(id);
   }, [home?.sketch.status]);
 
@@ -198,24 +202,34 @@ function WishPage() {
     if (res.kind === "crisis") return setCrisis(res);
     if (res.wishes.length <= 1) return commitWish(trimmed, []);
     setHeard(res.wishes);
-    setHeardPolished(res.polished);
+    setHeardWritten(false);
     setStage("hearing");
   }
 
-  /** One wish becomes the live one; the others go on the shelf. */
+  /**
+   * One wish becomes the live one; the others go on the shelf.
+   *
+   * Whatever happens on the way — a slow server, a lost signal — this always
+   * ends: the button she pressed is never left grey forever.
+   */
   async function commitWish(wish: string, park: string[]) {
     if (busy) return;
     setBusy(true);
-    const res = beginning ? await beginWish(wish, park) : await setHorizon(wish, park, lang);
-    setBusy(false);
-    if (res.kind === "crisis") return setCrisis(res);
-    setText("");
-    setHeard(null);
-    setBeginning(false);
-    await requestSketch();
-    await load();
-    const { wishes: list } = await listWishes();
-    setWishes(list);
+    setChosen(wish);
+    try {
+      const res = beginning ? await beginWish(wish, park) : await setHorizon(wish, park, lang);
+      if (res.kind === "crisis") return setCrisis(res);
+      setText("");
+      setBeginning(false);
+      await requestSketch().catch(() => undefined);
+      await load();
+      setHeard(null);
+      const { wishes: list } = await listWishes().catch(() => ({ wishes: wishes ?? [] }));
+      setWishes(list);
+    } finally {
+      setBusy(false);
+      setChosen(null);
+    }
   }
 
   /**
@@ -494,38 +508,36 @@ function WishPage() {
            that gets the card, and the app says out loud that it kept the rest. */}
       {stage === "hearing" && heard && (
         <div className="animate-rise-line">
-          <p className="font-serif text-[25px] leading-snug text-wish-ink text-balance">
-            {heardPolished ? t.heardMany(heard.map((w) => w.echo)) : t.heardCount(heard.length)}
-          </p>
-          <p className="mt-7 font-serif text-[21px] leading-snug text-wish-ink text-balance">
-            {t.whichFirst(heard.length)}
-          </p>
-          <div className="mt-5 space-y-3">
-            {heard.map((w) => (
-              <Choice
-                key={w.label}
-                disabled={busy}
-                onClick={() =>
-                  commitWish(
-                    w.label,
-                    heard.filter((o) => o.label !== w.label).map((o) => o.label),
-                  )
-                }
+          {/* What was heard, written down one line at a time in the hand's
+              gold. The lines are the choices — nothing is said above them and
+              nothing repeated below. */}
+          <HeardWishes
+            wishes={heard}
+            disabled={busy}
+            chosen={chosen}
+            onWritten={() => setHeardWritten(true)}
+            onPick={(w) =>
+              commitWish(
+                w.label,
+                heard.filter((o) => o.label !== w.label).map((o) => o.label),
+              )
+            }
+          />
+          {heardWritten && (
+            <div className="animate-rise-line">
+              <p className="mt-8 font-serif text-[21px] leading-snug text-wish-ink text-balance">{t.whichFirst}</p>
+              <p className="mt-3 font-serif text-[16px] text-wish-muted leading-relaxed">{t.nothingLost}</p>
+              <button
+                onClick={() => {
+                  setHeard(null);
+                  setStage("wish");
+                }}
+                className="mt-6 w-full text-[14px] text-wish-muted underline underline-offset-4"
               >
-                {w.label}
-              </Choice>
-            ))}
-          </div>
-          <p className="mt-6 font-serif text-[16px] text-wish-muted leading-relaxed">{t.nothingLost}</p>
-          <button
-            onClick={() => {
-              setHeard(null);
-              setStage("wish");
-            }}
-            className="mt-6 w-full text-[14px] text-wish-muted underline underline-offset-4"
-          >
-            {t.wishEdit}
-          </button>
+                {t.wishEdit}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
