@@ -77,7 +77,7 @@ export function Shell({
         </label>
       </header>
 
-      <main className={"mx-auto max-w-md px-6 pt-6 " + (nav ? "pb-28" : "pb-16")}>{children}</main>
+      <main className={"mx-auto max-w-md px-6 pt-6 overflow-x-clip " + (nav ? "pb-28" : "pb-16")}>{children}</main>
 
       {nav && (
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-wish-paper/95 backdrop-blur border-t border-wish-line">

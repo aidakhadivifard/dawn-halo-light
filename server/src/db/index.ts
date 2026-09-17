@@ -55,6 +55,16 @@ export interface DeedRow {
   created_at: string;
 }
 
+/** Something she told us when asked — kept with the wish, in her words. */
+export interface WishNoteRow {
+  id: string;
+  horizon_id: string;
+  question: string;
+  answer: string;
+  local_date: string;
+  created_at: string;
+}
+
 export interface JourneyRow {
   id: string;
   device_id: string;
@@ -288,6 +298,19 @@ CREATE TABLE IF NOT EXISTS deeds (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_deeds_device ON deeds(device_id, local_date);
+
+-- What a person told us when the app asked, instead of guessing. "Working on
+-- dawnhalo" — the app does not know what dawnhalo is, so it asks once, and
+-- what she answers is kept with the wish so it is never asked again.
+CREATE TABLE IF NOT EXISTS wish_notes (
+  id TEXT PRIMARY KEY,
+  horizon_id TEXT NOT NULL,
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  local_date TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wish_notes ON wish_notes(horizon_id, created_at);
 
 CREATE TABLE IF NOT EXISTS partners (
   code TEXT PRIMARY KEY,
@@ -579,6 +602,13 @@ export function createDb(path = ":memory:") {
     ),
     getDeed: sqlite.prepare<[string, string]>(
       "SELECT * FROM deeds WHERE device_id = ? AND id = ?",
+    ),
+    insertNote: sqlite.prepare(
+      `INSERT INTO wish_notes (id, horizon_id, question, answer, local_date, created_at)
+       VALUES (@id, @horizon_id, @question, @answer, @local_date, @created_at)`,
+    ),
+    listNotes: sqlite.prepare<[string]>(
+      "SELECT * FROM wish_notes WHERE horizon_id = ? ORDER BY created_at ASC",
     ),
     setCard: sqlite.prepare(
       `UPDATE horizons SET card_id = @card_id, card_at = @card_at,
@@ -932,6 +962,13 @@ export function createDb(path = ":memory:") {
     },
     getDeed(deviceId: string, id: string): DeedRow | undefined {
       return stmts.getDeed.get(deviceId, id) as DeedRow | undefined;
+    },
+    insertNote(row: WishNoteRow) {
+      stmts.insertNote.run(row as any);
+    },
+    /** Everything she has explained about this wish, oldest first. */
+    listNotes(horizonId: string): WishNoteRow[] {
+      return stmts.listNotes.all(horizonId) as WishNoteRow[];
     },
     bumpSketchDraws(deviceId: string) {
       stmts.bumpSketchDraws.run(deviceId);

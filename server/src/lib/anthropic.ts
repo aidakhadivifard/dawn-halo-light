@@ -6,7 +6,7 @@ import { getConfig } from "../config";
 import { SYSTEM_PROMPT, buildUserPrompt, buildVowPrompt, type JourneyContext } from "./prompt";
 import { pickOpener } from "./openers";
 import { findHalo, halosForTheme, HALO_DECK } from "./deck";
-import { TINY_STEP_SYSTEM, tinyStepPrompt, cleanStep, type TinyStepInput } from "./tinystep";
+import { TINY_STEP_SYSTEM, tinyStepPrompt, parseStep, type TinyStepInput, type StepAnswer } from "./tinystep";
 import { HEAR_SYSTEM, hearPrompt, parseHeard, fallbackHearing, type HeardWish } from "./hearing";
 import { READING_SYSTEM, readingPrompt, cleanReading, type ReadingInput } from "./reading";
 import { CARD_THEMES, type CardTheme } from "../types";
@@ -275,7 +275,8 @@ export async function generateVowText(
 export { fallbackCard };
 
 /**
- * One tiny next step, built only from the person's own words.
+ * One tiny next step, built only from the person's own words — or, when the
+ * step would need to know what a thing she named is, one short question.
  *
  * There is deliberately NO fallback. If the model is missing, slow or
  * unreachable we return null and the app simply doesn't offer a step — far
@@ -284,7 +285,7 @@ export { fallbackCard };
 export async function nextTinyStep(
   input: TinyStepInput,
   opts: { client?: MessagesClient | null; timeoutMs?: number } = {},
-): Promise<string | null> {
+): Promise<StepAnswer | null> {
   const client = opts.client !== undefined ? opts.client : getClient();
   if (!client) return null;
 
@@ -294,7 +295,7 @@ export async function nextTinyStep(
     const result = await Promise.race([
       client.messages.create({
         model: anthropicModel,
-        max_tokens: 120,
+        max_tokens: 160,
         system: TINY_STEP_SYSTEM,
         messages: [{ role: "user", content: tinyStepPrompt(input) }],
       }),
@@ -302,7 +303,10 @@ export async function nextTinyStep(
         setTimeout(() => reject(new Error("anthropic_timeout")), timeoutMs),
       ),
     ]);
-    return cleanStep(result.content?.find((b) => b.type === "text")?.text ?? "");
+    const out = parseStep(result.content?.find((b) => b.type === "text")?.text ?? "");
+    // Told not to ask and asked anyway: nothing, rather than a guess.
+    if (out?.kind === "ask" && input.noAsking) return null;
+    return out;
   } catch {
     return null;
   }

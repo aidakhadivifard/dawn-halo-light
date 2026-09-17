@@ -15,6 +15,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { WishPicture } from "@/components/WishPicture";
 import { RoadCardObject, type CardPhase } from "@/components/RoadCard";
+import { OracleLight, type LightMode } from "@/components/OracleLight";
 import { CardSymbol } from "@/components/CardSymbol";
 import { WitnessLine } from "@/components/WitnessLine";
 import { Shell, Primary, Secondary, Choice } from "@/components/WishShell";
@@ -30,8 +31,10 @@ import {
   drawRoadCard,
   recordDeed,
   nextTinyStep,
+  answerStep,
   type Home,
   type WishListItem,
+  type TinyStep,
 } from "@/lib/vow";
 import { dict, cardText } from "@/lib/i18n";
 import type { HeardWish } from "@/lib/api";
@@ -50,6 +53,14 @@ export const Route = createFileRoute("/")({
 type Stage = "loading" | "wishes" | "wish" | "hearing" | "picture" | "confirm" | "revealing" | "card" | "day";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** The light follows the card. */
+function lightFor(phase: CardPhase): LightMode {
+  if (phase === "summon") return "gather";
+  if (phase === "rise" || phase === "hold") return "hold";
+  if (phase === "flip") return "flash";
+  return "soft";
+}
 
 function WishPage() {
   const { lang, setLang, dir } = useLang();
@@ -74,7 +85,7 @@ function WishPage() {
   const [beginning, setBeginning] = useState(false);
   // The draw, as a sequence: the card rises with its back to us, waits for the
   // Oracle to actually answer, turns over, and is written on.
-  const [phase, setPhase] = useState<CardPhase>("rise");
+  const [phase, setPhase] = useState<CardPhase>("summon");
   const [drawn, setDrawn] = useState<{ id: string; name: string; line: string; reading?: string | null } | null>(null);
   const [told, setTold] = useState(false);
   // The card has just been given to the wish. Stays until she acts on it —
@@ -97,12 +108,21 @@ function WishPage() {
   // The ladder of tiny steps. Null means it was never opened — which is always
   // the case after "I endured": that answer is never followed by an ask.
   const [ladder, setLadder] = useState<{
-    state: "offer" | "thinking" | "step" | "closed";
+    state: "offer" | "thinking" | "ask" | "step" | "closed";
     text?: string;
+    /** The words for the button, in the step's own terms — "It's open." */
+    done?: string | null;
+    /** What the app needs to know before it can offer a step. */
+    question?: string;
     rung: number;
     /** Opened from "I did nothing, and it bothers me" — a gentler first screen. */
     stuck?: boolean;
   } | null>(null);
+  const [answerText, setAnswerText] = useState("");
+  // The day screen is a conversation, and it keeps its order: the witness
+  // writes his line first; only once his hand has lifted does anything else
+  // get to speak.
+  const [lineDone, setLineDone] = useState(false);
 
   const t = dict(lang);
 
@@ -212,17 +232,22 @@ function WishPage() {
     setDrawn(null);
     setTold(false);
     setFlight(null);
-    setPhase("rise");
+    setPhase("summon");
     setStage("card");
     const started = Date.now();
-    const card = await drawRoadCard(lang);
+    // The Oracle is asked the moment the light begins — but the light takes
+    // its time whatever the answer does. Nothing here is a spinner.
+    const asking = drawRoadCard(lang);
+    await sleep(2300);
+    setPhase("rise");
+    const card = await asking;
     if (!card) {
       setBusy(false);
       return setStage("picture");
     }
     setDrawn(card);
-    // The rise, and then a held beat before it turns.
-    await sleep(Math.max(0, 1500 - (Date.now() - started)));
+    // The rise, and then a held beat, face down in the light, before it turns.
+    await sleep(Math.max(0, 4200 - (Date.now() - started)));
     setPhase("flip");
     await sleep(840);
     setPhase("front");
@@ -293,6 +318,7 @@ function WishPage() {
     setDeedText("");
     setAsking(false);
     setJustAnswered(true);
+    setLineDone(false);
     const h = await load();
     // The ladder opens for the two answers that reach for something: "I did one
     // small thing", and "I did nothing, and it bothers me" — the second being
@@ -308,11 +334,35 @@ function WishPage() {
     }
   }
 
-  /** Ask for the next rung. No step to offer means the ladder simply ends. */
+  /**
+   * What came back for the ladder: a step, a question the app needs answered
+   * before it will offer one, or nothing — and nothing means the ladder ends.
+   */
+  function place(out: TinyStep | null, rung: number, stuck?: boolean) {
+    if (!out) return setLadder({ state: "closed", rung, stuck });
+    if (out.kind === "ask") {
+      setAnswerText("");
+      return setLadder({ state: "ask", question: out.question, rung, stuck });
+    }
+    setLadder({ state: "step", text: out.text, done: out.done, rung, stuck });
+  }
+
+  /** Ask for the next rung. */
   async function askStep(rung: number, stuck?: boolean) {
     setLadder({ state: "thinking", rung, stuck });
-    const step = await nextTinyStep();
-    setLadder(step ? { state: "step", text: step, rung, stuck } : { state: "closed", rung, stuck });
+    // The intro line is on screen while the step is found; the step should
+    // land under it a beat later, not in the same frame.
+    const [out] = await Promise.all([nextTinyStep(), sleep(900)]);
+    place(out, rung, stuck);
+  }
+
+  /** She said what the thing is — kept with the wish, and then the step. */
+  async function answerAsk(question: string, rung: number, stuck?: boolean) {
+    const a = answerText.trim();
+    if (!a) return;
+    setLadder({ state: "thinking", rung, stuck });
+    const [out] = await Promise.all([answerStep(question, a), sleep(600)]);
+    place(out, rung, stuck);
   }
 
   /** A finished step is an ordinary deed — so it brings color like any other. */
@@ -444,7 +494,7 @@ function WishPage() {
            that gets the card, and the app says out loud that it kept the rest. */}
       {stage === "hearing" && heard && (
         <div className="animate-rise-line">
-          <p className="font-hand text-[27px] leading-snug text-wish-ink text-balance">
+          <p className="font-serif text-[25px] leading-snug text-wish-ink text-balance">
             {heardPolished ? t.heardMany(heard.map((w) => w.echo)) : t.heardCount(heard.length)}
           </p>
           <p className="mt-7 font-serif text-[21px] leading-snug text-wish-ink text-balance">
@@ -486,10 +536,10 @@ function WishPage() {
 
           {stage === "picture" && !notNow && (
             <>
-              <p className="mt-8 text-center font-hand text-[25px] text-wish-muted leading-snug">
+              <p className="mt-8 text-center font-serif text-[24px] text-wish-ink leading-snug">
                 {t.wishTookShape}
               </p>
-              <p className="mt-2 text-center font-serif text-[22px] text-wish-ink leading-snug text-balance">
+              <p className="mt-2 text-center font-serif text-[20px] text-wish-muted leading-snug text-balance">
                 {t.cardAsk}
               </p>
               <Primary onClick={() => setStage("confirm")} className="mt-6 w-full">
@@ -555,20 +605,17 @@ function WishPage() {
             >
               <div className="relative">
                 <WishPicture sketch={home.sketch} words={home.horizon} lang={lang} card={null} />
-                {/* Where the symbol is going to land. */}
-                <div ref={slotRef} className="absolute top-[56%] -translate-y-1/2 size-12 ltr:right-2 rtl:left-2" />
+                {/* Where the symbol is going to land: the seal's corner. */}
+                <div ref={slotRef} className="absolute bottom-3 size-10 ltr:right-3 rtl:left-3" />
               </div>
             </div>
           )}
 
+          {/* The Oracle is a light. It gathers here before there is any card;
+              the card comes up out of it; it answers when the card turns; and
+              it stays behind the card afterwards, quietly. */}
           <div ref={symbolRef} className="relative w-full flex justify-center -mt-4">
-            {(phase === "rise" || phase === "hold") && (
-              <span
-                aria-hidden
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 rounded-full blur-3xl animate-halo-breathe"
-                style={{ background: "radial-gradient(circle, rgba(217,164,65,0.42) 0%, transparent 70%)" }}
-              />
-            )}
+            <OracleLight mode={lightFor(phase)} />
             <RoadCardObject
               id={drawn?.id ?? null}
               name={drawn ? cardText(lang, drawn.id).name : ""}
@@ -580,27 +627,19 @@ function WishPage() {
 
           {told && drawn && (
             <div className="w-full mt-9">
-              {/* Three layers, and they do different work. What the card IS —
-                  the same for everyone, written by a person. What it means for
-                  THIS wish — the only part written for her. And one line short
-                  enough to carry out of the app and into the day. */}
-              <p className="text-center text-[12px] tracking-[0.18em] uppercase text-wish-muted/80 rtl:tracking-normal rtl:normal-case rtl:text-[14px] animate-rise-line">
-                {t.labelMeaning}
+              {/* The reading, as one piece of writing: what this card is for,
+                  and what it says about her wish, in her own words. Until the
+                  reading arrives, the card's own first sentence stands there;
+                  the reading begins the same way and simply grows out of it.
+                  Read like a letter — from the start of the line — where the
+                  card's title and its last line are set centred. */}
+              <p
+                key={drawn.reading ? "reading" : "appears"}
+                className="font-serif text-[19px] leading-relaxed text-wish-ink/90 text-start"
+                style={{ animation: "risein 700ms cubic-bezier(0.19,1,0.22,1) both" }}
+              >
+                {drawn.reading ?? cardText(lang, drawn.id).appears}
               </p>
-              <p className="mt-2 text-center font-serif text-[19px] leading-relaxed text-wish-ink text-balance animate-rise-line">
-                {cardText(lang, drawn.id).appears}
-              </p>
-
-              {drawn.reading && (
-                <div style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 260ms both" }}>
-                  <p className="mt-8 text-center text-[12px] tracking-[0.18em] uppercase text-wish-muted/80 rtl:tracking-normal rtl:normal-case rtl:text-[14px]">
-                    {t.labelForYou}
-                  </p>
-                  <p className="mt-2 text-center font-serif text-[18px] leading-relaxed text-wish-muted text-balance">
-                    {drawn.reading}
-                  </p>
-                </div>
-              )}
 
               {/* The line she leaves with. Set apart, under a gold rule. */}
               <div
@@ -662,12 +701,18 @@ function WishPage() {
           />
 
           {home.todayDeed && !deedKind ? (
-            <div className="mt-6">
-              {/* The witness's line, in his own hand, with the gold stroke of his pen
-                  running out from under it. Acknowledgment sits above the offer, never below. */}
+            <div className="mt-7">
+              {/* The witness writes his line while she watches: word by word,
+                  then the pen runs on, then his hand lifts away. Her deed
+                  appears under it in the plain face — he wrote the line, not
+                  what she did. Acknowledgment sits above the offer, never below. */}
               <WitnessLine
+                key={home.todayDeed.id}
                 line={home.todayDeed.kind === "stuck" ? t.sawStuck : home.todayDeed.kind === "stayed" ? t.sawStayed : t.sawDid}
                 deed={home.todayDeed.text}
+                dir={dir}
+                write
+                onWritten={() => setLineDone(true)}
               />
             </div>
           ) : !asking && !deedKind ? (
@@ -727,15 +772,20 @@ function WishPage() {
             </div>
           )}
 
-          {/* 5b — one more, smaller. Never after "I endured". */}
-          {ladder && ladder.state !== "closed" && (
-            <div className="mt-10 text-center animate-rise-line">
+          {/* 5b — one more, smaller. Never after "I endured". And never before
+              the witness has finished writing: the Oracle sees her first, then
+              asks, and only then offers one step. */}
+          {ladder && ladder.state !== "closed" && lineDone && (
+            <div className="mt-10 animate-rise-line">
               {ladder.state === "offer" && (
                 <>
                   {/* Acknowledgment first, always. A task handed to someone who
                       just said they're unhappy would say: your sadness is a
                       productivity problem. It isn't. */}
-                  <p className="font-serif text-[24px] text-wish-ink leading-snug mb-5 text-balance">
+                  {ladder.stuck && ladder.rung === 0 && (
+                    <p className="font-serif text-[20px] text-wish-ink/85 leading-snug mb-3">{t.stuckAck}</p>
+                  )}
+                  <p className="font-serif text-[23px] text-wish-ink leading-snug mb-5 text-balance">
                     {ladder.rung > 0 ? t.stepMore : ladder.stuck ? t.stuckOffer : t.stepOffer}
                   </p>
                   <Primary onClick={() => askStep(ladder.rung, ladder.stuck)} className="w-full">
@@ -747,13 +797,51 @@ function WishPage() {
                 </>
               )}
 
+              {/* The intro line stands above whatever the Oracle finds — it is
+                  said while looking, and left there. */}
+              {(ladder.state === "thinking" || ladder.state === "step") && (
+                <p className="font-serif text-[19px] text-wish-muted leading-snug animate-rise-line">
+                  {t.stepIntro}
+                </p>
+              )}
+
               {ladder.state === "thinking" && (
-                <p className="text-[15px] text-wish-muted text-center py-2">{t.stepThinking}</p>
+                <p className="mt-6 font-serif text-[16px] text-wish-muted/70 animate-pulse">{t.stepThinking}</p>
+              )}
+
+              {/* The app does not know what a thing she named is. It asks, in
+                  one short question, and never guesses. */}
+              {ladder.state === "ask" && ladder.question && (
+                <div className="animate-rise-line">
+                  <p className="font-serif text-[17px] text-wish-muted leading-snug">{t.stepAskLead}</p>
+                  <p className="mt-2 font-serif text-[26px] text-wish-ink leading-snug text-balance">{ladder.question}</p>
+                  <input
+                    value={answerText}
+                    onChange={(e) => setAnswerText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void answerAsk(ladder.question!, ladder.rung, ladder.stuck);
+                    }}
+                    placeholder={t.stepAskPlaceholder}
+                    autoFocus
+                    className="mt-5 w-full rounded-full border border-wish-ink/20 bg-transparent px-5 py-3 font-serif text-[19px] text-wish-ink
+                               placeholder:text-wish-muted/60 outline-none focus:border-wish-ink/60 transition-colors"
+                  />
+                  <Primary
+                    onClick={() => answerAsk(ladder.question!, ladder.rung, ladder.stuck)}
+                    disabled={!answerText.trim()}
+                    className="mt-4 w-full"
+                  >
+                    {t.stepAskSend}
+                  </Primary>
+                  <Secondary onClick={() => setLadder({ ...ladder, state: "closed" })} className="mt-2 w-full">
+                    {t.stepEnough}
+                  </Secondary>
+                </div>
               )}
 
               {ladder.state === "step" && (
-                <>
-                  <p className="font-serif text-[28px] text-wish-ink leading-snug mb-6 text-balance">
+                <div style={{ animation: "risein 700ms cubic-bezier(0.19,1,0.22,1) 200ms both" }}>
+                  <p className="mt-5 font-serif text-[28px] text-wish-ink leading-snug mb-7 text-balance">
                     {ladder.text}
                   </p>
                   <Primary
@@ -761,24 +849,24 @@ function WishPage() {
                     disabled={busy}
                     className="w-full"
                   >
-                    {t.stepDid}
+                    {ladder.done ?? t.stepDone}
                   </Primary>
                   <Secondary onClick={() => setLadder({ ...ladder, state: "closed" })} className="mt-2 w-full">
                     {t.stepEnough}
                   </Secondary>
-                </>
+                </div>
               )}
             </div>
           )}
 
-          {ladder?.state === "closed" && ladder.rung > 0 && (
-            <p className="mt-6 text-center font-serif text-xl text-wish-ink/75 animate-rise-line">
+          {ladder?.state === "closed" && ladder.rung > 0 && lineDone && (
+            <p className="mt-8 font-serif text-xl text-wish-ink/75 animate-rise-line">
               {t.stepClosed}
             </p>
           )}
 
           {/* 6 — the witness */}
-          {witness !== null && (!ladder || ladder.state === "closed") && (
+          {witness !== null && lineDone && (!ladder || ladder.state === "closed") && (
             <div className="mt-10 animate-rise-line">
               <p className="font-serif text-xl text-wish-ink mb-1">{t.witnessAsk}</p>
               <p className="text-[13px] text-wish-muted mb-4">{t.witnessEdit}</p>

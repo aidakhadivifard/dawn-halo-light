@@ -315,10 +315,25 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   });
 
   // One more, smaller. `step: null` means "don't offer anything" — the client
-  // must treat that as the end of the ladder, not as an error.
+  // must treat that as the end of the ladder, not as an error. `ask` is set
+  // instead of `step` when the app needs to know what something she named is
+  // before it can offer anything: the client shows the question, and answers
+  // it through /api/step/answer.
+  const stepJson = (out: Awaited<ReturnType<typeof svc.nextTinyStep>>) =>
+    out?.kind === "ask"
+      ? { step: null, done: null, ask: out.text }
+      : { step: out?.text ?? null, done: out?.done ?? null, ask: null };
+
   app.post("/api/step/next", requireDevice, resolveLocalDate, async (req, res) => {
-    const step = await svc.nextTinyStep(req.deviceId!, req.localDate!);
-    res.json({ step });
+    res.json(stepJson(await svc.nextTinyStep(req.deviceId!, req.localDate!)));
+  });
+
+  // She told us what the thing is. Kept with the wish, then the step it was for.
+  app.post("/api/step/answer", requireDevice, resolveLocalDate, async (req, res) => {
+    const question = (req.body?.question ?? "").toString();
+    const answer = (req.body?.answer ?? "").toString();
+    if (!answer.trim()) return res.status(400).json({ error: "missing_answer" });
+    res.json(stepJson(await svc.answerStep(req.deviceId!, req.localDate!, question, answer)));
   });
 
   app.get("/api/deeds", requireDevice, (req, res) => {

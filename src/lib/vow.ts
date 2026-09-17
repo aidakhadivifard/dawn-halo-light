@@ -445,10 +445,31 @@ export async function drawRoadCard(
  * the ladder has run its length. The app then says nothing rather than making
  * something up about a life it doesn't know.
  */
-export async function nextTinyStep(): Promise<string | null> {
+export type TinyStep =
+  | { kind: "step"; text: string; done: string | null }
+  | { kind: "ask"; question: string };
+
+function shapeStep(out: { step: string | null; done: string | null; ask: string | null }): TinyStep | null {
+  if (out.ask && out.ask.trim()) return { kind: "ask", question: out.ask.trim() };
+  if (out.step && out.step.trim()) return { kind: "step", text: out.step.trim(), done: out.done?.trim() || null };
+  return null;
+}
+
+export async function nextTinyStep(): Promise<TinyStep | null> {
   try {
-    const { step } = await api.nextTinyStep();
-    return step && step.trim() ? step.trim() : null;
+    return shapeStep(await api.nextTinyStep());
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * She said what the thing is. The app keeps it with the wish so it never has
+ * to ask again, and offers the step it was going to offer.
+ */
+export async function answerStep(question: string, answer: string): Promise<TinyStep | null> {
+  try {
+    return shapeStep(await api.answerStep(question, answer));
   } catch {
     return null;
   }

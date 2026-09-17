@@ -235,9 +235,18 @@ export const api = {
   async listDeeds(): Promise<{ deeds: ApiDeed[] }> {
     return req(`/deeds`);
   },
-  /** One more, smaller. `step: null` means the ladder is over — not an error. */
-  async nextTinyStep(): Promise<{ step: string | null }> {
+  /**
+   * One more, smaller. `step: null` with `ask: null` means the ladder is over —
+   * not an error. `ask` set means the app needs to know what something she
+   * named is before it can offer anything, and is asking rather than guessing.
+   * `done` is the two or three words for the button, in the step's own terms.
+   */
+  async nextTinyStep(): Promise<ApiStep> {
     return req(`/step/next`, { method: "POST", body: JSON.stringify({}) });
+  },
+  /** Her answer to the question the app asked — kept with the wish, then the step. */
+  async answerStep(question: string, answer: string): Promise<ApiStep> {
+    return req(`/step/answer`, { method: "POST", body: JSON.stringify({ question, answer }) });
   },
 
   // --- The Vow (journey / road) — journeyId is required only with two roads ---
@@ -355,6 +364,13 @@ export interface ApiDeed {
   text: string | null;
   localDate?: string;
   createdAt?: string;
+}
+
+/** What comes back when a step is asked for. */
+export interface ApiStep {
+  step: string | null;
+  done: string | null;
+  ask: string | null;
 }
 
 export interface ApiHome {

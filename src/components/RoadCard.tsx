@@ -139,7 +139,15 @@ export function CardFace({ id, name, line, revealing, symbolGone, className = ""
   );
 }
 
-export type CardPhase = "rise" | "hold" | "flip" | "front" | "keeping";
+/**
+ * summon — the light is gathering; there is no card yet
+ * rise   — the card comes up out of the light, face down
+ * hold   — face down, waiting for the Oracle's answer
+ * flip   — turning over
+ * front  — face up, being written on
+ * keeping — kept; the symbol has left for the wish
+ */
+export type CardPhase = "summon" | "rise" | "hold" | "flip" | "front" | "keeping";
 
 export interface RoadCardObjectProps {
   id: string | null;
@@ -157,7 +165,10 @@ export interface RoadCardObjectProps {
  * moment longer, which is exactly what a card does.
  */
 export function RoadCardObject({ id, name, line, phase, symbolGone }: RoadCardObjectProps) {
+  // Before the card exists, hold its place so the light has somewhere to be.
+  if (phase === "summon") return <div aria-hidden className="w-[74%] max-w-[272px] aspect-[2/3] invisible" />;
   const flipped = phase === "flip" || phase === "front" || phase === "keeping";
+  const faceDown = phase === "rise" || phase === "hold";
   return (
     <div
       className={
@@ -169,8 +180,10 @@ export function RoadCardObject({ id, name, line, phase, symbolGone }: RoadCardOb
     >
       <div
         className={
-          "relative w-full h-full [transform-style:preserve-3d] " +
-          "transition-transform duration-[820ms] ease-[cubic-bezier(0.3,0.8,0.25,1)] " +
+          "relative w-full h-full rounded-[18px] [transform-style:preserve-3d] " +
+          "transition-[transform,box-shadow] duration-[820ms] ease-[cubic-bezier(0.3,0.8,0.25,1)] " +
+          // Face down in the light, the card's edges catch it.
+          (faceDown ? "shadow-[0_0_70px_-8px_rgba(217,164,65,0.6)] " : "shadow-none ") +
           (flipped ? "[transform:rotateY(180deg)]" : "")
         }
       >

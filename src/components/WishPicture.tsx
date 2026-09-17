@@ -29,6 +29,15 @@ export function fractionOf(lit: number, fullAt: number): number {
   return 1 - Math.pow(1 - f, 2);
 }
 
+/**
+ * Where the seal sits on the picture, in picture pixels: the lower corner on
+ * the side the writing ends. Colour spreads from here, so this and the seal's
+ * CSS position (bottom-3, right-3 / left-3, size-10) describe the same spot.
+ */
+export function sealAt(W: number, H: number, lang: Lang): [number, number] {
+  return [lang === "fa" ? W * 0.095 : W * 0.905, H * 0.865];
+}
+
 export interface WishPictureProps {
   sketch: Sketch;
   words: string | null;
@@ -100,18 +109,22 @@ export function WishPicture({ sketch, words, lang, card, badgeLanding }: WishPic
 
     ctx.clearRect(0, 0, W, H);
     ctx.globalCompositeOperation = "source-over";
-    ctx.drawImage(pair.color, 0, 0, W, H);
-    if (fraction < 1) {
-      const cx = W / 2;
-      const cy = H * 0.55;
-      const rMax = Math.hypot(cx, Math.max(cy, H - cy)) * 1.02;
-      const r = rMax * (1 - fraction);
-      const g = ctx.createRadialGradient(cx, cy, Math.max(0, r * 0.62), cx, cy, Math.max(1, r));
-      g.addColorStop(0, "rgba(0,0,0,1)");
-      g.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
+    if (fraction > 0) {
+      ctx.drawImage(pair.color, 0, 0, W, H);
+      if (fraction < 1) {
+        // Colour spreads out from the seal. The card was pressed onto this
+        // corner of the wish; every answered day, its warmth reaches a little
+        // further into the picture, and the person is the last to be reached.
+        const [sx, sy] = sealAt(W, H, lang);
+        const rMax = Math.hypot(Math.max(sx, W - sx), Math.max(sy, H - sy)) * 1.04;
+        const r = Math.max(1, rMax * fraction);
+        const g = ctx.createRadialGradient(sx, sy, Math.max(0, r * 0.55), sx, sy, r);
+        g.addColorStop(0, "rgba(0,0,0,0)");
+        g.addColorStop(1, "rgba(0,0,0,1)");
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+      }
     }
     ctx.globalCompositeOperation = "destination-over";
     ctx.drawImage(pair.line, 0, 0, W, H);
@@ -148,18 +161,21 @@ export function WishPicture({ sketch, words, lang, card, badgeLanding }: WishPic
         </div>
       )}
 
+      {/* The seal: the card pressed onto the corner of the wish, like a stamp
+          on a letter. Two gold rings, a little off true, the symbol inside. */}
       {card && (
         <div
           title={t.name}
           aria-label={t.name}
           className={
-            "absolute top-[56%] -translate-y-1/2 grid place-items-center size-12 rounded-full bg-wish-paper " +
-            "border-[1.5px] border-wish-gold text-wish-gold " +
-            (badgeLanding ? "animate-[badgeland_900ms_cubic-bezier(.2,.9,.25,1)_both] " : "") +
-            "ltr:right-2 rtl:left-2"
+            "absolute bottom-3 grid place-items-center size-10 rounded-full text-wish-gold -rotate-6 " +
+            "border-[1.5px] border-wish-gold/90 bg-[rgba(217,164,65,0.10)] " +
+            (badgeLanding ? "animate-[stamp_900ms_cubic-bezier(.2,.9,.25,1)_both] " : "") +
+            "ltr:right-3 rtl:left-3"
           }
         >
-          <CardSymbol id={card.id} className="w-[62%]" />
+          <span aria-hidden className="absolute inset-[3px] rounded-full border border-wish-gold/50" />
+          <CardSymbol id={card.id} className="w-[54%]" />
         </div>
       )}
     </div>

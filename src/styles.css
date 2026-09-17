@@ -293,6 +293,47 @@
   to { opacity: 0.28; filter: blur(3px); transform: scale(0.97); }
 }
 
+/* The Oracle arriving: light gathers where the card is about to be. Slow, then
+   brightest at the very end, so the card comes up out of the top of it. */
+@keyframes summon {
+  0%   { opacity: 0;    transform: scale(0.35); }
+  45%  { opacity: 0.55; transform: scale(0.9);  }
+  80%  { opacity: 0.95; transform: scale(1.12); }
+  100% { opacity: 0.85; transform: scale(1.05); }
+}
+/* The light answering as the card turns: one bright breath, then it settles. */
+@keyframes flash {
+  0%   { opacity: 0.85; transform: scale(1.05); }
+  35%  { opacity: 1;    transform: scale(1.32); }
+  100% { opacity: 0.45; transform: scale(1.1);  }
+}
+/* Dust in the light. Each mote rises a little and goes out. */
+@keyframes mote {
+  0%   { opacity: 0;   transform: translateY(0)     scale(0.6); }
+  25%  { opacity: 0.9; }
+  100% { opacity: 0;   transform: translateY(-64px) scale(1.1); }
+}
+/* A word being written: it arrives from a blur, the way ink dries. */
+@keyframes wordin {
+  from { opacity: 0; filter: blur(3px); transform: translateY(2px); }
+  to   { opacity: 1; filter: blur(0);   transform: translateY(0); }
+}
+/* The hand arriving at the end of the stroke, and leaving. */
+@keyframes handin {
+  from { opacity: 0; transform: translate(calc(var(--lift, 10px) * 0.6), 6px); }
+  to   { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes handout {
+  from { opacity: 1; transform: translate(0, 0); }
+  to   { opacity: 0; transform: translate(var(--lift, 10px), -8px); }
+}
+/* The seal pressed onto the corner of the picture. */
+@keyframes stamp {
+  0%   { opacity: 0; transform: rotate(-6deg) scale(2.2); }
+  60%  { opacity: 1; transform: rotate(-6deg) scale(0.92); }
+  100% { opacity: 1; transform: rotate(-6deg) scale(1); }
+}
+
 /* The symbol leaving the card and going to sit on the corner of the wish.
    Aimed by --fx/--fy/--fs, measured from the two elements at the moment the
    card is kept, so it lands exactly where the badge lives. */

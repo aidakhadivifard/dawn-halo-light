@@ -7,13 +7,16 @@
 //   2. Without a model there is NO step. We never invent an action for a life
 //      we know nothing about.
 //   3. The ladder stops itself. At some point the honest thing is to stop.
+//   4. When the app does not know what a thing she named IS, it asks — it
+//      never decides that "dawnhalo" is a file. And once she has answered, it
+//      never asks again.
 
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import { createDb, type DB } from "../src/db";
 import { createApp } from "../src/app";
 import { nextTinyStep, type MessagesClient } from "../src/lib/anthropic";
-import { cleanStep, tinyStepPrompt, MAX_RUNGS } from "../src/lib/tinystep";
+import { cleanStep, parseStep, tinyStepPrompt, MAX_RUNGS, MAX_ASKS } from "../src/lib/tinystep";
 
 const DEVICE = "device-step-0001";
 
@@ -70,15 +73,82 @@ describe("shaping the step", () => {
     expect(p).toContain("not lazy");
     expect(p).toContain("Invent nothing");
   });
+
+  it("tells the model to ask, not guess, what a named thing is", () => {
+    const p = tinyStepPrompt({ wish: "my career taking off", today: "working on dawnhalo", done: [] });
+    expect(p).toContain("do NOT guess");
+    expect(p).toContain("ASK:");
+    // And to hand back the words for the button, in the step's own terms.
+    expect(p).toContain("DONE:");
+    expect(p).toContain('Never "Did it"');
+  });
+
+  it("carries what she has already explained, and stops asking when told to", () => {
+    const told = [{ question: "What is dawnhalo?", answer: "an app I'm building" }];
+    const p = tinyStepPrompt({ wish: "my career taking off", today: "working on dawnhalo", done: [], told });
+    expect(p).toContain('Asked "What is dawnhalo?" they said: "an app I\'m building"');
+    expect(p).toContain("ASK:");
+
+    const quiet = tinyStepPrompt({ wish: "w", today: "t", done: [], told, noAsking: true });
+    expect(quiet).toContain("Do not ask them anything");
+    expect(quiet).not.toContain("ASK:");
+  });
+});
+
+describe("reading the model's answer", () => {
+  it("a step with the words for its button", () => {
+    expect(parseStep("Put your shoes by the door.\nDONE: Shoes are by the door.")).toEqual({
+      kind: "step",
+      text: "Put your shoes by the door.",
+      done: "Shoes are by the door.",
+    });
+  });
+
+  it("a step without one is still a step", () => {
+    expect(parseStep("Open the laptop. That's all.")).toEqual({
+      kind: "step",
+      text: "Open the laptop. That's all.",
+      done: null,
+    });
+  });
+
+  it("a question, marked ASK, is a question — however it was wrapped", () => {
+    expect(parseStep("ASK: What is dawnhalo?")).toEqual({ kind: "ask", text: "What is dawnhalo?" });
+    expect(parseStep('```\n- "ask: What is dawnhalo?"\n```')).toEqual({ kind: "ask", text: "What is dawnhalo?" });
+    expect(parseStep("ASK: داون‌هیلو چیست؟")).toEqual({ kind: "ask", text: "داون‌هیلو چیست؟" });
+  });
+
+  it("'Did it' is exactly the button we are replacing — it is dropped", () => {
+    expect(parseStep("Open it.\nDONE: Did it")!).toEqual({ kind: "step", text: "Open it.", done: null });
+  });
+
+  it("nothing is nothing", () => {
+    expect(parseStep("")).toBeNull();
+    expect(parseStep("ASK:")).toBeNull();
+    expect(parseStep("DONE: Sent.")).toBeNull();
+  });
 });
 
 describe("asking for a step", () => {
   const input = { wish: "a body I trust", today: "walked to the corner", done: [] };
 
   it("returns the model's action", async () => {
-    expect(await nextTinyStep(input, { client: replying("Put your shoes by the door.") })).toBe(
-      "Put your shoes by the door.",
-    );
+    expect(await nextTinyStep(input, { client: replying("Put your shoes by the door.\nDONE: Shoes are out.") })).toEqual({
+      kind: "step",
+      text: "Put your shoes by the door.",
+      done: "Shoes are out.",
+    });
+  });
+
+  it("returns the model's question when it has one", async () => {
+    expect(await nextTinyStep(input, { client: replying("ASK: What is dawnhalo?") })).toEqual({
+      kind: "ask",
+      text: "What is dawnhalo?",
+    });
+  });
+
+  it("a question when questions were forbidden is nothing — never a guess", async () => {
+    expect(await nextTinyStep({ ...input, noAsking: true }, { client: replying("ASK: What is it?") })).toBeNull();
   });
 
   it("offers NOTHING rather than invent one — no model, or a failing one", async () => {
@@ -182,5 +252,108 @@ describe("the ladder, end to end", () => {
     expect((await h(request(api).post("/api/step/next"))).body.step).toBeNull();
     await h(request(api).put("/api/horizon")).send({ text: "a body I trust" });
     expect((await h(request(api).post("/api/step/next"))).body.step).toBeNull();
+  });
+
+  it("hands the client the words for the button along with the step", async () => {
+    const api = createApp(db, { client: replying("Open the laptop.\nDONE: It's open.") });
+    await h(request(api).put("/api/horizon")).send({ text: "my career taking off" });
+    await h(request(api).post("/api/deed")).send({ kind: "did", text: "working on dawnhalo" });
+    const step = await h(request(api).post("/api/step/next"));
+    expect(step.body).toEqual({ step: "Open the laptop.", done: "It's open.", ask: null });
+  });
+});
+
+describe("when the app does not know what a thing is", () => {
+  let db: DB;
+  const h = (r: request.Test, date = "2026-09-01") =>
+    r.set("x-device-id", DEVICE).set("x-local-date", date);
+
+  /** A model that asks until it has been told, then gives a step built on the answer. */
+  function honest(): { client: MessagesClient; prompts: string[] } {
+    const prompts: string[] = [];
+    const client = {
+      messages: {
+        create: async (args: any) => {
+          const p: string = args.messages[0].content;
+          prompts.push(p);
+          const text = p.includes("they said:")
+            ? "Open the dawnhalo project. Just look at it.\nDONE: It's open."
+            : "ASK: What is dawnhalo?";
+          return { content: [{ type: "text", text }] };
+        },
+      },
+    } as unknown as MessagesClient;
+    return { client, prompts };
+  }
+
+  beforeEach(() => {
+    db = createDb(":memory:");
+  });
+
+  it("asks instead of deciding that dawnhalo is a file", async () => {
+    const { client } = honest();
+    const api = createApp(db, { client });
+    await h(request(api).put("/api/horizon")).send({ text: "my career taking off" });
+    await h(request(api).post("/api/deed")).send({ kind: "did", text: "working on dawnhalo" });
+
+    const first = await h(request(api).post("/api/step/next"));
+    expect(first.body).toEqual({ step: null, done: null, ask: "What is dawnhalo?" });
+  });
+
+  it("her answer is kept with the wish, and the step is built on it", async () => {
+    const { client, prompts } = honest();
+    const api = createApp(db, { client });
+    await h(request(api).put("/api/horizon")).send({ text: "my career taking off" });
+    await h(request(api).post("/api/deed")).send({ kind: "did", text: "working on dawnhalo" });
+    await h(request(api).post("/api/step/next"));
+
+    const answered = await h(request(api).post("/api/step/answer")).send({
+      question: "What is dawnhalo?",
+      answer: "an app I'm building",
+    });
+    expect(answered.body.step).toBe("Open the dawnhalo project. Just look at it.");
+    expect(answered.body.done).toBe("It's open.");
+    expect(prompts[1]).toContain(`Asked "What is dawnhalo?" they said: "an app I'm building"`);
+
+    // Tomorrow it still knows. It does not ask what dawnhalo is a second time.
+    await h(request(api).post("/api/deed"), "2026-09-02").send({ kind: "did", text: "more dawnhalo" });
+    const tomorrow = await h(request(api).post("/api/step/next"), "2026-09-02");
+    expect(tomorrow.body.ask).toBeNull();
+    expect(tomorrow.body.step).not.toBeNull();
+    expect(prompts[2]).toContain("an app I'm building");
+  });
+
+  it("an empty answer is not an answer", async () => {
+    const api = createApp(db, { client: honest().client });
+    await h(request(api).put("/api/horizon")).send({ text: "w" });
+    await h(request(api).post("/api/deed")).send({ kind: "did", text: "t" });
+    await h(request(api).post("/api/step/answer")).send({ question: "What is it?", answer: "  " }).expect(400);
+  });
+
+  it("stops asking after a couple of questions and just offers a step", async () => {
+    // A model that would ask forever.
+    const prompts: string[] = [];
+    const client = {
+      messages: {
+        create: async (args: any) => {
+          prompts.push(args.messages[0].content);
+          return { content: [{ type: "text", text: "ASK: And what is that?" }] };
+        },
+      },
+    } as unknown as MessagesClient;
+    const api = createApp(db, { client });
+    await h(request(api).put("/api/horizon")).send({ text: "w" });
+    await h(request(api).post("/api/deed")).send({ kind: "did", text: "t" });
+
+    for (let i = 0; i < MAX_ASKS; i++) {
+      const r = await h(request(api).post("/api/step/answer")).send({ question: `q${i}`, answer: `a${i}` });
+      // Still allowed to ask before the cap is reached; the last answer hits it.
+      if (i < MAX_ASKS - 1) expect(r.body.ask).toBe("And what is that?");
+    }
+    // Once it may not ask, it was told so — and its question is not passed on.
+    expect(prompts[prompts.length - 1]).toContain("Do not ask them anything");
+    const after = await h(request(api).post("/api/step/next"));
+    expect(after.body.ask).toBeNull();
+    expect(after.body.step).toBeNull();
   });
 });

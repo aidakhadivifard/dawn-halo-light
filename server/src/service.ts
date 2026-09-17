@@ -16,7 +16,7 @@ import {
   cardReading,
   type MessagesClient,
 } from "./lib/anthropic";
-import { MAX_RUNGS } from "./lib/tinystep";
+import { MAX_RUNGS, MAX_ASKS, type StepAnswer } from "./lib/tinystep";
 import { MAX_WISHES, type HeardWish } from "./lib/hearing";
 import { findCard, pickRoadCard, type RoadCard } from "./lib/roadcards";
 import { findHalo } from "./lib/deck";
@@ -290,6 +290,37 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       fallback: !!row.fallback,
       followUpUsed: !!row.follow_up_used,
     };
+  }
+
+  /**
+   * One more, smaller. Built only from the wish and what they already said
+   * they did — never from anything we assumed. Returns null when there is no
+   * model (we offer nothing rather than invent), when today's answer hasn't
+   * been given yet, or once the ladder has run its length: at some point the
+   * honest thing is to stop asking.
+   */
+  async function stepFor(deviceId: string, localDate: string): Promise<StepAnswer | null> {
+    const h = db.getHorizon(deviceId);
+    if (!h) return null;
+    // Oldest first: their own answer, then each rung they've taken since.
+    const todays = db.deedsOnFor(h.id, localDate).slice().reverse();
+    const first = todays[0];
+    if (!first) return null;
+    // "I endured and kept going" is a finished sentence. We ask nothing after
+    // it. Only the two answers that reach for something open the ladder.
+    if (first.kind === "stayed") return null;
+    if (first.kind === "did" && !first.text) return null;
+    const done = todays.filter((d) => d.id !== first.id && d.text).map((d) => d.text as string);
+    if (done.length >= MAX_RUNGS) return null;
+    // What she has explained about this wish — today's and every earlier
+    // day's. Once she has said what dawnhalo is, we know.
+    const notes = db.listNotes(h.id);
+    const told = notes.map((n) => ({ question: n.question, answer: n.answer }));
+    const askedToday = notes.filter((n) => n.local_date === localDate).length;
+    return nextTinyStep(
+      { wish: h.text, today: first.text ?? null, done, told, noAsking: askedToday >= MAX_ASKS },
+      { client, timeoutMs },
+    );
   }
 
   return {
@@ -702,27 +733,49 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       return { kind: "deed", deed: { id: row.id, kind, text: trimmed, localDate } };
     },
 
+    /** One more, smaller — or the question that has to come first. See stepFor. */
+    nextTinyStep(deviceId: string, localDate: string): Promise<StepAnswer | null> {
+      return stepFor(deviceId, localDate);
+    },
+
     /**
-     * One more, smaller. Built only from the wish and what they already said
-     * they did — never from anything we assumed. Returns null when there is no
-     * model (we offer nothing rather than invent), when today's answer hasn't
-     * been given yet, or once the ladder has run its length: at some point the
-     * honest thing is to stop asking.
+     * She answered the question the app asked. Keep it with the wish, in her
+     * words, so it is never asked again — then offer the step it was for.
      */
-    async nextTinyStep(deviceId: string, localDate: string): Promise<string | null> {
+    async answerStep(
+      deviceId: string,
+      localDate: string,
+      question: string,
+      answer: string,
+    ): Promise<StepAnswer | null> {
       const h = db.getHorizon(deviceId);
       if (!h) return null;
-      // Oldest first: their own answer, then each rung they've taken since.
-      const todays = db.deedsOnFor(h.id, localDate).slice().reverse();
-      const first = todays[0];
-      if (!first) return null;
-      // "I endured and kept going" is a finished sentence. We ask nothing after
-      // it. Only the two answers that reach for something open the ladder.
-      if (first.kind === "stayed") return null;
-      if (first.kind === "did" && !first.text) return null;
-      const done = todays.filter((d) => d.id !== first.id && d.text).map((d) => d.text as string);
-      if (done.length >= MAX_RUNGS) return null;
-      return nextTinyStep({ wish: h.text, today: first.text ?? null, done }, { client, timeoutMs });
+      const q = question.trim().slice(0, 120);
+      const a = answer.trim().slice(0, 240);
+      if (q && a) {
+        db.insertNote({
+          id: newId("note"),
+          horizon_id: h.id,
+          question: q,
+          answer: a,
+          local_date: localDate,
+          created_at: now().toISOString(),
+        });
+      }
+      return stepFor(deviceId, localDate);
+    },
+
+    /** What she has explained about the open wish, oldest first. */
+    listNotes(deviceId: string, wishId?: string | null) {
+      const h = wishId ? db.getHorizonById(deviceId, wishId) : db.getHorizon(deviceId);
+      if (!h) return [];
+      return db.listNotes(h.id).map((n) => ({
+        id: n.id,
+        question: n.question,
+        answer: n.answer,
+        localDate: n.local_date,
+        createdAt: n.created_at,
+      }));
     },
 
     /** The deeds so far, newest first — the wish book's spine. */

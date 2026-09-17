@@ -18,7 +18,7 @@ import request from "supertest";
 import { createDb, type DB } from "../src/db";
 import { createApp } from "../src/app";
 import { cardReading, type MessagesClient } from "../src/lib/anthropic";
-import { readingPrompt, cleanReading } from "../src/lib/reading";
+import { readingPrompt, cleanReading, EXAMPLE_READING, READING_MAX_CHARS } from "../src/lib/reading";
 
 const DEVICE = "device-read-0001";
 const WISH = "I wish i had 2 kids and Pinkwallet was successful and i was a part of it";
@@ -44,7 +44,7 @@ function replying(text: string): MessagesClient {
 const INPUT = {
   wish: WISH,
   card: "The Ladder",
-  line: "Yes — slowly. One rung at a time.",
+  line: "The way rises slowly. One rung at a time.",
   when: "a big wish made of many stages",
   lang: "en" as const,
 };
@@ -72,8 +72,22 @@ describe("asking for the reading", () => {
     expect(p).toContain("no plans, no steps, no numbers, no");
   });
 
-  it("says out loud when a wish holds several things at once", () => {
-    expect(readingPrompt(INPUT)).toContain("will not move at the same speed");
+  it("lets several things move at different speeds — without dissecting the wish", () => {
+    const p = readingPrompt(INPUT);
+    expect(p).toContain("will not move at the same speed");
+    expect(p).toContain("without listing them or counting them");
+    expect(p).toContain('no "your wish holds two things"');
+  });
+
+  it("is a reading, not a commentary on itself", () => {
+    const p = readingPrompt(INPUT);
+    expect(p).toContain('no "what the card sees"');
+    expect(p).toContain("Fifty to eighty words");
+    // The shape it is measured against is in front of the model every time.
+    expect(p).toContain(EXAMPLE_READING);
+    const words = EXAMPLE_READING.split(/\s+/).filter((w) => /\w/.test(w)).length;
+    expect(words).toBeGreaterThanOrEqual(45);
+    expect(words).toBeLessThanOrEqual(80);
   });
 
   it("forbids the other direction too — no impossible, no failure, no giving up", () => {
@@ -113,7 +127,20 @@ describe("shaping the reading", () => {
   });
 
   it("never runs long enough to become an essay", () => {
-    expect(cleanReading("x".repeat(900))!.length).toBeLessThanOrEqual(420);
+    expect(cleanReading("x".repeat(900))!.length).toBeLessThanOrEqual(READING_MAX_CHARS);
+  });
+
+  it("a long reading ends on a full stop, never mid-sentence", () => {
+    const sentence = "The road is long and the morning is early and the kettle is on. ";
+    const long = sentence.repeat(20);
+    const got = cleanReading(long)!;
+    expect(got.length).toBeLessThanOrEqual(READING_MAX_CHARS);
+    expect(got.endsWith(".")).toBe(true);
+    expect(got.endsWith("the kettle is on.")).toBe(true);
+  });
+
+  it("the example itself passes through untouched", () => {
+    expect(cleanReading(EXAMPLE_READING)).toBe(EXAMPLE_READING);
   });
 });
 
