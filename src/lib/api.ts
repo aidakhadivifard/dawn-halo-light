@@ -18,6 +18,7 @@ export interface ApiWish {
   id: string;
   text: string;
   card: { id: string; name: string; line: string } | null;
+  cardAt?: string | null;
   sketch: ApiSketch;
   answeredToday: boolean;
   days: number;
@@ -363,6 +364,8 @@ export interface ApiHome {
   horizon: string | null;
   /** Which wish the home screen is showing. */
   wishId?: string | null;
+  /** True once any card has ever been kept — the app has begun. */
+  started?: boolean;
   /** True once the card has been drawn: the words can never be edited again. */
   sealed?: boolean;
   card?: ApiRoadCard | null;

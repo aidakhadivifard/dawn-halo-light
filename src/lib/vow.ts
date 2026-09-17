@@ -102,6 +102,8 @@ export interface Home {
   maxRoads: number;
   /** Which wish this screen is showing. A person keeps several. */
   wishId: string | null;
+  /** True once any card has ever been kept. Before that, the app is still arriving. */
+  started: boolean;
 }
 
 /** A wish as the list shows it. */
@@ -109,6 +111,8 @@ export interface WishListItem {
   id: string;
   text: string;
   card: { id: string; name: string; line: string } | null;
+  /** When its card was kept — the day the wish took a shape. */
+  cardAt: string | null;
   sketch: Sketch;
   answeredToday: boolean;
   days: number;
@@ -401,6 +405,7 @@ export async function getHome(): Promise<Home> {
       roads,
       maxRoads: home.maxRoads ?? MAX_ROADS,
       wishId: home.wishId ?? null,
+      started: !!home.started,
     };
   } catch {
     const stored = loadStored();
@@ -413,6 +418,8 @@ export async function getHome(): Promise<Home> {
       roads: stored && stored.status === "active" ? [storedToVow(stored)] : [],
       maxRoads: MAX_ROADS,
       wishId: null,
+      // Offline we cannot know; a cached wish means she has been here before.
+      started: !!loadHorizon(),
     };
   }
 }
@@ -760,6 +767,7 @@ export async function listWishes(): Promise<{ currentId: string | null; wishes: 
         id: w.id,
         text: w.text,
         card: w.card ?? null,
+        cardAt: w.cardAt ?? null,
         sketch: apiToSketch(w.sketch),
         answeredToday: !!w.answeredToday,
         days: w.days ?? 0,

@@ -341,7 +341,7 @@ function WishPage() {
 
   if (crisis) {
     return (
-      <Shell lang={lang} setLang={setLang} dir={dir}>
+      <Shell lang={lang} setLang={setLang} dir={dir} nav={!!home?.started}>
         <h1 className="font-serif text-3xl text-wish-ink mb-4">{t.crisisTitle}</h1>
         <p className="text-wish-ink/80 leading-relaxed mb-6">{crisis.message}</p>
         <ul className="space-y-3 mb-8">
@@ -358,7 +358,9 @@ function WishPage() {
   }
 
   return (
-    <Shell lang={lang} setLang={setLang} dir={dir}>
+    // The tabs wait for the first card. Until then there is nothing behind
+    // "Notebook", and one word fewer on the first screen is a kindness.
+    <Shell lang={lang} setLang={setLang} dir={dir} nav={!!home?.started && stage !== "card"}>
       {/* 0 — her wishes. Some have been asked about, some are still waiting. */}
       {stage === "wishes" && wishes && (
         <div className="animate-rise-line">

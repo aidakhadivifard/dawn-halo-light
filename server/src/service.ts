@@ -461,6 +461,8 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         sketch: sketchView(h),
         /** Which wish this is — everything on this screen belongs to it. */
         wishId: h?.id ?? null,
+        /** True once any card has ever been kept: the app has begun. */
+        started: db.recentCardIds(deviceId, 1).length > 0,
       };
     },
 
@@ -483,6 +485,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
             text: h.text,
             /** null until the Oracle has been asked — a wish still waiting. */
             card: card ? { id: card.id, name: card.name, line: card.line } : null,
+            cardAt: h.card_at,
             sketch: sketchView(h),
             answeredToday: db.deedsOnFor(h.id, localDate).length > 0,
             days: db.countStayingFor(h.id),

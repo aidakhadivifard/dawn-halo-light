@@ -122,6 +122,8 @@ const EN = {
   notebookTitle: "What he wrote",
   notebookEmpty: "Nothing written yet. The first line comes the first day you answer.",
   nthTime: (n: number) => `The ${ordinalEn(n)} time she came for it. I saw it.`,
+  /** The first line in the book, written by him the day a wish took its shape. */
+  sawShape: "She gave her wish a shape. I was here.",
   share: "Send this",
   shared: "Sent",
 
@@ -215,6 +217,7 @@ const FA: Dict = {
   notebookTitle: "آنچه او نوشت",
   notebookEmpty: "هنوز چیزی نوشته نشده. اولین خط، اولین روزی می‌آید که جواب بدهی.",
   nthTime: (n: number) => `${ordinalFa(n)} بار برای آرزویش آمد. دیدم.`,
+  sawShape: "به آرزویش شکل داد. من اینجا بودم.",
   share: "این را بفرست",
   shared: "فرستاده شد",
 

@@ -15,11 +15,19 @@ export function Shell({
   lang,
   setLang,
   dir,
+  /**
+   * The tabs only appear once there is something behind them. Before the
+   * first card is kept, "Notebook" is a word for a thing that does not exist
+   * yet — it teaches nothing and takes attention from the one thing that
+   * matters on the first screen.
+   */
+  nav = true,
 }: {
   children: ReactNode;
   lang: Lang;
   setLang: (l: Lang) => void;
   dir: "ltr" | "rtl";
+  nav?: boolean;
 }) {
   const t = dict(lang);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -69,8 +77,9 @@ export function Shell({
         </label>
       </header>
 
-      <main className="mx-auto max-w-md px-6 pt-6 pb-28">{children}</main>
+      <main className={"mx-auto max-w-md px-6 pt-6 " + (nav ? "pb-28" : "pb-16")}>{children}</main>
 
+      {nav && (
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-wish-paper/95 backdrop-blur border-t border-wish-line">
         <ul className="mx-auto max-w-md flex justify-center gap-14 px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {tabs.map((tab) => {
@@ -92,6 +101,7 @@ export function Shell({
           })}
         </ul>
       </nav>
+      )}
     </div>
   );
 }
@@ -102,7 +112,11 @@ export function Primary({ children, className = "", ...rest }: ButtonHTMLAttribu
     <button
       {...rest}
       className={
-        "rounded-full bg-wish-blue px-6 py-4 font-serif text-[19px] text-wish-white transition-all " +
+        // Deep plum on coral, not white. White on this coral is 2.7:1 — it
+        // looks soft and reads badly, especially in a light serif. Plum is
+        // 4.7:1, passes on its own merits, and is the more distinctive of
+        // the two anyway.
+        "rounded-full bg-wish-blue px-6 py-4 font-serif font-medium text-[19px] text-wish-ink transition-all " +
         "active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 " +
         className
       }
