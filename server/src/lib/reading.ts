@@ -4,8 +4,11 @@
 // the same for everyone. What is written for the person is the paragraph under
 // it, and it has two jobs and one hard rule.
 //
-// The jobs: name the concrete things they actually wrote, and say what kind of
-// road this card describes for them.
+// The jobs: name the concrete things they actually wrote, say what kind of road
+// this card describes for them, and end with what the card asks — in the card's
+// own terms, not as a plan for their week. "Choose the next rung" is the card
+// speaking. "Start with twenty minutes of exercise" is an app they did not ask
+// for.
 //
 // The rule: it does not promise arrival. Every card leaves the door open —
 // that is the deck's whole principle — so the reading describes the shape of
@@ -48,13 +51,17 @@ Write ONE paragraph, two or three sentences, in ${language}, addressed to them a
 It must:
 - name the concrete things they actually wrote, in their words. If they said two
   children, say two children. If they named a company, name it.
-- say what kind of road this card describes for what they want.
+- if their wish holds several different things, say so plainly, and that those
+  things will not move at the same speed.
+- end by naming what this card asks of them, in the card's own terms — choosing
+  the next rung, asking someone, staying in the boat, carrying it themselves.
 
 It must NOT:
 - promise the wish will happen, or say when it will
 - replace what they said with an abstract idea ("security", "fulfilment",
   "growth"), or add a wish they did not write
-- give advice, steps, or instructions
+- give advice about their actual life: no plans, no steps, no numbers, no
+  timetable, nothing they should go and do today
 - greet them, name the card twice, or explain what an oracle is
 
 Answer with the paragraph alone.`;

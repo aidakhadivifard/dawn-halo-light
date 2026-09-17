@@ -56,12 +56,23 @@ describe("asking for the reading", () => {
     expect(p).toContain("The Ladder");
   });
 
-  it("forbids promising, abstracting, and advising", () => {
+  it("forbids promising and abstracting", () => {
     const p = readingPrompt(INPUT);
     expect(p).toContain("promise the wish will happen");
     // The exact failure this rule exists for.
     expect(p).toContain("If they said two\n  children, say two children");
-    expect(p).toContain("advice, steps, or instructions");
+  });
+
+  it("allows the card's own ask, and forbids running her life", () => {
+    const p = readingPrompt(INPUT);
+    // What the card asks is the point of the paragraph.
+    expect(p).toContain("what this card asks of them, in the card's own terms");
+    // A plan for her week is not.
+    expect(p).toContain("no plans, no steps, no numbers, no");
+  });
+
+  it("says out loud when a wish holds several things at once", () => {
+    expect(readingPrompt(INPUT)).toContain("will not move at the same speed");
   });
 
   it("asks in her language", () => {

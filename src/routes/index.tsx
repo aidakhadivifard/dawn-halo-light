@@ -577,21 +577,43 @@ function WishPage() {
           </div>
 
           {told && drawn && (
-            <div className="w-full mt-9 text-center">
-              <p className="font-serif text-[18px] leading-relaxed text-wish-ink text-balance animate-rise-line">
+            <div className="w-full mt-9">
+              {/* Three layers, and they do different work. What the card IS —
+                  the same for everyone, written by a person. What it means for
+                  THIS wish — the only part written for her. And one line short
+                  enough to carry out of the app and into the day. */}
+              <p className="text-center text-[12px] tracking-[0.18em] uppercase text-wish-muted/80 rtl:tracking-normal rtl:normal-case rtl:text-[14px] animate-rise-line">
+                {t.labelMeaning}
+              </p>
+              <p className="mt-2 text-center font-serif text-[19px] leading-relaxed text-wish-ink text-balance animate-rise-line">
                 {cardText(lang, drawn.id).appears}
               </p>
+
               {drawn.reading && (
-                <p
-                  className="mt-4 font-serif text-[17px] leading-relaxed text-wish-muted text-balance"
-                  style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 260ms both" }}
-                >
-                  {drawn.reading}
-                </p>
+                <div style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 260ms both" }}>
+                  <p className="mt-8 text-center text-[12px] tracking-[0.18em] uppercase text-wish-muted/80 rtl:tracking-normal rtl:normal-case rtl:text-[14px]">
+                    {t.labelForYou}
+                  </p>
+                  <p className="mt-2 text-center font-serif text-[18px] leading-relaxed text-wish-muted text-balance">
+                    {drawn.reading}
+                  </p>
+                </div>
               )}
-              <p
-                className="mt-6 text-[13px] text-wish-muted"
+
+              {/* The line she leaves with. Set apart, under a gold rule. */}
+              <div
+                className="mt-9 flex flex-col items-center"
                 style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 460ms both" }}
+              >
+                <span aria-hidden className="block w-10 h-px bg-wish-gold/70" />
+                <p className="mt-5 text-center font-serif text-[22px] leading-snug text-wish-ink text-balance">
+                  {cardText(lang, drawn.id).carry}
+                </p>
+              </div>
+
+              <p
+                className="mt-8 text-center text-[13px] leading-relaxed text-wish-muted"
+                style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 620ms both" }}
               >
                 {t.cardAll}
               </p>
@@ -599,7 +621,7 @@ function WishPage() {
                 onClick={keepCard}
                 disabled={!!flight}
                 className="mt-6 w-full"
-                style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 620ms both" }}
+                style={{ animation: "risein 620ms cubic-bezier(0.19,1,0.22,1) 780ms both" }}
               >
                 {t.cardKeep}
               </Primary>
