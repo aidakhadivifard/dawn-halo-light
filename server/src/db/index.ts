@@ -20,6 +20,8 @@ export interface DeviceRow {
 export type SketchStatus = "none" | "pending" | "ready" | "failed";
 
 export interface HorizonRow {
+  /** A wish has its own id now: a person keeps several at once. */
+  id: string;
   device_id: string;
   text: string;
   created_at: string;
@@ -34,22 +36,6 @@ export interface HorizonRow {
   /** The road card drawn for this wish. Once set, the wish is sealed forever. */
   card_id: string | null;
   card_at: string | null;
-}
-
-/**
- * A wish someone wrote but is not working on yet.
- *
- * People write several wishes at once. Only one gets the card; the rest are
- * kept here, so "nothing is lost" is a fact and not a kindness.
- */
-export interface ParkedWishRow {
-  id: string;
-  device_id: string;
-  label: string;
-  lang: string;
-  created_at: string;
-  /** Set when this one is taken off the shelf and becomes the live wish. */
-  taken_at: string | null;
 }
 
 export interface DeedRow {
@@ -261,24 +247,30 @@ CREATE INDEX IF NOT EXISTS idx_vow_steps_journey ON vow_steps(journey_id, local_
 
 -- The Horizon: the life a person is walking toward, in their own words.
 -- Never measured, never a goal — only kept and quoted back. One per device.
+-- The wishes. A person keeps several at once: some have had their card
+-- drawn and are being lived, others were written in the same breath and are
+-- still waiting. They are the same kind of thing, so they are the same row —
+-- a waiting wish is simply one with no card yet.
 CREATE TABLE IF NOT EXISTS horizons (
-  device_id TEXT PRIMARY KEY,
+  id TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL,
   text TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_horizons_device ON horizons(device_id, created_at);
 
 -- The horizon sketch: the person's own words drawn once as a thin ink line
 -- (kind='line') and once more as a soft watercolor (kind='color'). The app
 -- reveals the color slowly, by the staying. Bytes live here so Litestream
 -- replicates them with everything else; a public token serves them to <img>.
 CREATE TABLE IF NOT EXISTS horizon_sketches (
-  device_id TEXT NOT NULL,
+  horizon_id TEXT NOT NULL,
   kind TEXT NOT NULL,
   mime TEXT NOT NULL,
   bytes BLOB NOT NULL,
   created_at TEXT NOT NULL,
-  PRIMARY KEY (device_id, kind)
+  PRIMARY KEY (horizon_id, kind)
 );
 
 -- The deeds: what a person did today for their wish. Two kinds, and BOTH count
@@ -289,20 +281,11 @@ CREATE TABLE IF NOT EXISTS deeds (
   device_id TEXT NOT NULL,
   kind TEXT NOT NULL,          -- 'did' | 'stayed' | 'stuck'
   text TEXT,                   -- what it was, in their words (optional for 'stayed')
+  horizon_id TEXT,             -- which wish it was for
   local_date TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_deeds_device ON deeds(device_id, local_date);
-
-CREATE TABLE IF NOT EXISTS parked_wishes (
-  id TEXT PRIMARY KEY,
-  device_id TEXT NOT NULL,
-  label TEXT NOT NULL,
-  lang TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  taken_at TEXT                -- NULL while it is still waiting
-);
-CREATE INDEX IF NOT EXISTS idx_parked_device ON parked_wishes(device_id, taken_at);
 
 CREATE TABLE IF NOT EXISTS partners (
   code TEXT PRIMARY KEY,
@@ -331,6 +314,83 @@ export function createDb(path = ":memory:") {
   sqlite.pragma("journal_mode = WAL");
   sqlite.exec(SCHEMA);
 
+  // One wish became several. Databases written before that keyed a wish by
+  // its device; now a wish has its own id, and its picture and its deeds hang
+  // off THAT. Rebuild both tables together, in one transaction, so the link
+  // between a wish and its picture can never be lost halfway.
+  function columnsOf(table: string): string[] {
+    return (sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
+  }
+  if (!columnsOf("horizons").includes("id")) {
+    sqlite.transaction(() => {
+      sqlite.exec("ALTER TABLE horizons RENAME TO horizons_v1");
+      sqlite.exec(`CREATE TABLE horizons (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        sketch_status TEXT NOT NULL DEFAULT 'none',
+        sketch_token TEXT,
+        sketch_error TEXT,
+        sketch_for_text TEXT,
+        sketch_draws INTEGER NOT NULL DEFAULT 0,
+        card_id TEXT,
+        card_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_horizons_device ON horizons(device_id, created_at);`);
+
+      const had = columnsOf("horizons_v1");
+      const col = (r: Record<string, unknown>, name: string, fallback: unknown = null) =>
+        had.includes(name) ? (r[name] ?? fallback) : fallback;
+      const insert = sqlite.prepare(
+        `INSERT INTO horizons (id, device_id, text, created_at, updated_at, sketch_status,
+           sketch_token, sketch_error, sketch_for_text, sketch_draws, card_id, card_at)
+         VALUES (@id, @device_id, @text, @created_at, @updated_at, @sketch_status,
+           @sketch_token, @sketch_error, @sketch_for_text, @sketch_draws, @card_id, @card_at)`,
+      );
+      const idFor = new Map<string, string>();
+      for (const r of sqlite.prepare("SELECT * FROM horizons_v1").all() as Record<string, any>[]) {
+        const id = randomUUID();
+        idFor.set(r.device_id, id);
+        insert.run({
+          id,
+          device_id: r.device_id,
+          text: r.text,
+          created_at: r.created_at,
+          updated_at: r.updated_at,
+          sketch_status: col(r, "sketch_status", "none"),
+          sketch_token: col(r, "sketch_token"),
+          sketch_error: col(r, "sketch_error"),
+          sketch_for_text: col(r, "sketch_for_text"),
+          sketch_draws: col(r, "sketch_draws", 0),
+          card_id: col(r, "card_id"),
+          card_at: col(r, "card_at"),
+        });
+      }
+      sqlite.exec("DROP TABLE horizons_v1");
+
+      // The pictures follow their wish.
+      if (!columnsOf("horizon_sketches").includes("horizon_id")) {
+        sqlite.exec("ALTER TABLE horizon_sketches RENAME TO horizon_sketches_v1");
+        sqlite.exec(`CREATE TABLE horizon_sketches (
+          horizon_id TEXT NOT NULL, kind TEXT NOT NULL, mime TEXT NOT NULL,
+          bytes BLOB NOT NULL, created_at TEXT NOT NULL,
+          PRIMARY KEY (horizon_id, kind)
+        );`);
+        const putS = sqlite.prepare(
+          `INSERT OR REPLACE INTO horizon_sketches (horizon_id, kind, mime, bytes, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        );
+        for (const r of sqlite.prepare("SELECT * FROM horizon_sketches_v1").all() as Record<string, any>[]) {
+          const id = idFor.get(r.device_id);
+          if (id) putS.run(id, r.kind, r.mime, r.bytes, r.created_at);
+        }
+        sqlite.exec("DROP TABLE horizon_sketches_v1");
+      }
+    })();
+  }
+
   // Idempotent migrations for databases created before a column existed.
   for (const sql of [
     "ALTER TABLE draws ADD COLUMN reflection TEXT",
@@ -344,6 +404,10 @@ export function createDb(path = ":memory:") {
     "ALTER TABLE horizons ADD COLUMN sketch_error TEXT",
     "ALTER TABLE horizons ADD COLUMN sketch_for_text TEXT",
     "ALTER TABLE horizons ADD COLUMN sketch_draws INTEGER NOT NULL DEFAULT 0",
+    // Several wishes at once: each deed belongs to one of them, and the device
+    // remembers which one is open.
+    "ALTER TABLE deeds ADD COLUMN horizon_id TEXT",
+    "ALTER TABLE devices ADD COLUMN current_horizon_id TEXT",
     // The road card, drawn once. Drawing it SEALS the wish: the words can never
     // be edited again, and the picture is drawn from them forever.
     "ALTER TABLE horizons ADD COLUMN card_id TEXT",
@@ -440,18 +504,37 @@ export function createDb(path = ":memory:") {
     activeJourneys: sqlite.prepare<[string]>(
       "SELECT * FROM journeys WHERE device_id = ? AND status = 'active' ORDER BY created_at ASC",
     ),
-    getHorizon: sqlite.prepare<[string]>("SELECT * FROM horizons WHERE device_id = ?"),
+    getHorizonById: sqlite.prepare<[string]>("SELECT * FROM horizons WHERE id = ?"),
+    listHorizons: sqlite.prepare<[string]>(
+      "SELECT * FROM horizons WHERE device_id = ? ORDER BY created_at ASC",
+    ),
+    newestHorizon: sqlite.prepare<[string]>(
+      "SELECT * FROM horizons WHERE device_id = ? ORDER BY updated_at DESC LIMIT 1",
+    ),
+    insertHorizon: sqlite.prepare(
+      `INSERT INTO horizons (id, device_id, text, created_at, updated_at)
+       VALUES (@id, @device_id, @text, @now, @now)`,
+    ),
+    renameHorizon: sqlite.prepare(
+      "UPDATE horizons SET text = @text, updated_at = @now WHERE id = @id",
+    ),
+    touchHorizon: sqlite.prepare<[string, string]>(
+      "UPDATE horizons SET updated_at = ? WHERE id = ?",
+    ),
+    setCurrentHorizon: sqlite.prepare<[string | null, string]>(
+      "UPDATE devices SET current_horizon_id = ? WHERE device_id = ?",
+    ),
     getHorizonByToken: sqlite.prepare<[string]>("SELECT * FROM horizons WHERE sketch_token = ?"),
     setSketchStatus: sqlite.prepare(
       `UPDATE horizons SET sketch_status = @status, sketch_error = @error, sketch_token = COALESCE(@token, sketch_token),
-         sketch_for_text = COALESCE(@for_text, sketch_for_text) WHERE device_id = @device_id`,
+         sketch_for_text = COALESCE(@for_text, sketch_for_text) WHERE id = @horizon_id`,
     ),
     putSketch: sqlite.prepare(
-      `INSERT INTO horizon_sketches (device_id, kind, mime, bytes, created_at)
-       VALUES (@device_id, @kind, @mime, @bytes, @now)
-       ON CONFLICT(device_id, kind) DO UPDATE SET mime = @mime, bytes = @bytes, created_at = @now`,
+      `INSERT INTO horizon_sketches (horizon_id, kind, mime, bytes, created_at)
+       VALUES (@horizon_id, @kind, @mime, @bytes, @now)
+       ON CONFLICT(horizon_id, kind) DO UPDATE SET mime = @mime, bytes = @bytes, created_at = @now`,
     ),
-    getSketch: sqlite.prepare<[string, string]>("SELECT * FROM horizon_sketches WHERE device_id = ? AND kind = ?"),
+    getSketch: sqlite.prepare<[string, string]>("SELECT * FROM horizon_sketches WHERE horizon_id = ? AND kind = ?"),
     // Everything that counts as staying. A deed counts the same whether the
     // person did something small or only endured — that is the whole point.
     countStaying: sqlite.prepare<[string, string, string]>(
@@ -459,11 +542,15 @@ export function createDb(path = ":memory:") {
             + (SELECT COUNT(*) FROM dark_nights WHERE device_id = ?)
             + (SELECT COUNT(*) FROM deeds WHERE device_id = ?) AS n`,
     ),
+    /** The staying earned for ONE wish. Colour belongs to the wish it was for. */
+    countStayingFor: sqlite.prepare<[string]>(
+      "SELECT COUNT(*) AS n FROM deeds WHERE horizon_id = ?",
+    ),
 
     // --- Deeds (what I did today for my wish) ---
     insertDeed: sqlite.prepare(
-      `INSERT INTO deeds (id, device_id, kind, text, local_date, created_at)
-       VALUES (@id, @device_id, @kind, @text, @local_date, @created_at)`,
+      `INSERT INTO deeds (id, device_id, kind, text, horizon_id, local_date, created_at)
+       VALUES (@id, @device_id, @kind, @text, @horizon_id, @local_date, @created_at)`,
     ),
     listDeeds: sqlite.prepare<[string, number]>(
       "SELECT * FROM deeds WHERE device_id = ? ORDER BY created_at DESC LIMIT ?",
@@ -471,32 +558,23 @@ export function createDb(path = ":memory:") {
     deedsOn: sqlite.prepare<[string, string]>(
       "SELECT * FROM deeds WHERE device_id = ? AND local_date = ? ORDER BY created_at DESC",
     ),
+    deedsOnFor: sqlite.prepare<[string, string]>(
+      "SELECT * FROM deeds WHERE horizon_id = ? AND local_date = ? ORDER BY created_at DESC",
+    ),
+    listDeedsFor: sqlite.prepare<[string, number]>(
+      "SELECT * FROM deeds WHERE horizon_id = ? ORDER BY created_at DESC LIMIT ?",
+    ),
+    lastDeedAt: sqlite.prepare<[string]>(
+      "SELECT MAX(created_at) AS at FROM deeds WHERE horizon_id = ?",
+    ),
     getDeed: sqlite.prepare<[string, string]>(
       "SELECT * FROM deeds WHERE device_id = ? AND id = ?",
     ),
-    parkWish: sqlite.prepare(
-      "INSERT INTO parked_wishes (id, device_id, label, lang, created_at, taken_at)" +
-        " VALUES (@id, @device_id, @label, @lang, @created_at, NULL)",
-    ),
-    listParked: sqlite.prepare<[string]>(
-      "SELECT * FROM parked_wishes WHERE device_id = ? AND taken_at IS NULL ORDER BY created_at ASC",
-    ),
-    getParked: sqlite.prepare<[string, string]>(
-      "SELECT * FROM parked_wishes WHERE device_id = ? AND id = ?",
-    ),
-    takeParked: sqlite.prepare<[string, string, string]>(
-      "UPDATE parked_wishes SET taken_at = ? WHERE device_id = ? AND id = ? AND taken_at IS NULL",
-    ),
     setCard: sqlite.prepare(
-      "UPDATE horizons SET card_id = @card_id, card_at = @card_at WHERE device_id = @device_id",
+      "UPDATE horizons SET card_id = @card_id, card_at = @card_at WHERE id = @horizon_id",
     ),
-    bumpSketchDraws: sqlite.prepare<[string]>("UPDATE horizons SET sketch_draws = sketch_draws + 1 WHERE device_id = ?"),
-    deleteSketches: sqlite.prepare<[string]>("DELETE FROM horizon_sketches WHERE device_id = ?"),
-    upsertHorizon: sqlite.prepare(
-      `INSERT INTO horizons (device_id, text, created_at, updated_at)
-       VALUES (@device_id, @text, @now, @now)
-       ON CONFLICT(device_id) DO UPDATE SET text = @text, updated_at = @now`,
-    ),
+    bumpSketchDraws: sqlite.prepare<[string]>("UPDATE horizons SET sketch_draws = sketch_draws + 1 WHERE id = ?"),
+    deleteSketches: sqlite.prepare<[string]>("DELETE FROM horizon_sketches WHERE horizon_id = ?"),
     getJourney: sqlite.prepare<[string]>("SELECT * FROM journeys WHERE id = ?"),
     listJourneys: sqlite.prepare<[string]>(
       "SELECT * FROM journeys WHERE device_id = ? ORDER BY created_at DESC",
@@ -579,6 +657,13 @@ export function createDb(path = ":memory:") {
       "SELECT COALESCE(SUM(amount_usd), 0) AS total FROM partner_revenue WHERE partner_code = ?",
     ),
   };
+
+  sqlite.exec("CREATE INDEX IF NOT EXISTS idx_deeds_horizon ON deeds(horizon_id, local_date)");
+  // Deeds written before wishes were plural belong to that person's one wish.
+  sqlite.exec(`UPDATE deeds SET horizon_id = (
+      SELECT h.id FROM horizons h WHERE h.device_id = deeds.device_id
+      ORDER BY h.created_at ASC LIMIT 1
+    ) WHERE horizon_id IS NULL`);
 
   return {
     raw: sqlite,
@@ -702,37 +787,117 @@ export function createDb(path = ":memory:") {
     activeJourneys(deviceId: string): JourneyRow[] {
       return stmts.activeJourneys.all(deviceId) as JourneyRow[];
     },
+    // ----- The wishes ------------------------------------------------------
+    //
+    // A person keeps several. One of them is OPEN — the one they last looked
+    // at — and that is what the plain, wish-less calls below mean by "the
+    // horizon". Everything that belongs to one wish (its picture, its card,
+    // its deeds) is keyed by that wish's id, never by the device.
+
+    /** The wish currently open, or the most recently touched one. */
     getHorizon(deviceId: string): HorizonRow | undefined {
-      return stmts.getHorizon.get(deviceId) as HorizonRow | undefined;
+      const cur = stmts.getDevice.get(deviceId) as DeviceRow | undefined;
+      const id = (cur as { current_horizon_id?: string | null } | undefined)?.current_horizon_id;
+      if (id) {
+        const row = stmts.getHorizonById.get(id) as HorizonRow | undefined;
+        if (row && row.device_id === deviceId) return row;
+      }
+      return stmts.newestHorizon.get(deviceId) as HorizonRow | undefined;
+    },
+    /** Every wish this person has, oldest first — the order they wrote them. */
+    listHorizons(deviceId: string): HorizonRow[] {
+      return stmts.listHorizons.all(deviceId) as HorizonRow[];
+    },
+    /** By id alone — for the drawing job, which already knows whose it is. */
+    horizonRow(id: string): HorizonRow | undefined {
+      return stmts.getHorizonById.get(id) as HorizonRow | undefined;
+    },
+    getHorizonById(deviceId: string, id: string): HorizonRow | undefined {
+      const row = stmts.getHorizonById.get(id) as HorizonRow | undefined;
+      return row && row.device_id === deviceId ? row : undefined;
     },
     getHorizonByToken(token: string): HorizonRow | undefined {
       return stmts.getHorizonByToken.get(token) as HorizonRow | undefined;
     },
-    setHorizon(deviceId: string, text: string) {
-      stmts.upsertHorizon.run({ device_id: deviceId, text, now: new Date().toISOString() });
+    /** Write a new wish down. It is not opened until someone opens it. */
+    createHorizon(deviceId: string, text: string): HorizonRow {
+      const id = randomUUID();
+      stmts.insertHorizon.run({ id, device_id: deviceId, text, now: new Date().toISOString() });
+      return stmts.getHorizonById.get(id) as HorizonRow;
     },
-    setSketchStatus(args: { deviceId: string; status: SketchStatus; error?: string | null; token?: string | null; forText?: string | null }) {
+    /**
+     * Write down wishes she is not starting yet. A wish she already has is
+     * skipped, so writing the same list twice never doubles it — which is what
+     * makes "nothing is lost" a fact rather than a kindness.
+     */
+    addWishes(deviceId: string, texts: string[]): number {
+      const have = new Set(this.listHorizons(deviceId).map((h) => h.text.trim().toLowerCase()));
+      let n = 0;
+      for (const raw of texts) {
+        const text = raw.trim().slice(0, 500);
+        if (!text || have.has(text.toLowerCase())) continue;
+        have.add(text.toLowerCase());
+        this.createHorizon(deviceId, text);
+        n++;
+      }
+      return n;
+    },
+    /** Open a wish: this is the one the plain calls will mean from now on. */
+    openHorizon(deviceId: string, id: string): HorizonRow | undefined {
+      const row = stmts.getHorizonById.get(id) as HorizonRow | undefined;
+      if (!row || row.device_id !== deviceId) return undefined;
+      stmts.setCurrentHorizon.run(id, deviceId);
+      stmts.touchHorizon.run(new Date().toISOString(), id);
+      return row;
+    },
+    /**
+     * Name the open wish.
+     *
+     * Before its card is drawn the words are still hers to change, so this
+     * renames it. Once it is sealed — or when there is nothing open — this
+     * starts a NEW wish and opens it, which is what makes "you can always
+     * begin another wish later" true.
+     */
+    setHorizon(deviceId: string, text: string): HorizonRow {
+      const cur = this.getHorizon(deviceId);
+      if (cur && !cur.card_id) {
+        stmts.renameHorizon.run({ id: cur.id, text, now: new Date().toISOString() });
+        stmts.setCurrentHorizon.run(cur.id, deviceId);
+        return stmts.getHorizonById.get(cur.id) as HorizonRow;
+      }
+      const row = this.createHorizon(deviceId, text);
+      stmts.setCurrentHorizon.run(row.id, deviceId);
+      return row;
+    },
+    setSketchStatus(args: { horizonId: string; status: SketchStatus; error?: string | null; token?: string | null; forText?: string | null }) {
       stmts.setSketchStatus.run({
-        device_id: args.deviceId, status: args.status, error: args.error ?? null,
+        horizon_id: args.horizonId, status: args.status, error: args.error ?? null,
         token: args.token ?? null, for_text: args.forText ?? null,
       });
     },
-    putSketch(deviceId: string, kind: "line" | "color", mime: string, bytes: Buffer) {
-      stmts.putSketch.run({ device_id: deviceId, kind, mime, bytes, now: new Date().toISOString() });
+    putSketch(horizonId: string, kind: "line" | "color", mime: string, bytes: Buffer) {
+      stmts.putSketch.run({ horizon_id: horizonId, kind, mime, bytes, now: new Date().toISOString() });
     },
-    getSketch(deviceId: string, kind: "line" | "color"): { mime: string; bytes: Buffer; created_at: string } | undefined {
-      return stmts.getSketch.get(deviceId, kind) as any;
+    getSketch(horizonId: string, kind: "line" | "color"): { mime: string; bytes: Buffer; created_at: string } | undefined {
+      return stmts.getSketch.get(horizonId, kind) as any;
     },
-    deleteSketches(deviceId: string) {
-      stmts.deleteSketches.run(deviceId);
+    deleteSketches(horizonId: string) {
+      stmts.deleteSketches.run(horizonId);
     },
     /** Done steps, hard nights stayed through, and deeds. Never the failing. */
     countStaying(deviceId: string): number {
       return (stmts.countStaying.get(deviceId, deviceId, deviceId) as { n: number }).n;
     },
-    /** Seal the wish with its road card. Called once, ever. */
-    setCard(deviceId: string, cardId: string, at: string) {
-      stmts.setCard.run({ device_id: deviceId, card_id: cardId, card_at: at });
+    /** The staying earned for ONE wish — what lets colour into ITS picture. */
+    countStayingFor(horizonId: string): number {
+      return (stmts.countStayingFor.get(horizonId) as { n: number }).n;
+    },
+    lastDeedAt(horizonId: string): string | null {
+      return (stmts.lastDeedAt.get(horizonId) as { at: string | null }).at;
+    },
+    /** Seal a wish with its road card. Called once per wish, ever. */
+    setCard(horizonId: string, cardId: string, at: string) {
+      stmts.setCard.run({ horizon_id: horizonId, card_id: cardId, card_at: at });
     },
     insertDeed(row: DeedRow) {
       stmts.insertDeed.run(row as any);
@@ -743,39 +908,15 @@ export function createDb(path = ":memory:") {
     deedsOn(deviceId: string, localDate: string): DeedRow[] {
       return stmts.deedsOn.all(deviceId, localDate) as DeedRow[];
     },
+    /** Today's answer for ONE wish. Answering one is not answering another. */
+    deedsOnFor(horizonId: string, localDate: string): DeedRow[] {
+      return stmts.deedsOnFor.all(horizonId, localDate) as DeedRow[];
+    },
+    listDeedsFor(horizonId: string, limit = 60): DeedRow[] {
+      return stmts.listDeedsFor.all(horizonId, limit) as DeedRow[];
+    },
     getDeed(deviceId: string, id: string): DeedRow | undefined {
       return stmts.getDeed.get(deviceId, id) as DeedRow | undefined;
-    },
-    /** Shelve the wishes that were not chosen. Duplicates of what is already
-     *  on the shelf are skipped, so re-writing a wish never doubles it. */
-    parkWishes(deviceId: string, labels: string[], lang: string, createdAt: string): number {
-      const have = new Set(
-        (stmts.listParked.all(deviceId) as ParkedWishRow[]).map((r) => r.label.toLowerCase()),
-      );
-      let n = 0;
-      for (const raw of labels) {
-        const label = raw.trim().slice(0, 200);
-        if (!label || have.has(label.toLowerCase())) continue;
-        have.add(label.toLowerCase());
-        stmts.parkWish.run({
-          id: randomUUID(),
-          device_id: deviceId,
-          label,
-          lang,
-          created_at: createdAt,
-        });
-        n++;
-      }
-      return n;
-    },
-    listParked(deviceId: string): ParkedWishRow[] {
-      return stmts.listParked.all(deviceId) as ParkedWishRow[];
-    },
-    getParked(deviceId: string, id: string): ParkedWishRow | undefined {
-      return stmts.getParked.get(deviceId, id) as ParkedWishRow | undefined;
-    },
-    takeParked(deviceId: string, id: string, takenAt: string): boolean {
-      return stmts.takeParked.run(takenAt, deviceId, id).changes > 0;
     },
     bumpSketchDraws(deviceId: string) {
       stmts.bumpSketchDraws.run(deviceId);

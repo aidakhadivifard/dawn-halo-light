@@ -139,6 +139,8 @@ describe("choosing one and keeping the rest", () => {
 
   const put = (body: object) =>
     request(app).put("/api/horizon").set("x-device-id", DEVICE).send(body);
+  const wishes = () => request(app).get("/api/wishes").set("x-device-id", DEVICE);
+  const texts = (res: { body: { wishes: { text: string }[] } }) => res.body.wishes.map((w) => w.text);
 
   it("says back what it heard without saving anything", async () => {
     const res = await request(app)
@@ -150,45 +152,43 @@ describe("choosing one and keeping the rest", () => {
     // Nothing committed: the person has not chosen yet.
     const home = await request(app).get("/api/home").set("x-device-id", DEVICE).expect(200);
     expect(home.body.horizon).toBeNull();
-    const parked = await request(app).get("/api/wish/parked").set("x-device-id", DEVICE).expect(200);
-    expect(parked.body.wishes).toEqual([]);
+    expect((await wishes().expect(200)).body.wishes).toEqual([]);
   });
 
-  it("puts the chosen wish on the horizon and the others on the shelf", async () => {
+  it("the chosen wish is opened and the others are written down beside it", async () => {
     await put({ text: "Have two children", park: ["Become wealthy", "Do sports"], lang: "en" }).expect(200);
 
     const home = await request(app).get("/api/home").set("x-device-id", DEVICE).expect(200);
     expect(home.body.horizon).toBe("Have two children");
 
-    const parked = await request(app).get("/api/wish/parked").set("x-device-id", DEVICE).expect(200);
-    expect(parked.body.wishes.map((w: { label: string }) => w.label)).toEqual([
-      "Become wealthy",
-      "Do sports",
-    ]);
-    // They keep an id, so one of them can be taken off the shelf later.
-    expect(parked.body.wishes[0].id).toBeTruthy();
+    const list = await wishes().expect(200);
+    expect(texts(list)).toEqual(["Have two children", "Become wealthy", "Do sports"]);
+    // The ones still waiting have no card, and they are not the open one.
+    const waiting = list.body.wishes.filter((w: { card: unknown }) => !w.card);
+    expect(waiting.length).toBe(3);
+    expect(list.body.currentId).toBe(
+      list.body.wishes.find((w: { text: string }) => w.text === "Have two children").id,
+    );
   });
 
-  it("never shelves the wish she is actually living", async () => {
+  it("never writes down the wish she is actually living twice", async () => {
     await put({ text: "Do sports", park: ["Do sports", "Become wealthy"] }).expect(200);
-    const parked = await request(app).get("/api/wish/parked").set("x-device-id", DEVICE);
-    expect(parked.body.wishes.map((w: { label: string }) => w.label)).toEqual(["Become wealthy"]);
+    expect(texts(await wishes())).toEqual(["Do sports", "Become wealthy"]);
   });
 
-  it("rewriting the wish does not double the shelf", async () => {
+  it("rewriting the wish does not double the list", async () => {
     await put({ text: "Have two children", park: ["Become wealthy"] }).expect(200);
     await put({ text: "Have two children", park: ["Become wealthy"] }).expect(200);
-    const parked = await request(app).get("/api/wish/parked").set("x-device-id", DEVICE);
-    expect(parked.body.wishes.length).toBe(1);
+    expect(texts(await wishes())).toEqual(["Have two children", "Become wealthy"]);
   });
 
-  it("the shelf belongs to one person only", async () => {
+  it("the list belongs to one person only", async () => {
     await put({ text: "Have two children", park: ["Become wealthy"] }).expect(200);
-    const other = await request(app).get("/api/wish/parked").set("x-device-id", "device-hear-0002");
+    const other = await request(app).get("/api/wishes").set("x-device-id", "device-hear-0002");
     expect(other.body.wishes).toEqual([]);
   });
 
-  it("a sealed wish cannot be re-heard or replaced", async () => {
+  it("a sealed wish cannot be re-heard or renamed", async () => {
     await put({ text: "Have two children", park: [] }).expect(200);
     await request(app).post("/api/card").set("x-device-id", DEVICE).expect(200);
     await request(app)
@@ -197,5 +197,68 @@ describe("choosing one and keeping the rest", () => {
       .send({ text: FIVE })
       .expect(409);
     await put({ text: "Something else entirely" }).expect(409);
+  });
+
+  it("but another wish can always be begun — and the sealed one keeps its card", async () => {
+    await put({ text: "Have two children", park: ["Become wealthy"] }).expect(200);
+    await request(app).post("/api/card").set("x-device-id", DEVICE).expect(200);
+
+    // Take the one that was waiting.
+    const list = await wishes();
+    const waiting = list.body.wishes.find((w: { text: string }) => w.text === "Become wealthy");
+    await request(app).post(`/api/wishes/${waiting.id}/open`).set("x-device-id", DEVICE).expect(200);
+
+    const home = await request(app).get("/api/home").set("x-device-id", DEVICE);
+    expect(home.body.horizon).toBe("Become wealthy");
+    expect(home.body.card).toBeNull(); // its own road has not been asked for yet
+    expect(home.body.sealed).toBe(false);
+
+    // And the first one is exactly where she left it.
+    const after = await wishes();
+    const first = after.body.wishes.find((w: { text: string }) => w.text === "Have two children");
+    expect(first.card).not.toBeNull();
+  });
+
+  it("a wish begun from scratch opens straight away", async () => {
+    await put({ text: "Have two children" }).expect(200);
+    await request(app).post("/api/card").set("x-device-id", DEVICE).expect(200);
+
+    const made = await request(app)
+      .post("/api/wishes")
+      .set("x-device-id", DEVICE)
+      .send({ text: "A quiet house by the sea" })
+      .expect(200);
+    const home = await request(app).get("/api/home").set("x-device-id", DEVICE);
+    expect(home.body.horizon).toBe("A quiet house by the sea");
+    expect(home.body.wishId).toBe(made.body.wishId);
+  });
+
+  it("one person's wish cannot be opened by another", async () => {
+    await put({ text: "Have two children", park: ["Become wealthy"] }).expect(200);
+    const mine = (await wishes()).body.wishes[0].id;
+    await request(app).post(`/api/wishes/${mine}/open`).set("x-device-id", "device-hear-0002").expect(404);
+  });
+
+  it("today's answer belongs to the wish it was given for", async () => {
+    await put({ text: "Have two children" }).expect(200);
+    await request(app)
+      .post("/api/deed")
+      .set("x-device-id", DEVICE)
+      .set("x-local-date", "2026-09-17")
+      .send({ kind: "stayed" })
+      .expect(200);
+
+    await request(app)
+      .post("/api/wishes")
+      .set("x-device-id", DEVICE)
+      .send({ text: "A quiet house by the sea" })
+      .expect(200);
+
+    // The new wish has not been answered today, even though the day has been.
+    const home = await request(app)
+      .get("/api/home")
+      .set("x-device-id", DEVICE)
+      .set("x-local-date", "2026-09-17");
+    expect(home.body.todayDeed).toBeNull();
   });
 });

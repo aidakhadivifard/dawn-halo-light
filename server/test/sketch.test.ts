@@ -123,19 +123,42 @@ describe("horizon sketch", () => {
     expect(ask.body.status).toBe("capped");
   });
 
-  it("lit counts done steps and hard nights only — never declines or not-moved", async () => {
+  it("colour comes from THIS wish's own days — a road is not a wish", async () => {
     const api = createApp(db, { client: null, sketch: { apiKey: null } });
     await h(request(api).put("/api/horizon")).send({ text: "a body I trust" });
     await h(request(api).post("/api/journey")).send({ enduring: "the gym", hope: "to feel at home in my body" });
 
     await h(request(api).post("/api/journey/step"), "2026-09-01").send({ text: "walk" });
     await h(request(api).post("/api/journey/step/resolve"), "2026-09-01").send({ done: true });
-    await h(request(api).post("/api/journey/step"), "2026-09-02").send({ text: "walk" });
-    await h(request(api).post("/api/journey/step/resolve"), "2026-09-02").send({ done: false });
-    await h(request(api).post("/api/journey/step/decline"), "2026-09-03");
     await h(request(api).post("/api/journey/dark-night"), "2026-09-04").send({ text: "I skipped again" });
 
+    // A person can keep several wishes now. Days spent on a road they started
+    // separately do not colour in a wish those days were never for.
+    let home = await h(request(api).get("/api/home"));
+    expect(home.body.sketch.lit).toBe(0);
+
+    // Its own days do — and all three answers count exactly the same.
+    await h(request(api).post("/api/deed"), "2026-09-05").send({ kind: "did", text: "walked to the corner" });
+    await h(request(api).post("/api/deed"), "2026-09-06").send({ kind: "stayed" });
+    await h(request(api).post("/api/deed"), "2026-09-07").send({ kind: "stuck" });
+    home = await h(request(api).get("/api/home"));
+    expect(home.body.sketch.lit).toBe(3);
+  });
+
+  it("each wish keeps its own colour", async () => {
+    const api = createApp(db, { client: null, sketch: { apiKey: null } });
+    await h(request(api).put("/api/horizon")).send({ text: "a body I trust" });
+    await h(request(api).post("/api/deed"), "2026-09-01").send({ kind: "stayed" });
+
+    const second = await h(request(api).post("/api/wishes")).send({ text: "a quiet house by the sea" });
     const home = await h(request(api).get("/api/home"));
-    expect(home.body.sketch.lit).toBe(2); // one done step + one night
+    expect(home.body.horizon).toBe("a quiet house by the sea");
+    expect(home.body.sketch.lit).toBe(0); // a new wish starts colourless
+
+    const all = await h(request(api).get("/api/wishes"));
+    const byText = Object.fromEntries(all.body.wishes.map((w: any) => [w.text, w]));
+    expect(byText["a body I trust"].days).toBe(1);
+    expect(byText["a quiet house by the sea"].days).toBe(0);
+    expect(all.body.currentId).toBe(second.body.wishId);
   });
 });

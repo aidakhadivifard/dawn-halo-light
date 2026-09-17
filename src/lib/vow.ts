@@ -100,6 +100,18 @@ export interface Home {
   sketch: Sketch;
   roads: Vow[];
   maxRoads: number;
+  /** Which wish this screen is showing. A person keeps several. */
+  wishId: string | null;
+}
+
+/** A wish as the list shows it. */
+export interface WishListItem {
+  id: string;
+  text: string;
+  card: { id: string; name: string; line: string } | null;
+  sketch: Sketch;
+  answeredToday: boolean;
+  days: number;
 }
 
 export type HorizonOutcome =
@@ -388,6 +400,7 @@ export async function getHome(): Promise<Home> {
       sketch: apiToSketch(home.sketch),
       roads,
       maxRoads: home.maxRoads ?? MAX_ROADS,
+      wishId: home.wishId ?? null,
     };
   } catch {
     const stored = loadStored();
@@ -399,6 +412,7 @@ export async function getHome(): Promise<Home> {
       sketch: NO_SKETCH,
       roads: stored && stored.status === "active" ? [storedToVow(stored)] : [],
       maxRoads: MAX_ROADS,
+      wishId: null,
     };
   }
 }
@@ -725,5 +739,59 @@ export async function getKeepsake(token: string): Promise<ApiKeepsake | null> {
     return keepsake;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Every wish she keeps, in the order she wrote them.
+ *
+ * This is what the app opens to once there is more than one: some have had
+ * their card drawn and are being lived, some are still waiting, and the road
+ * repeats for each of them.
+ */
+export async function listWishes(): Promise<{ currentId: string | null; wishes: WishListItem[] }> {
+  try {
+    const res = await api.listWishes();
+    return {
+      currentId: res.currentId ?? null,
+      wishes: (res.wishes ?? []).map((w) => ({
+        id: w.id,
+        text: w.text,
+        card: w.card ?? null,
+        sketch: apiToSketch(w.sketch),
+        answeredToday: !!w.answeredToday,
+        days: w.days ?? 0,
+      })),
+    };
+  } catch {
+    // Offline: the one wish we cached is still hers to look at.
+    return { currentId: null, wishes: [] };
+  }
+}
+
+/** Open one of them. From here on, every other call means this wish. */
+export async function openWish(id: string): Promise<boolean> {
+  try {
+    await api.openWish(id);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Begin another wish, and open it. A sealed wish is not the end of the app. */
+export async function beginWish(text: string, park: string[] = []): Promise<HorizonOutcome> {
+  const trimmed = text.trim();
+  try {
+    const res = await api.beginWish(trimmed, park);
+    if (res.isCrisis)
+      return { kind: "crisis", message: res.message ?? CRISIS_MESSAGE, resources: res.resources ?? CRISIS_RESOURCES };
+    saveHorizon(res.horizon ?? trimmed);
+    return { kind: "horizon", horizon: res.horizon ?? trimmed };
+  } catch {
+    if (classifyInput(trimmed) === "crisis")
+      return { kind: "crisis", message: CRISIS_MESSAGE, resources: CRISIS_RESOURCES };
+    saveHorizon(trimmed);
+    return { kind: "horizon", horizon: trimmed };
   }
 }

@@ -251,9 +251,28 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     res.json({ wishes: out.wishes, fallback: out.fallback });
   });
 
-  // The wishes waiting their turn, in the order they were written.
-  app.get("/api/wish/parked", requireDevice, (req, res) => {
-    res.json({ wishes: svc.listParkedWishes(req.deviceId!) });
+  // Every wish this person keeps, in the order they wrote them — the ones
+  // being lived and the ones still waiting, in one list.
+  app.get("/api/wishes", requireDevice, resolveLocalDate, (req, res) => {
+    res.json(svc.listWishes(req.deviceId!, req.localDate!));
+  });
+
+  // Open one of them. Everything else on the API then means this wish.
+  app.post("/api/wishes/:id/open", requireDevice, (req, res) => {
+    if (!svc.openWish(req.deviceId!, req.params.id)) return res.status(404).json({ error: "no_such_wish" });
+    res.json({ ok: true });
+  });
+
+  // Begin another wish. A sealed wish is not the end of the app.
+  app.post("/api/wishes", requireDevice, (req, res) => {
+    const park = Array.isArray(req.body?.park)
+      ? req.body.park.map((p: unknown) => String(p ?? "")).filter(Boolean)
+      : [];
+    const out = svc.beginWish(req.deviceId!, (req.body?.text ?? "").toString(), park);
+    if (out.kind === "crisis")
+      return res.json({ isCrisis: true, message: out.message, resources: out.resources });
+    if (out.kind === "invalid") return res.status(400).json({ error: "missing_text" });
+    res.json({ horizon: out.horizon, wishId: out.wishId });
   });
 
   app.put("/api/horizon", requireDevice, (req, res) => {
@@ -267,7 +286,7 @@ export function createApp(db: DB, opts: AppOptions = {}) {
       return res.json({ isCrisis: true, message: result.message, resources: result.resources });
     if (result.kind === "invalid") return res.status(400).json({ error: "missing_text" });
     if (result.kind === "sealed") return res.status(409).json({ error: "sealed" });
-    res.json({ horizon: result.horizon, parked: result.parked });
+    res.json({ horizon: result.horizon, wishId: result.wishId, parked: result.parked });
   });
 
   // The road card — drawn once, and drawing it seals the wish forever.
@@ -298,7 +317,9 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   });
 
   app.get("/api/deeds", requireDevice, (req, res) => {
-    res.json({ deeds: svc.listDeeds(req.deviceId!) });
+    // ?wish=<id> narrows the notebook to one wish; without it, everything.
+    const wishId = typeof req.query.wish === "string" ? req.query.wish : null;
+    res.json({ deeds: svc.listDeeds(req.deviceId!, 60, wishId) });
   });
 
   // A road is a vow. Every road route accepts an optional `journeyId` (body or

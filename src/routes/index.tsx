@@ -19,6 +19,9 @@ import { Shell, Primary, Secondary, Choice } from "@/components/WishShell";
 import { useLang } from "@/hooks/useLang";
 import {
   getHome,
+  listWishes,
+  openWish,
+  beginWish,
   setHorizon,
   hearWish,
   requestSketch,
@@ -26,6 +29,7 @@ import {
   recordDeed,
   nextTinyStep,
   type Home,
+  type WishListItem,
 } from "@/lib/vow";
 import { dict, cardText, CARD_GLYPH } from "@/lib/i18n";
 import type { HeardWish } from "@/lib/api";
@@ -41,7 +45,7 @@ export const Route = createFileRoute("/")({
 });
 
 /** Where in the ritual we are. Everything else is derived from the server. */
-type Stage = "loading" | "wish" | "hearing" | "picture" | "confirm" | "revealing" | "card" | "day";
+type Stage = "loading" | "wishes" | "wish" | "hearing" | "picture" | "confirm" | "revealing" | "card" | "day";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -61,6 +65,11 @@ function WishPage() {
   // "Not now" puts the offer away without taking anything from her: the
   // picture stays, her words stay editable, and the Oracle waits.
   const [notNow, setNotNow] = useState(false);
+  // Every wish she keeps. The app opens here once there is more than one.
+  const [wishes, setWishes] = useState<WishListItem[] | null>(null);
+  // True while she is writing a wish that is ADDED, not one that replaces the
+  // words of the wish already open.
+  const [beginning, setBeginning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [crisis, setCrisis] = useState<{ message: string; resources: { label: string; detail: string }[] } | null>(null);
   const [badgeLanding, setBadgeLanding] = useState(false);
@@ -91,16 +100,43 @@ function WishPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang]);
 
+  /** The screen for whichever wish is open. */
   const load = useCallback(async () => {
     const h = await getHome();
     setHome(h);
+    setNotNow(false);
     setStage(!h.horizon ? "wish" : h.card ? "day" : "picture");
     return h;
   }, []);
 
-  useEffect(() => {
-    void load();
+  /**
+   * Opening the app shows her wishes, not one of them. Some have had their
+   * card drawn, some are still waiting; the road is the same for each.
+   * One wish and nothing else is not a list worth showing, so it opens
+   * straight into that wish.
+   */
+  const loadWishes = useCallback(async () => {
+    const { wishes: list } = await listWishes();
+    setWishes(list);
+    if (list.length > 1) {
+      setStage("wishes");
+      return list;
+    }
+    await load();
+    return list;
   }, [load]);
+
+  async function open(id: string) {
+    if (busy) return;
+    setBusy(true);
+    await openWish(id);
+    setBusy(false);
+    await load();
+  }
+
+  useEffect(() => {
+    void loadWishes();
+  }, [loadWishes]);
 
   // While the picture is being drawn, keep looking — it arrives on its own.
   useEffect(() => {
@@ -133,13 +169,16 @@ function WishPage() {
   async function commitWish(wish: string, park: string[]) {
     if (busy) return;
     setBusy(true);
-    const res = await setHorizon(wish, park, lang);
+    const res = beginning ? await beginWish(wish, park) : await setHorizon(wish, park, lang);
     setBusy(false);
     if (res.kind === "crisis") return setCrisis(res);
     setText("");
     setHeard(null);
+    setBeginning(false);
     await requestSketch();
     await load();
+    const { wishes: list } = await listWishes();
+    setWishes(list);
   }
 
   async function draw() {
@@ -243,6 +282,60 @@ function WishPage() {
 
   return (
     <Shell lang={lang} setLang={setLang} dir={dir}>
+      {/* 0 — her wishes. Some have been asked about, some are still waiting. */}
+      {stage === "wishes" && wishes && (
+        <div className="animate-rise-line">
+          <h1 className="font-serif text-[2.2rem] leading-tight text-wish-ink mb-7">{t.yourWishes}</h1>
+          <ul>
+            {wishes.map((w) => (
+              <li key={w.id}>
+                <button
+                  onClick={() => open(w.id)}
+                  disabled={busy}
+                  className="w-full text-start py-5 border-b border-wish-line disabled:opacity-40"
+                >
+                  <div className="flex items-baseline gap-3">
+                    {/* A drawn card, or the empty circle of one not yet asked for. */}
+                    <span aria-hidden className="w-6 shrink-0 text-[20px] leading-none text-wish-gold">
+                      {w.card ? (CARD_GLYPH[w.card.id] ?? "✦") : "○"}
+                    </span>
+                    <span className="font-serif text-[21px] leading-snug text-wish-ink">{w.text}</span>
+                  </div>
+                  <p className="mt-1 ms-9 text-[14px] text-wish-muted">
+                    {w.card ? cardText(lang, w.card.id).name : t.noCardYet}
+                    {w.days > 0 && ` · ${t.daysCount(w.days)}`}
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <Secondary
+            onClick={() => {
+              setBeginning(true);
+              setText("");
+              setHeard(null);
+              setStage("wish");
+            }}
+            className="mt-8 w-full"
+          >
+            {t.anotherWish}
+          </Secondary>
+        </div>
+      )}
+
+      {/* Back to the others, whenever there is more than one. */}
+      {wishes && wishes.length > 1 && stage !== "wishes" && stage !== "revealing" && stage !== "card" && (
+        <button
+          onClick={() => {
+            setBeginning(false);
+            void loadWishes().then(() => setStage("wishes"));
+          }}
+          className="mb-6 text-[14px] text-wish-muted underline underline-offset-4"
+        >
+          <span aria-hidden className="inline-block rtl:rotate-180">←</span> {t.backToWishes}
+        </button>
+      )}
+
       {/* 1 — the wish, in their own words */}
       {(stage === "wish" || stage === "loading") && (
         <div className="animate-rise-line">

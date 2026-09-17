@@ -42,6 +42,15 @@ const EN = {
   waiting: "Waiting their turn",
   drawingWait: "It takes a minute. You can go on; it will be here.",
 
+  // The wishes she keeps. Some are being lived, some are still waiting; the
+  // road repeats for each of them.
+  yourWishes: "Your wishes",
+  noCardYet: "No card drawn yet",
+  anotherWish: "Begin another wish",
+  backToWishes: "All my wishes",
+  daysCount: (n: number) => (n === 1 ? "one day" : `${countEn(n)} days`),
+  answeredTodayShort: "answered today",
+
   // The card. The Oracle does not compute odds — it says what KIND of road
   // this is: slow, steep, unclear, one that asks for patience.
   wishTookShape: "Your wish has taken shape.",
@@ -140,6 +149,13 @@ const FA: Dict = {
   nothingLost: "هیچ‌کدام از دست نمی‌رود. بقیه را همین‌جا نگه می‌داریم برای بعد.",
   waiting: "منتظر نوبتشان",
   drawingWait: "یک دقیقه طول می‌کشد. برو به کارت برس؛ همین‌جا می‌ماند.",
+
+  yourWishes: "آرزوهای تو",
+  noCardYet: "هنوز کارتی کشیده نشده",
+  anotherWish: "یک آرزوی دیگر شروع کن",
+  backToWishes: "همهٔ آرزوهایم",
+  daysCount: (n: number) => (n === 1 ? "یک روز" : `${countFa(n)} روز`),
+  answeredTodayShort: "امروز جواب داده",
 
   wishTookShape: "آرزویت شکل گرفت.",
   cardAsk: "از اوراکل بپرسیم چه راهی در پیش است؟",

@@ -2,7 +2,7 @@
 // entitlement, AI card generation, illustration selection, and persistence.
 // HTTP routes are thin wrappers over this; tests drive it directly.
 
-import type { DB, JourneyRow } from "./db";
+import type { DB, JourneyRow, SketchStatus } from "./db";
 import type { Card, CardTheme } from "./types";
 import { detectCrisis, CRISIS_RESOURCES } from "./lib/crisis";
 import { classifyInput } from "./lib/classify";
@@ -83,8 +83,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
   }
 
   /** The sketch as the client sees it: status, where to load it, how much color is due. */
-  function sketchView(deviceId: string) {
-    const h = db.getHorizon(deviceId);
+  function sketchView(h: { id: string; sketch_status: SketchStatus; sketch_token: string | null; sketch_for_text: string | null; text: string } | undefined) {
     const available = sketchAvailable(sketchDeps);
     if (!h) return { available, status: "none" as const, lineUrl: null, colorUrl: null, lit: 0, fullAt: SKETCH_FULL_AT, stale: false };
     const ready = h.sketch_status === "ready" && !!h.sketch_token;
@@ -94,7 +93,8 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       lineUrl: ready ? `/api/sketch/${h.sketch_token}/line` : null,
       colorUrl: ready ? `/api/sketch/${h.sketch_token}/color` : null,
       // Only the staying is counted — done steps and nights stayed through.
-      lit: Math.min(SKETCH_FULL_AT, db.countStaying(deviceId)),
+      // Only this wish's own staying — colour belongs to the wish it was for.
+      lit: Math.min(SKETCH_FULL_AT, db.countStayingFor(h.id)),
       fullAt: SKETCH_FULL_AT,
       stale: ready && h.sketch_for_text !== h.text,
     };
@@ -104,31 +104,32 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
    * Draw (or redraw) the horizon in the background. Idempotent: a pending or
    * up-to-date sketch is left alone. Returns the resulting status.
    */
-  function requestSketch(deviceId: string): "none" | "pending" | "ready" | "failed" | "unavailable" | "capped" {
-    const h = db.getHorizon(deviceId);
+  function requestSketch(horizonId: string | undefined): "none" | "pending" | "ready" | "failed" | "unavailable" | "capped" {
+    const h = horizonId ? db.horizonRow(horizonId) : undefined;
     if (!h) return "none";
     if (!sketchAvailable(sketchDeps)) return "unavailable";
-    if (h.sketch_status === "pending" || inflight.has(deviceId)) return "pending";
+    if (h.sketch_status === "pending" || inflight.has(h.id)) return "pending";
     if (h.sketch_status === "ready" && h.sketch_for_text === h.text) return "ready";
     if (h.sketch_draws >= SKETCH_MAX_DRAWS) return h.sketch_status === "ready" ? "capped" : "failed";
 
     const token = h.sketch_token ?? newToken("sk");
     const text = h.text;
-    db.setSketchStatus({ deviceId, status: "pending", token, error: null });
-    db.bumpSketchDraws(deviceId);
+    const id = h.id;
+    db.setSketchStatus({ horizonId: id, status: "pending", token, error: null });
+    db.bumpSketchDraws(id);
     const job = drawHorizon(text, sketchDeps)
       .then(({ line, color }) => {
-        db.putSketch(deviceId, "line", line.mime, line.bytes);
-        db.putSketch(deviceId, "color", color.mime, color.bytes);
-        db.setSketchStatus({ deviceId, status: "ready", token, error: null, forText: text });
+        db.putSketch(id, "line", line.mime, line.bytes);
+        db.putSketch(id, "color", color.mime, color.bytes);
+        db.setSketchStatus({ horizonId: id, status: "ready", token, error: null, forText: text });
       })
       .catch((err: any) => {
         // A failed redraw keeps the old pictures; a failed first draw shows none.
-        const had = !!db.getSketch(deviceId, "line");
-        db.setSketchStatus({ deviceId, status: had ? "ready" : "failed", error: String(err?.message ?? err).slice(0, 200) });
+        const had = !!db.getSketch(id, "line");
+        db.setSketchStatus({ horizonId: id, status: had ? "ready" : "failed", error: String(err?.message ?? err).slice(0, 200) });
       })
-      .finally(() => inflight.delete(deviceId));
-    inflight.set(deviceId, job);
+      .finally(() => inflight.delete(id));
+    inflight.set(id, job);
     return "pending";
   }
 
@@ -430,7 +431,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       const horizon = h?.text ?? null;
       const roads = db.activeJourneys(deviceId).map((j) => livingJourney(j, localDate));
       const card = findCard(h?.card_id);
-      const today = h ? db.deedsOn(deviceId, localDate) : [];
+      const today = h ? db.deedsOnFor(h.id, localDate) : [];
       return {
         horizon,
         // The wish is sealed the moment the card is drawn; the client hides edit.
@@ -442,8 +443,45 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
           : null,
         roads,
         maxRoads: MAX_ROADS,
-        sketch: sketchView(deviceId),
+        sketch: sketchView(h),
+        /** Which wish this is — everything on this screen belongs to it. */
+        wishId: h?.id ?? null,
       };
+    },
+
+    /**
+     * Every wish this person keeps, in the order they wrote them.
+     *
+     * Some have had their card drawn and are being lived; some were written in
+     * the same breath and are still waiting. They are the same kind of thing,
+     * so they come back in one list, and the road repeats for each of them.
+     */
+    listWishes(deviceId: string, localDate: string) {
+      db.getOrCreateDevice(deviceId);
+      const current = db.getHorizon(deviceId);
+      return {
+        currentId: current?.id ?? null,
+        wishes: db.listHorizons(deviceId).map((h) => {
+          const card = findCard(h.card_id);
+          return {
+            id: h.id,
+            text: h.text,
+            /** null until the Oracle has been asked — a wish still waiting. */
+            card: card ? { id: card.id, name: card.name, line: card.line } : null,
+            sketch: sketchView(h),
+            answeredToday: db.deedsOnFor(h.id, localDate).length > 0,
+            days: db.countStayingFor(h.id),
+            lastDeedAt: db.lastDeedAt(h.id),
+            createdAt: h.created_at,
+          };
+        }),
+      };
+    },
+
+    /** Open one of them. From here on it is what every other call means. */
+    openWish(deviceId: string, id: string): boolean {
+      db.getOrCreateDevice(deviceId);
+      return !!db.openHorizon(deviceId, id);
     },
 
     // ----- The horizon sketch -----------------------------------------------
@@ -451,19 +489,21 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     /** Ask for the drawing (idempotent). The picture arrives via getHome().sketch. */
     requestSketch(deviceId: string) {
       db.getOrCreateDevice(deviceId);
-      return { status: requestSketch(deviceId), sketch: sketchView(deviceId) };
+      const h = db.getHorizon(deviceId);
+      return { status: requestSketch(h?.id), sketch: sketchView(db.getHorizon(deviceId)) };
     },
 
     /** Public image lookup by token — the only way an <img> can reach it. */
     getSketchImage(token: string, kind: "line" | "color") {
       const h = db.getHorizonByToken(token);
       if (!h || h.sketch_status !== "ready") return null;
-      return db.getSketch(h.device_id, kind) ?? null;
+      return db.getSketch(h.id, kind) ?? null;
     },
 
     /** Tests await this so the background job has settled. */
     sketchSettled(deviceId: string): Promise<void> {
-      return inflight.get(deviceId) ?? Promise.resolve();
+      const h = db.getHorizon(deviceId);
+      return (h && inflight.get(h.id)) || Promise.resolve();
     },
 
     getHorizon(deviceId: string): string | null {
@@ -481,7 +521,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
       | { kind: "invalid" }
       | { kind: "sealed" }
-      | { kind: "horizon"; horizon: string; parked: number } {
+      | { kind: "horizon"; horizon: string; wishId: string; parked: number } {
       const trimmed = (text ?? "").trim().slice(0, 500);
       if (!trimmed) return { kind: "invalid" };
       // Once the card has been drawn the words are sealed — forever.
@@ -490,17 +530,46 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         return { kind: "crisis", message: CRISIS_RESOURCES.message, resources: CRISIS_RESOURCES.resources };
       }
       db.getOrCreateDevice(deviceId);
-      db.setHorizon(deviceId, trimmed);
-      // "Nothing is lost" has to be true before it is said.
-      const parked = db.parkWishes(
+      const row = db.setHorizon(deviceId, trimmed);
+      // The others she wrote in the same breath are written down too — as
+      // wishes, waiting their turn, not as a separate kind of thing.
+      const parked = db.addWishes(
         deviceId,
         park.filter((p) => p.trim() && p.trim() !== trimmed).slice(0, MAX_WISHES),
-        lang,
-        now().toISOString(),
       );
       // Draw it — in the background, only if the words changed, only if we can.
-      requestSketch(deviceId);
-      return { kind: "horizon", horizon: trimmed, parked };
+      requestSketch(row.id);
+      return { kind: "horizon", horizon: trimmed, wishId: row.id, parked };
+    },
+
+    /**
+     * Begin another wish, and open it.
+     *
+     * This is what makes "you can always begin another wish later" true: a
+     * sealed wish is not the end of the app, it is one of several. The others
+     * keep their pictures, their cards and their days exactly as they were.
+     */
+    beginWish(
+      deviceId: string,
+      text: string,
+      /** The others written in the same breath — written down, not opened. */
+      park: string[] = [],
+    ):
+      | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
+      | { kind: "invalid" }
+      | { kind: "horizon"; horizon: string; wishId: string } {
+      const trimmed = (text ?? "").trim().slice(0, 500);
+      if (!trimmed) return { kind: "invalid" };
+      if (detectCrisis(trimmed).isCrisis) {
+        return { kind: "crisis", message: CRISIS_RESOURCES.message, resources: CRISIS_RESOURCES.resources };
+      }
+      db.getOrCreateDevice(deviceId);
+      const existing = db.listHorizons(deviceId).find((h) => h.text.trim().toLowerCase() === trimmed.toLowerCase());
+      const row = existing ?? db.createHorizon(deviceId, trimmed);
+      db.addWishes(deviceId, park.filter((p) => p.trim() && p.trim() !== trimmed).slice(0, MAX_WISHES));
+      db.openHorizon(deviceId, row.id);
+      requestSketch(row.id);
+      return { kind: "horizon", horizon: row.text, wishId: row.id };
     },
 
     /**
@@ -530,10 +599,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       return { kind: "heard", wishes, fallback };
     },
 
-    /** The wishes waiting their turn. */
-    listParkedWishes(deviceId: string): { id: string; label: string }[] {
-      return db.listParked(deviceId).map((w) => ({ id: w.id, label: w.label }));
-    },
+
 
     // ----- The road card ----------------------------------------------------
 
@@ -555,9 +621,9 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
 
       const { id } = await chooseRoadCard(h.text, { client, timeoutMs });
       const card = findCard(id) ?? fallbackRoadCard(h.text);
-      db.setCard(deviceId, card.id, now().toISOString());
+      db.setCard(h.id, card.id, now().toISOString());
       // The wish is sealed — make sure its picture exists.
-      requestSketch(deviceId);
+      requestSketch(h.id);
       return { kind: "card", card, sealed: true, alreadyDrawn: false };
     },
 
@@ -584,11 +650,14 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
         return { kind: "crisis", message: CRISIS_RESOURCES.message, resources: CRISIS_RESOURCES.resources };
       }
       db.getOrCreateDevice(deviceId);
+      const h = db.getHorizon(deviceId);
       const row = {
         id: newId("deed"),
         device_id: deviceId,
         kind,
         text: trimmed,
+        // Which wish this was for. Answering one is not answering another.
+        horizon_id: h?.id ?? null,
         local_date: localDate,
         created_at: now().toISOString(),
       } as const;
@@ -607,7 +676,7 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       const h = db.getHorizon(deviceId);
       if (!h) return null;
       // Oldest first: their own answer, then each rung they've taken since.
-      const todays = db.deedsOn(deviceId, localDate).slice().reverse();
+      const todays = db.deedsOnFor(h.id, localDate).slice().reverse();
       const first = todays[0];
       if (!first) return null;
       // "I endured and kept going" is a finished sentence. We ask nothing after
@@ -620,8 +689,13 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     },
 
     /** The deeds so far, newest first — the wish book's spine. */
-    listDeeds(deviceId: string, limit = 60) {
-      return db.listDeeds(deviceId, limit).map((d) => ({
+    listDeeds(deviceId: string, limit = 60, wishId?: string | null) {
+      const rows = wishId
+        ? db.getHorizonById(deviceId, wishId)
+          ? db.listDeedsFor(wishId, limit)
+          : []
+        : db.listDeeds(deviceId, limit);
+      return rows.map((d) => ({
         id: d.id,
         kind: d.kind,
         text: d.text,

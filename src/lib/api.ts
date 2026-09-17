@@ -13,6 +13,18 @@ const PROD_API = "https://dawnhalo-api.onrender.com";
 const configured = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const BASE = configured || (import.meta.env.PROD ? PROD_API : "");
 
+/** A wish in the list: her words, its card if it has one, and how it is going. */
+export interface ApiWish {
+  id: string;
+  text: string;
+  card: { id: string; name: string; line: string } | null;
+  sketch: ApiSketch;
+  answeredToday: boolean;
+  days: number;
+  lastDeedAt: string | null;
+  createdAt: string;
+}
+
 /** One wish the app heard: a button to press, and a phrase to say back. */
 export interface HeardWish {
   label: string;
@@ -188,9 +200,23 @@ export const api = {
   }> {
     return req(`/wish/hear`, { method: "POST", body: JSON.stringify({ text, lang }) });
   },
-  /** The wishes waiting their turn. */
-  async parkedWishes(): Promise<{ wishes: { id: string; label: string }[] }> {
-    return req(`/wish/parked`);
+  /** Every wish this person keeps — being lived, or still waiting. */
+  async listWishes(): Promise<{ currentId: string | null; wishes: ApiWish[] }> {
+    return req(`/wishes`);
+  },
+  /** Open one. Every other call then means this wish. */
+  async openWish(id: string): Promise<{ ok: true }> {
+    return req(`/wishes/${encodeURIComponent(id)}/open`, { method: "POST", body: JSON.stringify({}) });
+  },
+  /** Begin another wish. A sealed wish is not the end of the app. */
+  async beginWish(text: string, park: string[] = []): Promise<{
+    horizon?: string;
+    wishId?: string;
+    isCrisis?: boolean;
+    message?: string;
+    resources?: CrisisPayload["resources"];
+  }> {
+    return req(`/wishes`, { method: "POST", body: JSON.stringify({ text, park }) });
   },
 
   // --- The road card and the deeds ---
@@ -333,6 +359,8 @@ export interface ApiDeed {
 
 export interface ApiHome {
   horizon: string | null;
+  /** Which wish the home screen is showing. */
+  wishId?: string | null;
   /** True once the card has been drawn: the words can never be edited again. */
   sealed?: boolean;
   card?: ApiRoadCard | null;
