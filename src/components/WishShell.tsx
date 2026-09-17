@@ -1,12 +1,14 @@
 // The page around everything — and it is a page, not an app.
 //
-// A small serif wordmark. One quiet word top-right to switch language. Two
-// tabs at the bottom, in words, not icons. No pills, no uppercase tracking, no
-// panels. The paper is the interface; everything sits directly on it.
+// A small serif wordmark. Top-right, the word Language and a menu — a real
+// <select>, so on a phone it opens the picker the person already knows, and
+// so the list has room to grow past two. Two tabs at the bottom, in words, not
+// icons. No pills, no uppercase tracking, no panels. The paper is the
+// interface; everything sits directly on it.
 
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode, ButtonHTMLAttributes } from "react";
-import { dict, type Lang } from "@/lib/i18n";
+import { dict, LANGS, type Lang } from "@/lib/i18n";
 
 export function Shell({
   children,
@@ -30,12 +32,41 @@ export function Shell({
     <div dir={dir} className="min-h-dvh bg-wish-paper text-wish-ink">
       <header className="mx-auto max-w-md flex items-baseline justify-between px-6 pt-[max(1.25rem,env(safe-area-inset-top))]">
         <span className="font-serif text-[19px] text-wish-ink">Dawnhalo</span>
-        <button
-          onClick={() => setLang(lang === "en" ? "fa" : "en")}
-          className="font-serif text-[15px] text-wish-muted hover:text-wish-ink transition-colors"
-        >
-          {t.switchLang}
-        </button>
+        <label className="flex items-baseline gap-2">
+          <span className="font-serif text-[13px] text-wish-muted/80">{t.language}</span>
+          {/* The current language is drawn as text so the control is exactly as
+              wide as the word it shows; the real <select> lies invisibly over
+              it, so a tap still opens the phone's own picker. */}
+          <span className="relative inline-flex items-baseline gap-1.5">
+            <span className="font-serif text-[15px] text-wish-ink">
+              {(LANGS.find((l) => l.code === lang) ?? LANGS[0]).label}
+            </span>
+            <svg
+              aria-hidden
+              viewBox="0 0 10 6"
+              className="w-2.5 text-wish-muted"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M1 1 L5 5 L9 1" />
+            </svg>
+            <select
+              value={lang}
+              onChange={(e) => setLang(e.target.value as Lang)}
+              aria-label={t.language}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            >
+              {LANGS.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </span>
+        </label>
       </header>
 
       <main className="mx-auto max-w-md px-6 pt-6 pb-28">{children}</main>

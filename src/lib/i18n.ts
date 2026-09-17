@@ -117,7 +117,6 @@ const EN = {
   navWish: "Wish",
   navNotebook: "Notebook",
   tellToday: "Tell me about today",
-  switchLang: "فارسی",
 
   // The notebook — every line the witness has written, each one a card she can send.
   notebookTitle: "What he wrote",
@@ -212,7 +211,6 @@ const FA: Dict = {
   navWish: "آرزو",
   navNotebook: "دفتر",
   tellToday: "از امروز بگو",
-  switchLang: "English",
 
   notebookTitle: "آنچه او نوشت",
   notebookEmpty: "هنوز چیزی نوشته نشده. اولین خط، اولین روزی می‌آید که جواب بدهی.",
@@ -384,8 +382,19 @@ export function initialLang(): Lang {
   } catch {
     /* private mode */
   }
-  const nav = typeof navigator !== "undefined" ? navigator.language ?? "" : "";
-  return nav.toLowerCase().startsWith("fa") ? "fa" : "en";
+  // Nothing chosen yet: take the phone's own language, and English when the
+  // phone does not say — an app that opens in a language you cannot read is
+  // worse than one that opens in the language everyone half-knows.
+  const nav =
+    typeof navigator !== "undefined"
+      ? [...(navigator.languages ?? []), navigator.language ?? ""]
+      : [];
+  for (const raw of nav) {
+    const code = (raw ?? "").toLowerCase();
+    const match = LANGS.find((l) => code === l.code || code.startsWith(`${l.code}-`));
+    if (match) return match.code;
+  }
+  return "en";
 }
 
 export function saveLang(lang: Lang) {
