@@ -26,6 +26,9 @@ on:
       - "**/*.md"
       - "server/**"
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -44,8 +47,20 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # The runner image already ships the Android SDK; the setup-android
+      # action only wrapped it, and kept failing. Use it directly and install
+      # exactly what Capacitor 6 asks for (compileSdk 34).
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
+        run: |
+          set -e
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          SDKMGR="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          echo "sdk=$SDK"
+          ls "$SDK" || true
+          yes | "$SDKMGR" --licenses > /dev/null 2>&1 || true
+          "$SDKMGR" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: bun install
@@ -69,7 +84,20 @@ jobs:
 
       - name: Build debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build.log
+
+      - name: Say what broke, in a form that survives outside the log viewer
+        if: failure()
+        run: |
+          if [ -f /tmp/build.log ]; then
+            tail -n 40 /tmp/build.log | sed 's/%/%%/g' | while IFS= read -r l; do
+              [ -n "$l" ] && echo "::error::$l"
+            done
+          else
+            echo "::error::failed before the gradle build started"
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -78,3 +106,17 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      # Attach it to a release as well: run artifacts are zipped and live behind
+      # a storage host that not every client can reach, while a release asset is
+      # a plain download anyone can fetch.
+      - name: Publish the APK as a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="apk-${{ github.run_number }}"
+          gh release create "$TAG" \
+            android/app/build/outputs/apk/debug/app-debug.apk \
+            --title "Dawnhalo APK #${{ github.run_number }}" \
+            --notes "Debug build of ${{ github.sha }}." \
+            --latest
