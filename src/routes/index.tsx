@@ -20,6 +20,7 @@ import { useLang } from "@/hooks/useLang";
 import {
   getHome,
   setHorizon,
+  hearWish,
   requestSketch,
   drawRoadCard,
   recordDeed,
@@ -27,6 +28,7 @@ import {
   type Home,
 } from "@/lib/vow";
 import { dict, cardText, CARD_GLYPH } from "@/lib/i18n";
+import type { HeardWish } from "@/lib/api";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -39,7 +41,7 @@ export const Route = createFileRoute("/")({
 });
 
 /** Where in the ritual we are. Everything else is derived from the server. */
-type Stage = "loading" | "wish" | "picture" | "confirm" | "revealing" | "card" | "day";
+type Stage = "loading" | "wish" | "hearing" | "picture" | "confirm" | "revealing" | "card" | "day";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -50,6 +52,12 @@ function WishPage() {
   const [asking, setAsking] = useState(false);
   const [stage, setStage] = useState<Stage>("loading");
   const [text, setText] = useState("");
+  // What the app heard: the distinct wishes inside what she wrote. More than
+  // one means she chooses which gets the card — the rest are kept, not dropped.
+  const [heard, setHeard] = useState<HeardWish[] | null>(null);
+  // The flowing sentence only gets said when the app could really phrase it.
+  // Split on punctuation alone, it says the count and lets her lines speak.
+  const [heardPolished, setHeardPolished] = useState(false);
   const [busy, setBusy] = useState(false);
   const [crisis, setCrisis] = useState<{ message: string; resources: { label: string; detail: string }[] } | null>(null);
   const [badgeLanding, setBadgeLanding] = useState(false);
@@ -100,14 +108,33 @@ function WishPage() {
     return () => clearInterval(id);
   }, [home?.sketch.status]);
 
+  /**
+   * Listen first. People write five wishes in one breath, and treating that as
+   * a single wish is how the app stops feeling like it heard them. One wish
+   * goes straight through — in her exact words, untouched.
+   */
   async function saveWish() {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
     setBusy(true);
-    const res = await setHorizon(trimmed);
+    const res = await hearWish(trimmed, lang);
+    setBusy(false);
+    if (res.kind === "crisis") return setCrisis(res);
+    if (res.wishes.length <= 1) return commitWish(trimmed, []);
+    setHeard(res.wishes);
+    setHeardPolished(res.polished);
+    setStage("hearing");
+  }
+
+  /** One wish becomes the live one; the others go on the shelf. */
+  async function commitWish(wish: string, park: string[]) {
+    if (busy) return;
+    setBusy(true);
+    const res = await setHorizon(wish, park, lang);
     setBusy(false);
     if (res.kind === "crisis") return setCrisis(res);
     setText("");
+    setHeard(null);
     await requestSketch();
     await load();
   }
@@ -229,6 +256,45 @@ function WishPage() {
           <Primary onClick={saveWish} disabled={!text.trim() || busy} className="mt-5 w-full">
             {t.wishSave}
           </Primary>
+        </div>
+      )}
+
+      {/* 1b — what was heard. Five wishes are five wishes; she picks the one
+           that gets the card, and the app says out loud that it kept the rest. */}
+      {stage === "hearing" && heard && (
+        <div className="animate-rise-line">
+          <p className="font-hand text-[27px] leading-snug text-wish-ink text-balance">
+            {heardPolished ? t.heardMany(heard.map((w) => w.echo)) : t.heardCount(heard.length)}
+          </p>
+          <p className="mt-7 font-serif text-[21px] leading-snug text-wish-ink text-balance">
+            {t.whichFirst(heard.length)}
+          </p>
+          <div className="mt-5 space-y-3">
+            {heard.map((w) => (
+              <Choice
+                key={w.label}
+                disabled={busy}
+                onClick={() =>
+                  commitWish(
+                    w.label,
+                    heard.filter((o) => o.label !== w.label).map((o) => o.label),
+                  )
+                }
+              >
+                {w.label}
+              </Choice>
+            ))}
+          </div>
+          <p className="mt-6 font-serif text-[16px] text-wish-muted leading-relaxed">{t.nothingLost}</p>
+          <button
+            onClick={() => {
+              setHeard(null);
+              setStage("wish");
+            }}
+            className="mt-6 w-full text-[14px] text-wish-muted underline underline-offset-4"
+          >
+            {t.wishEdit}
+          </button>
         </div>
       )}
 

@@ -13,6 +13,7 @@ import {
   type ApiDarkNightContext,
   type ApiKeepsake,
   type ApiLetter,
+  type HeardWish,
 } from "@/lib/api";
 import { srcForId, cardsByTheme, type CardTheme } from "@/lib/cardLibrary";
 import { classifyInput, artForCard } from "@/lib/dawnhalo";
@@ -467,10 +468,15 @@ export async function requestSketch(): Promise<Sketch> {
 }
 
 /** Name or rename the horizon. It is never counted, so there is nothing else to it. */
-export async function setHorizon(text: string): Promise<HorizonOutcome> {
+export async function setHorizon(
+  text: string,
+  /** The other wishes written in the same breath — kept, not discarded. */
+  park: string[] = [],
+  lang = "en",
+): Promise<HorizonOutcome> {
   const trimmed = text.trim();
   try {
-    const res = await api.setHorizon(trimmed);
+    const res = await api.setHorizon(trimmed, park, lang);
     if (res.isCrisis)
       return { kind: "crisis", message: res.message ?? CRISIS_MESSAGE, resources: res.resources ?? CRISIS_RESOURCES };
     saveHorizon(res.horizon ?? trimmed);
@@ -481,6 +487,51 @@ export async function setHorizon(text: string): Promise<HorizonOutcome> {
     saveHorizon(trimmed);
     return { kind: "horizon", horizon: trimmed };
   }
+}
+
+export type HeardOutcome =
+  | { kind: "crisis"; message: string; resources: { region: string; label: string; detail: string }[] }
+  | { kind: "heard"; wishes: HeardWish[]; polished: boolean };
+
+/**
+ * What the app heard. People write several wishes at once; this separates them
+ * so the person picks which one gets the card. Nothing is saved by asking.
+ *
+ * Offline, or if the server is asleep, it still answers — by splitting on the
+ * punctuation people list things with. Finding only one thing is a fine answer:
+ * it means one wish, in their exact words.
+ */
+export async function hearWish(text: string, lang: string): Promise<HeardOutcome> {
+  const trimmed = text.trim();
+  try {
+    const res = await api.hearWish(trimmed, lang);
+    if (res.isCrisis)
+      return { kind: "crisis", message: res.message ?? CRISIS_MESSAGE, resources: res.resources ?? CRISIS_RESOURCES };
+    if (res.wishes?.length) return { kind: "heard", wishes: res.wishes, polished: !res.fallback };
+  } catch {
+    if (classifyInput(trimmed) === "crisis")
+      return { kind: "crisis", message: CRISIS_MESSAGE, resources: CRISIS_RESOURCES };
+  }
+  return { kind: "heard", wishes: splitLocally(trimmed), polished: false };
+}
+
+function splitLocally(text: string): HeardWish[] {
+  const parts = text
+    .split(/[\n\r؛;]+/)
+    .map((p) => p.replace(/\s+/g, " ").replace(/^[-•*\s]+/, "").trim().slice(0, 60))
+    .filter((p) => p.length > 1);
+  const seen = new Set<string>();
+  const out: HeardWish[] = [];
+  for (const label of parts) {
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ label, echo: label.charAt(0).toLowerCase() + label.slice(1) });
+    if (out.length >= 6) break;
+  }
+  if (out.length > 1) return out;
+  const whole = text.replace(/\s+/g, " ").trim().slice(0, 200);
+  return [{ label: whole, echo: whole.charAt(0).toLowerCase() + whole.slice(1) }];
 }
 
 /** The active vow, or null. Backend first; offline localStorage vow second. */

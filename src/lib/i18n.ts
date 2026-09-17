@@ -28,6 +28,18 @@ const EN = {
   wishEdit: "Change my words",
   wishSealed: "These words are sealed now.",
   drawing: "Drawing your wish…",
+
+  // What was heard. People write everything at once; the app says it back and
+  // lets them choose which wish gets the card. The rest are kept.
+  heardOne: (echo: string) => `I hear one wish: ${echo}.`,
+  heardMany: (echoes: string[]) =>
+    `I hear ${countEn(echoes.length)} wishes: ${listEn(echoes)}.`,
+  /** When it only split on punctuation: say the count, and let her own lines speak. */
+  heardCount: (n: number) => `I hear ${countEn(n)} wishes in this.`,
+  whichFirst: (n: number) =>
+    `These sound like ${countEn(n)} wishes. Which one should we make a card for first?`,
+  nothingLost: "Nothing is lost. We'll keep the others here for later.",
+  waiting: "Waiting their turn",
   drawingWait: "It takes a minute. You can go on; it will be here.",
 
   // The card
@@ -112,6 +124,14 @@ const FA: Dict = {
   wishEdit: "کلمه‌هایم را عوض کن",
   wishSealed: "این کلمه‌ها دیگر ثبت شده‌اند.",
   drawing: "دارم آرزویت را می‌کشم…",
+
+  heardOne: (echo: string) => `یک آرزو می‌شنوم: ${echo}.`,
+  heardMany: (echoes: string[]) => `${countFa(echoes.length)} آرزو می‌شنوم: ${listFa(echoes)}.`,
+  heardCount: (n: number) => `${countFa(n)} آرزو در این می‌شنوم.`,
+  whichFirst: (n: number) =>
+    `این‌ها ${countFa(n)} آرزوی جداگانه‌اند. اول برای کدام کارت بکشیم؟`,
+  nothingLost: "هیچ‌کدام از دست نمی‌رود. بقیه را همین‌جا نگه می‌داریم برای بعد.",
+  waiting: "منتظر نوبتشان",
   drawingWait: "یک دقیقه طول می‌کشد. برو به کارت برس؛ همین‌جا می‌ماند.",
 
   cardAsk: "می‌خواهی یک کارت بکشی، ببینی چقدر شدنی است؟",
@@ -173,6 +193,28 @@ const FA: Dict = {
 };
 
 const DICTS: Record<Lang, Dict> = { en: EN, fa: FA };
+
+/** Counting in words, because the witness never writes digits. */
+function countEn(n: number): string {
+  const words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+  return words[n] ?? String(n);
+}
+function countFa(n: number): string {
+  const words = ["صفر", "یک", "دو", "سه", "چهار", "پنج", "شش", "هفت", "هشت", "نه", "ده"];
+  return words[n] ?? n.toLocaleString("fa-IR");
+}
+
+/** "a, b, and c" — with the comma, the way it is said out loud. */
+function listEn(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+function listFa(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} و ${items[1]}`;
+  return `${items.slice(0, -1).join("، ")}، و ${items[items.length - 1]}`;
+}
 
 function ordinalEn(n: number): string {
   const words = ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",

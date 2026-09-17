@@ -2,6 +2,7 @@
 // queries so routes stay thin. Pass ":memory:" for tests.
 
 import Database from "better-sqlite3";
+import { randomUUID } from "node:crypto";
 import type { CardTheme } from "../types";
 
 export interface DeviceRow {
@@ -33,6 +34,22 @@ export interface HorizonRow {
   /** The road card drawn for this wish. Once set, the wish is sealed forever. */
   card_id: string | null;
   card_at: string | null;
+}
+
+/**
+ * A wish someone wrote but is not working on yet.
+ *
+ * People write several wishes at once. Only one gets the card; the rest are
+ * kept here, so "nothing is lost" is a fact and not a kindness.
+ */
+export interface ParkedWishRow {
+  id: string;
+  device_id: string;
+  label: string;
+  lang: string;
+  created_at: string;
+  /** Set when this one is taken off the shelf and becomes the live wish. */
+  taken_at: string | null;
 }
 
 export interface DeedRow {
@@ -277,6 +294,16 @@ CREATE TABLE IF NOT EXISTS deeds (
 );
 CREATE INDEX IF NOT EXISTS idx_deeds_device ON deeds(device_id, local_date);
 
+CREATE TABLE IF NOT EXISTS parked_wishes (
+  id TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  lang TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  taken_at TEXT                -- NULL while it is still waiting
+);
+CREATE INDEX IF NOT EXISTS idx_parked_device ON parked_wishes(device_id, taken_at);
+
 CREATE TABLE IF NOT EXISTS partners (
   code TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -446,6 +473,19 @@ export function createDb(path = ":memory:") {
     ),
     getDeed: sqlite.prepare<[string, string]>(
       "SELECT * FROM deeds WHERE device_id = ? AND id = ?",
+    ),
+    parkWish: sqlite.prepare(
+      "INSERT INTO parked_wishes (id, device_id, label, lang, created_at, taken_at)" +
+        " VALUES (@id, @device_id, @label, @lang, @created_at, NULL)",
+    ),
+    listParked: sqlite.prepare<[string]>(
+      "SELECT * FROM parked_wishes WHERE device_id = ? AND taken_at IS NULL ORDER BY created_at ASC",
+    ),
+    getParked: sqlite.prepare<[string, string]>(
+      "SELECT * FROM parked_wishes WHERE device_id = ? AND id = ?",
+    ),
+    takeParked: sqlite.prepare<[string, string, string]>(
+      "UPDATE parked_wishes SET taken_at = ? WHERE device_id = ? AND id = ? AND taken_at IS NULL",
     ),
     setCard: sqlite.prepare(
       "UPDATE horizons SET card_id = @card_id, card_at = @card_at WHERE device_id = @device_id",
@@ -705,6 +745,37 @@ export function createDb(path = ":memory:") {
     },
     getDeed(deviceId: string, id: string): DeedRow | undefined {
       return stmts.getDeed.get(deviceId, id) as DeedRow | undefined;
+    },
+    /** Shelve the wishes that were not chosen. Duplicates of what is already
+     *  on the shelf are skipped, so re-writing a wish never doubles it. */
+    parkWishes(deviceId: string, labels: string[], lang: string, createdAt: string): number {
+      const have = new Set(
+        (stmts.listParked.all(deviceId) as ParkedWishRow[]).map((r) => r.label.toLowerCase()),
+      );
+      let n = 0;
+      for (const raw of labels) {
+        const label = raw.trim().slice(0, 200);
+        if (!label || have.has(label.toLowerCase())) continue;
+        have.add(label.toLowerCase());
+        stmts.parkWish.run({
+          id: randomUUID(),
+          device_id: deviceId,
+          label,
+          lang,
+          created_at: createdAt,
+        });
+        n++;
+      }
+      return n;
+    },
+    listParked(deviceId: string): ParkedWishRow[] {
+      return stmts.listParked.all(deviceId) as ParkedWishRow[];
+    },
+    getParked(deviceId: string, id: string): ParkedWishRow | undefined {
+      return stmts.getParked.get(deviceId, id) as ParkedWishRow | undefined;
+    },
+    takeParked(deviceId: string, id: string, takenAt: string): boolean {
+      return stmts.takeParked.run(takenAt, deviceId, id).changes > 0;
     },
     bumpSketchDraws(deviceId: string) {
       stmts.bumpSketchDraws.run(deviceId);

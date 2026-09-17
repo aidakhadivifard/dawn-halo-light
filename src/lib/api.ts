@@ -13,6 +13,12 @@ const PROD_API = "https://dawnhalo-api.onrender.com";
 const configured = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const BASE = configured || (import.meta.env.PROD ? PROD_API : "");
 
+/** One wish the app heard: a button to press, and a phrase to say back. */
+export interface HeardWish {
+  label: string;
+  echo: string;
+}
+
 export interface ApiCard {
   id: string;
   opener: string;
@@ -155,13 +161,36 @@ export const api = {
   sketchUrl(path: string | null): string | null {
     return path ? `${BASE}${path}` : null;
   },
-  async setHorizon(text: string): Promise<{
+  async setHorizon(
+    text: string,
+    park: string[] = [],
+    lang = "en",
+  ): Promise<{
     horizon?: string;
+    parked?: number;
     isCrisis?: boolean;
     message?: string;
     resources?: CrisisPayload["resources"];
   }> {
-    return req(`/horizon`, { method: "PUT", body: JSON.stringify({ text }) });
+    return req(`/horizon`, { method: "PUT", body: JSON.stringify({ text, park, lang }) });
+  },
+  /** What the app heard: the distinct wishes inside what they wrote. Saves nothing. */
+  async hearWish(
+    text: string,
+    lang: string,
+  ): Promise<{
+    wishes?: HeardWish[];
+    /** True when it only split on punctuation — the phrasing is hers, not polished. */
+    fallback?: boolean;
+    isCrisis?: boolean;
+    message?: string;
+    resources?: CrisisPayload["resources"];
+  }> {
+    return req(`/wish/hear`, { method: "POST", body: JSON.stringify({ text, lang }) });
+  },
+  /** The wishes waiting their turn. */
+  async parkedWishes(): Promise<{ wishes: { id: string; label: string }[] }> {
+    return req(`/wish/parked`);
   },
 
   // --- The road card and the deeds ---

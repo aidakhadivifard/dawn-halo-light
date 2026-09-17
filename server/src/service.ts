@@ -13,9 +13,11 @@ import {
   generateVowText,
   chooseRoadCard,
   nextTinyStep,
+  hearWishes,
   type MessagesClient,
 } from "./lib/anthropic";
 import { MAX_RUNGS } from "./lib/tinystep";
+import { MAX_WISHES, type HeardWish } from "./lib/hearing";
 import { findCard, fallbackCard as fallbackRoadCard, type RoadCard } from "./lib/roadcards";
 import { findHalo } from "./lib/deck";
 import { drawHorizon, sketchAvailable, type SketchDeps } from "./lib/sketch";
@@ -472,11 +474,14 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
     setHorizon(
       deviceId: string,
       text: string,
+      /** The other wishes they wrote in the same breath. Kept, not dropped. */
+      park: string[] = [],
+      lang = "en",
     ):
       | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
       | { kind: "invalid" }
       | { kind: "sealed" }
-      | { kind: "horizon"; horizon: string } {
+      | { kind: "horizon"; horizon: string; parked: number } {
       const trimmed = (text ?? "").trim().slice(0, 500);
       if (!trimmed) return { kind: "invalid" };
       // Once the card has been drawn the words are sealed — forever.
@@ -486,9 +491,48 @@ export function createService(db: DB, deps: ServiceDeps = {}) {
       }
       db.getOrCreateDevice(deviceId);
       db.setHorizon(deviceId, trimmed);
+      // "Nothing is lost" has to be true before it is said.
+      const parked = db.parkWishes(
+        deviceId,
+        park.filter((p) => p.trim() && p.trim() !== trimmed).slice(0, MAX_WISHES),
+        lang,
+        now().toISOString(),
+      );
       // Draw it — in the background, only if the words changed, only if we can.
       requestSketch(deviceId);
-      return { kind: "horizon", horizon: trimmed };
+      return { kind: "horizon", horizon: trimmed, parked };
+    },
+
+    /**
+     * Listen to what they wrote and separate the wishes inside it.
+     *
+     * Nothing is saved here. This is only the app repeating back what it heard,
+     * so that the person — not the model — decides which wish gets the card.
+     * A single wish comes back as one item holding their exact words.
+     */
+    async hearWish(
+      deviceId: string,
+      text: string,
+      lang: "en" | "fa",
+    ): Promise<
+      | { kind: "crisis"; message: string; resources: typeof CRISIS_RESOURCES.resources }
+      | { kind: "invalid" }
+      | { kind: "sealed" }
+      | { kind: "heard"; wishes: HeardWish[]; fallback: boolean }
+    > {
+      const trimmed = (text ?? "").trim().slice(0, 500);
+      if (!trimmed) return { kind: "invalid" };
+      if (db.getHorizon(deviceId)?.card_id) return { kind: "sealed" };
+      if (detectCrisis(trimmed).isCrisis) {
+        return { kind: "crisis", message: CRISIS_RESOURCES.message, resources: CRISIS_RESOURCES.resources };
+      }
+      const { wishes, fallback } = await hearWishes(trimmed, lang, { client, timeoutMs });
+      return { kind: "heard", wishes, fallback };
+    },
+
+    /** The wishes waiting their turn. */
+    listParkedWishes(deviceId: string): { id: string; label: string }[] {
+      return db.listParked(deviceId).map((w) => ({ id: w.id, label: w.label }));
     },
 
     // ----- The road card ----------------------------------------------------

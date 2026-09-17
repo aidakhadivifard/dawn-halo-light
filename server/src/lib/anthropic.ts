@@ -8,6 +8,7 @@ import { pickOpener } from "./openers";
 import { findHalo, halosForTheme, HALO_DECK } from "./deck";
 import { CARD_IDS, cardPrompt, fallbackCard as fallbackRoadCard } from "./roadcards";
 import { TINY_STEP_SYSTEM, tinyStepPrompt, cleanStep, type TinyStepInput } from "./tinystep";
+import { HEAR_SYSTEM, hearPrompt, parseHeard, fallbackHearing, type HeardWish } from "./hearing";
 import { CARD_THEMES, type CardTheme } from "../types";
 
 export interface GenInput {
@@ -338,5 +339,43 @@ export async function chooseRoadCard(
     return id ? { id, fallback: false } : { id: fallbackRoadCard(wish).id, fallback: true };
   } catch {
     return { id: fallbackRoadCard(wish).id, fallback: true };
+  }
+}
+
+/**
+ * Separate what someone wrote into the distinct wishes inside it.
+ *
+ * Unlike the tiny step, this one ALWAYS answers: a person who has just written
+ * their wish must never hit a dead end. With no model, or a bad answer, the
+ * splitter falls back to the punctuation people list things with — and if even
+ * that finds one thing, it is one wish, kept in their exact words.
+ */
+export async function hearWishes(
+  text: string,
+  lang: "en" | "fa",
+  opts: { client?: MessagesClient | null; timeoutMs?: number } = {},
+): Promise<{ wishes: HeardWish[]; fallback: boolean }> {
+  const client = opts.client !== undefined ? opts.client : getClient();
+  if (!client) return { wishes: fallbackHearing(text), fallback: true };
+
+  const { anthropicModel } = getConfig();
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  try {
+    const result = await Promise.race([
+      client.messages.create({
+        model: anthropicModel,
+        max_tokens: 500,
+        system: HEAR_SYSTEM,
+        messages: [{ role: "user", content: hearPrompt(text, lang) }],
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("anthropic_timeout")), timeoutMs),
+      ),
+    ]);
+    const raw = result.content?.find((b) => b.type === "text")?.text ?? "";
+    const wishes = parseHeard(raw);
+    return wishes ? { wishes, fallback: false } : { wishes: fallbackHearing(text), fallback: true };
+  } catch {
+    return { wishes: fallbackHearing(text), fallback: true };
   }
 }

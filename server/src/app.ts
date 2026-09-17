@@ -238,14 +238,36 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     res.send(img.bytes);
   });
 
+  // Say back what was heard, separated into the distinct wishes inside it.
+  // Saves nothing: the person chooses which wish gets the card.
+  app.post("/api/wish/hear", requireDevice, async (req, res) => {
+    const text = (req.body?.text ?? "").toString();
+    const lang = req.body?.lang === "fa" ? "fa" : "en";
+    const out = await svc.hearWish(req.deviceId!, text, lang);
+    if (out.kind === "crisis")
+      return res.json({ isCrisis: true, message: out.message, resources: out.resources });
+    if (out.kind === "invalid") return res.status(400).json({ error: "missing_text" });
+    if (out.kind === "sealed") return res.status(409).json({ error: "sealed" });
+    res.json({ wishes: out.wishes, fallback: out.fallback });
+  });
+
+  // The wishes waiting their turn, in the order they were written.
+  app.get("/api/wish/parked", requireDevice, (req, res) => {
+    res.json({ wishes: svc.listParkedWishes(req.deviceId!) });
+  });
+
   app.put("/api/horizon", requireDevice, (req, res) => {
     const text = (req.body?.text ?? "").toString();
-    const result = svc.setHorizon(req.deviceId!, text);
+    const park = Array.isArray(req.body?.park)
+      ? req.body.park.map((p: unknown) => String(p ?? "")).filter(Boolean)
+      : [];
+    const lang = req.body?.lang === "fa" ? "fa" : "en";
+    const result = svc.setHorizon(req.deviceId!, text, park, lang);
     if (result.kind === "crisis")
       return res.json({ isCrisis: true, message: result.message, resources: result.resources });
     if (result.kind === "invalid") return res.status(400).json({ error: "missing_text" });
     if (result.kind === "sealed") return res.status(409).json({ error: "sealed" });
-    res.json({ horizon: result.horizon });
+    res.json({ horizon: result.horizon, parked: result.parked });
   });
 
   // The road card — drawn once, and drawing it seals the wish forever.
