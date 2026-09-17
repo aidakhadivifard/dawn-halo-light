@@ -29,6 +29,9 @@ const MUTED = "#756579";
 const GOLD = "#D9A441";
 const CORAL = "#F2766B";
 
+/** The witness's hand, drawn in oracle gold with its own alpha. */
+const HAND = "/witness-hand.png";
+
 function load(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -92,11 +95,13 @@ export async function renderCard(c: CardContent): Promise<Blob> {
   let y = 190;
   const pic = c.pictureUrl ? await load(c.pictureUrl) : null;
   if (pic) {
-    const boxW = maxW;
+    // A little narrower than the text column, so the words below have room.
+    const boxW = Math.min(maxW, 712);
     const boxH = Math.round((boxW * 9) / 16);
+    const bx = rtl ? W - 96 - boxW : 96;
     // Keep the drawing's own paper; just place it.
-    ctx.drawImage(pic, 96, y, boxW, boxH);
-    y += boxH + 96;
+    ctx.drawImage(pic, bx, y, boxW, boxH);
+    y += boxH + 72;
   } else {
     y += 40;
   }
@@ -120,23 +125,41 @@ export async function renderCard(c: CardContent): Promise<Blob> {
     }
   }
 
-  // The stroke of his pen, running out from under the words. (The hand itself
-  // waits for an asset that actually reads as a hand.)
-  y += 28;
-  ctx.strokeStyle = GOLD;
-  ctx.lineWidth = 4;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  const sx = rtl ? W - 96 : 96;
-  const dir = rtl ? -1 : 1;
-  ctx.moveTo(sx, y);
-  ctx.bezierCurveTo(sx + dir * 160, y - 16, sx + dir * 300, y + 18, sx + dir * 460, y - 4);
-  ctx.stroke();
-  y += 18;
+  // His hand, still holding the pen, with the stroke trailing back under the
+  // words. One drawing; Farsi gets it mirrored so the pen finishes on the left.
+  y += 20;
+  const handImg = await load(HAND);
+  if (handImg) {
+    const hw = Math.round(maxW * 0.6);
+    const hh = Math.round((hw * handImg.naturalHeight) / handImg.naturalWidth);
+    const hx = rtl ? W - 96 - hw : 96;
+    if (rtl) {
+      ctx.save();
+      ctx.translate(hx + hw, y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(handImg, 0, 0, hw, hh);
+      ctx.restore();
+    } else {
+      ctx.drawImage(handImg, hx, y, hw, hh);
+    }
+    y += hh;
+  } else {
+    // No asset (offline WebView): the stroke alone, which is honest enough.
+    ctx.strokeStyle = GOLD;
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    const sx = rtl ? W - 96 : 96;
+    const dir = rtl ? -1 : 1;
+    ctx.moveTo(sx, y);
+    ctx.bezierCurveTo(sx + dir * 160, y - 16, sx + dir * 300, y + 18, sx + dir * 460, y - 4);
+    ctx.stroke();
+    y += 18;
+  }
 
   // His count, small.
   if (c.count) {
-    y += 76;
+    y += 52;
     ctx.fillStyle = MUTED;
     ctx.font = small;
     ctx.fillText(c.count, x, y);

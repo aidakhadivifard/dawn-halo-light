@@ -1,10 +1,11 @@
-// The witness's line — his sentence, and the stroke of his pen running out
-// from under it.
+// The witness's line — his sentence, and his hand still holding the pen at the
+// end of it.
 //
-// The hand itself is not here yet: the asset we had did not read as a hand,
-// and a wrong hand is worse than none. The stroke alone is honest — it is
-// what a pen leaves behind. When the real hand arrives it drops in at the
-// end of this stroke, where the pen would be.
+// One drawing, in oracle gold (#D9A441) with its own alpha, does both
+// directions: the hand comes in from the end of the line and the stroke trails
+// back under the words that were just written. In Farsi the whole thing is
+// mirrored, so the pen finishes on the left and the stroke runs right, under
+// where the sentence began.
 
 export function WitnessLine({
   line,
@@ -24,21 +25,17 @@ export function WitnessLine({
           {deed}
         </p>
       )}
-      <svg
+      <img
+        src="/witness-hand.png"
+        alt=""
         aria-hidden
-        viewBox="0 0 400 16"
-        preserveAspectRatio="none"
-        className={"mt-2 text-wish-gold " + (big ? "w-52 h-3.5" : "w-40 h-3")}
-        fill="none"
-      >
-        {/* One unhurried stroke, thinning as it lifts — the way a pen leaves the page. */}
-        <path
-          d="M2 9 C 80 2, 150 14, 230 7 S 350 3, 396 11"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      </svg>
+        draggable={false}
+        width={1560}
+        height={392}
+        className={
+          "mt-2 h-auto select-none pointer-events-none rtl:-scale-x-100 " + (big ? "w-72" : "w-52")
+        }
+      />
     </div>
   );
 }
