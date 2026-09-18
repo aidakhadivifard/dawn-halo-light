@@ -66,6 +66,24 @@ export interface SketchCacheRow {
   created_at: string;
 }
 
+/** One illustration in the sticker deck. */
+export interface StickerRow {
+  id: string;
+  group_id: string;
+  wish_index: number;
+  wish: string;
+  variant: number;
+  character: string;
+  scene: string;
+  caption_en: string | null;
+  caption_fa: string | null;
+  mime: string | null;
+  bytes: Buffer | null;
+  status: string;
+  review: string | null;
+  created_at: string;
+}
+
 /** Something she told us when asked — kept with the wish, in her words. */
 export interface WishNoteRow {
   id: string;
@@ -323,6 +341,28 @@ CREATE TABLE IF NOT EXISTS sketch_cache (
   created_at TEXT NOT NULL,
   PRIMARY KEY (device_id, text_key)
 );
+
+-- The stickers: the illustrations a person picks from when she sends her day
+-- to a witness. Drawn once against Aida's table of wishes, several variants
+-- per wish, checked by a vision model, and approved by a person before they
+-- are shown to anyone. Only 'approved' rows ever leave the server.
+CREATE TABLE IF NOT EXISTS stickers (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL,        -- love | family | body | …
+  wish_index INTEGER NOT NULL,   -- position in the group's wish list
+  wish TEXT NOT NULL,            -- the wish, verbatim from the table
+  variant INTEGER NOT NULL,      -- 1..3
+  character TEXT NOT NULL,       -- who is in the picture
+  scene TEXT NOT NULL,           -- the scene prompt the model wrote
+  caption_en TEXT,               -- a short first-person line she can start from
+  caption_fa TEXT,
+  mime TEXT,
+  bytes BLOB,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | drawn | rejected | approved | failed
+  review TEXT,                   -- the vision check's verdict, for the record
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_stickers_group ON stickers(group_id, status);
 
 -- What a person told us when the app asked, instead of guessing. "Working on
 -- dawnhalo" — the app does not know what dawnhalo is, so it asks once, and
@@ -641,6 +681,25 @@ export function createDb(path = ":memory:") {
     pruneCachedSketches: sqlite.prepare<[string]>("DELETE FROM sketch_cache WHERE created_at < ?"),
     // A draw that was in flight when the process died. Nothing will ever finish it.
     interruptedSketches: sqlite.prepare("SELECT id FROM horizons WHERE sketch_status = 'pending'"),
+    insertSticker: sqlite.prepare(
+      `INSERT INTO stickers (id, group_id, wish_index, wish, variant, character, scene, caption_en, caption_fa, mime, bytes, status, review, created_at)
+       VALUES (@id, @group_id, @wish_index, @wish, @variant, @character, @scene, @caption_en, @caption_fa, @mime, @bytes, @status, @review, @created_at)`,
+    ),
+    setStickerImage: sqlite.prepare(
+      "UPDATE stickers SET mime = @mime, bytes = @bytes, status = @status, review = @review WHERE id = @id",
+    ),
+    setStickerStatus: sqlite.prepare<[string, string]>("UPDATE stickers SET status = ? WHERE id = ?"),
+    getSticker: sqlite.prepare<[string]>("SELECT * FROM stickers WHERE id = ?"),
+    listStickers: sqlite.prepare<[string]>(
+      "SELECT id, group_id, wish_index, wish, variant, character, scene, caption_en, caption_fa, status, review, created_at FROM stickers WHERE group_id = ? ORDER BY wish_index, variant",
+    ),
+    listApprovedStickers: sqlite.prepare<[string]>(
+      "SELECT id, group_id, wish_index, wish, variant, character, caption_en, caption_fa FROM stickers WHERE group_id = ? AND status = 'approved' ORDER BY wish_index, variant",
+    ),
+    countStickers: sqlite.prepare<[string, number]>(
+      "SELECT COUNT(*) AS n FROM stickers WHERE group_id = ? AND wish_index = ? AND status != 'failed'",
+    ),
+    stickerStats: sqlite.prepare("SELECT group_id, status, COUNT(*) AS n FROM stickers GROUP BY group_id, status"),
     insertNote: sqlite.prepare(
       `INSERT INTO wish_notes (id, horizon_id, question, answer, local_date, created_at)
        VALUES (@id, @horizon_id, @question, @answer, @local_date, @created_at)`,
@@ -1024,6 +1083,31 @@ export function createDb(path = ":memory:") {
         stmts.setSketchStatus.run({ horizon_id: r.id, status: "none", error: "interrupted", token: null, for_text: null });
       }
       return rows.length;
+    },
+    // --- Stickers ---
+    insertSticker(row: StickerRow) {
+      stmts.insertSticker.run(row as any);
+    },
+    setStickerImage(id: string, mime: string | null, bytes: Buffer | null, status: string, review: string | null) {
+      stmts.setStickerImage.run({ id, mime, bytes, status, review });
+    },
+    setStickerStatus(id: string, status: string) {
+      stmts.setStickerStatus.run(status, id);
+    },
+    getSticker(id: string): StickerRow | undefined {
+      return stmts.getSticker.get(id) as StickerRow | undefined;
+    },
+    listStickers(groupId: string): Omit<StickerRow, "bytes" | "mime">[] {
+      return stmts.listStickers.all(groupId) as any;
+    },
+    listApprovedStickers(groupId: string) {
+      return stmts.listApprovedStickers.all(groupId) as Pick<StickerRow, "id" | "group_id" | "wish_index" | "wish" | "variant" | "character" | "caption_en" | "caption_fa">[];
+    },
+    countStickers(groupId: string, wishIndex: number): number {
+      return (stmts.countStickers.get(groupId, wishIndex) as { n: number }).n;
+    },
+    stickerStats(): { group_id: string; status: string; n: number }[] {
+      return stmts.stickerStats.all() as any;
     },
     insertNote(row: WishNoteRow) {
       stmts.insertNote.run(row as any);

@@ -9,6 +9,8 @@ import { getConfig } from "./config";
 import { requireDevice, resolveLocalDate, rateLimit } from "./middleware";
 import { computeStreak } from "./lib/streak";
 import { PLANS, getStripe, createCheckoutSession, handleStripeEvent, type PlanId } from "./lib/stripe";
+import { createStickerJob } from "./stickerjob";
+import { WISH_GROUPS } from "./lib/stickers";
 
 export interface AppOptions extends ServiceDeps {
   /** Inject a custom Stripe webhook verifier (tests bypass signature checks). */
@@ -448,6 +450,114 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     if (!letter) return res.status(404).json({ error: "letter_not_found" });
     db.bumpLetterViews(req.params.token);
     res.json({ letter });
+  });
+
+  // --- The sticker deck ---------------------------------------------------
+  const stickers = createStickerJob(db, {
+    client: opts.client,
+    fetch: opts.sketch?.fetch,
+    geminiKey: opts.sketch?.apiKey,
+    geminiModel: opts.sketch?.model,
+  });
+  const isAdmin = (req: Request): boolean => {
+    if (!cfg.adminKey) return false;
+    const key = req.header("x-admin-key") ?? (req.query.key ?? "").toString();
+    return key === cfg.adminKey;
+  };
+  const adminOnly = (req: Request, res: Response): boolean => {
+    if (!cfg.adminKey) {
+      res.status(503).json({ error: "admin_disabled" });
+      return false;
+    }
+    if (!isAdmin(req)) {
+      res.status(401).json({ error: "unauthorized" });
+      return false;
+    }
+    return true;
+  };
+
+  // What the app can show: approved stickers of a group, and the groups themselves.
+  app.get("/api/stickers", (req, res) => {
+    const group = typeof req.query.group === "string" ? req.query.group : null;
+    if (!group) return res.json({ groups: WISH_GROUPS.map((g) => ({ id: g.id, title_fa: g.title_fa, title_en: g.title_en })) });
+    res.json({ stickers: db.listApprovedStickers(group) });
+  });
+
+  // The picture. Approved ones for everyone; the rest only with the admin key.
+  app.get("/api/stickers/:id.jpg", (req, res) => {
+    const row = db.getSticker(req.params.id);
+    if (!row?.bytes) return res.status(404).end();
+    if (row.status !== "approved" && !isAdmin(req)) return res.status(404).end();
+    res.setHeader("content-type", row.mime ?? "image/png");
+    res.setHeader("cache-control", row.status === "approved" ? "public, max-age=31536000, immutable" : "no-store");
+    res.end(row.bytes);
+  });
+
+  app.post("/api/admin/stickers/run", (req, res) => {
+    if (!adminOnly(req, res)) return;
+    const group = typeof req.query.group === "string" ? req.query.group : null;
+    const limit = Number(req.query.limit ?? 30);
+    const started = stickers.start(group, limit);
+    res.json({ started, status: stickers.status() });
+  });
+  app.post("/api/admin/stickers/stop", (req, res) => {
+    if (!adminOnly(req, res)) return;
+    stickers.stop();
+    res.json({ status: stickers.status() });
+  });
+  app.get("/api/admin/stickers/status", (req, res) => {
+    if (!adminOnly(req, res)) return;
+    res.json({ status: stickers.status(), counts: db.stickerStats() });
+  });
+  app.post("/api/admin/stickers/:id/status", (req, res) => {
+    if (!adminOnly(req, res)) return;
+    const status = String(req.body?.status ?? "");
+    if (!["approved", "rejected", "drawn"].includes(status)) return res.status(400).json({ error: "bad_status" });
+    db.setStickerStatus(req.params.id, status);
+    res.json({ ok: true });
+  });
+
+  // The review page: one group, every drawing, two buttons under each.
+  app.get("/api/admin/stickers/review", (req, res) => {
+    if (!adminOnly(req, res)) return;
+    const key = (req.query.key ?? "").toString();
+    const group = typeof req.query.group === "string" ? req.query.group : WISH_GROUPS[0].id;
+    const g = WISH_GROUPS.find((x) => x.id === group);
+    if (!g) return res.status(404).end();
+    const rows = db.listStickers(group);
+    const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+    const nav = WISH_GROUPS.map((x) => `<a href="?group=${x.id}&key=${encodeURIComponent(key)}" class="${x.id === group ? "on" : ""}">${esc(x.title_fa)}</a>`).join("");
+    const cards = g.wishes
+      .map((wish, i) => {
+        const mine = rows.filter((r) => r.wish_index === i);
+        if (!mine.length) return "";
+        const imgs = mine
+          .map(
+            (r) => `<figure data-id="${r.id}" class="${r.status}">
+  <img loading="lazy" src="/api/stickers/${r.id}.jpg?key=${encodeURIComponent(key)}">
+  <figcaption><b>${r.status}</b> · ${esc(r.character)}${r.review && r.review !== "ok" ? `<br><i>${esc(r.review)}</i>` : ""}<br>${esc(r.caption_fa ?? "")}</figcaption>
+  <div class="b"><button onclick="setS('${r.id}','approved')">✓ خوب</button><button onclick="setS('${r.id}','rejected')">✗ نه</button></div>
+</figure>`,
+          )
+          .join("");
+        return `<section><h3>${i + 1}. ${esc(wish)}</h3><div class="row">${imgs}</div></section>`;
+      })
+      .join("");
+    res.setHeader("content-type", "text/html; charset=utf-8");
+    res.end(`<!doctype html><html lang="fa" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dawnhalo · بازبینی دِک</title><style>
+body{margin:0;background:#fff9f4;color:#3d2947;font-family:Vazirmatn,Sahel,"Segoe UI",sans-serif}main{max-width:1100px;margin:0 auto;padding:16px 14px 80px}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}nav a{padding:6px 12px;border-radius:999px;background:#f3eef6;color:#3d2947;text-decoration:none;font-size:14px}nav a.on{background:#3d2947;color:#fff}
+h3{font-size:16px;margin:22px 0 8px}.row{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+figure{margin:0;flex:none;width:min(300px,80vw);border-radius:16px;padding:8px;background:#fff;box-shadow:0 8px 22px -18px rgba(61,41,71,.5);border:2px solid transparent}
+figure.approved{border-color:#7fbf8a}figure.rejected{opacity:.45}img{width:100%;aspect-ratio:1;border-radius:12px;background:#fff}
+figcaption{font-size:12px;color:#756579;margin-top:6px;line-height:1.5}.b{display:flex;gap:6px;margin-top:8px}.b button{flex:1;border:0;border-radius:999px;padding:8px;font-size:14px;cursor:pointer}
+.b button:first-child{background:#dff3e3}.b button:last-child{background:#fbe1de}
+</style><main><nav>${nav}</nav><h2>${esc(g.title_fa)} <small style="color:#756579;font-size:13px">${rows.length} تصویر</small></h2>${cards || "<p>هنوز چیزی کشیده نشده.</p>"}</main>
+<script>
+async function setS(id, status){const r=await fetch('/api/admin/stickers/'+id+'/status?key=${encodeURIComponent(key)}',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({status})});
+if(r.ok){const f=document.querySelector('[data-id="'+id+'"]');f.className=status;f.querySelector('b').textContent=status;}}
+</script></html>`);
   });
 
   // The three numbers that decide everything — admin only.
