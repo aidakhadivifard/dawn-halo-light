@@ -112,8 +112,6 @@ function WishPage() {
   const [ladder, setLadder] = useState<{
     state: "offer" | "thinking" | "ask" | "step" | "closed";
     text?: string;
-    /** The words for the button, in the step's own terms — "It's open." */
-    done?: string | null;
     /** What the app needs to know before it can offer a step. */
     question?: string;
     rung: number;
@@ -358,7 +356,7 @@ function WishPage() {
       setAnswerText("");
       return setLadder({ state: "ask", question: out.question, rung, stuck });
     }
-    setLadder({ state: "step", text: out.text, done: out.done, rung, stuck });
+    setLadder({ state: "step", text: out.text, rung, stuck });
   }
 
   /** Ask for the next rung. */
@@ -861,7 +859,7 @@ function WishPage() {
                     disabled={busy}
                     className="w-full"
                   >
-                    {ladder.done ?? t.stepDone}
+                    {t.stepDone}
                   </Primary>
                   <Secondary onClick={() => setLadder({ ...ladder, state: "closed" })} className="mt-2 w-full">
                     {t.stepEnough}

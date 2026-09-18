@@ -320,9 +320,7 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   // before it can offer anything: the client shows the question, and answers
   // it through /api/step/answer.
   const stepJson = (out: Awaited<ReturnType<typeof svc.nextTinyStep>>) =>
-    out?.kind === "ask"
-      ? { step: null, done: null, ask: out.text }
-      : { step: out?.text ?? null, done: out?.done ?? null, ask: null };
+    out?.kind === "ask" ? { step: null, ask: out.text } : { step: out?.text ?? null, ask: null };
 
   app.post("/api/step/next", requireDevice, resolveLocalDate, async (req, res) => {
     res.json(stepJson(await svc.nextTinyStep(req.deviceId!, req.localDate!)));

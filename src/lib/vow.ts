@@ -445,13 +445,11 @@ export async function drawRoadCard(
  * the ladder has run its length. The app then says nothing rather than making
  * something up about a life it doesn't know.
  */
-export type TinyStep =
-  | { kind: "step"; text: string; done: string | null }
-  | { kind: "ask"; question: string };
+export type TinyStep = { kind: "step"; text: string } | { kind: "ask"; question: string };
 
-function shapeStep(out: { step: string | null; done: string | null; ask: string | null }): TinyStep | null {
+function shapeStep(out: { step: string | null; ask: string | null }): TinyStep | null {
   if (out.ask && out.ask.trim()) return { kind: "ask", question: out.ask.trim() };
-  if (out.step && out.step.trim()) return { kind: "step", text: out.step.trim(), done: out.done?.trim() || null };
+  if (out.step && out.step.trim()) return { kind: "step", text: out.step.trim() };
   return null;
 }
 

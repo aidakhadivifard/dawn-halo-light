@@ -97,8 +97,7 @@ const EN = {
   stepNo: "I've done enough today",
   // Said while the step is being found, and left standing above it.
   stepIntro: "Let's make the next step almost too small to refuse.",
-  // The fallback for the button when the step did not bring its own words.
-  stepDone: "It's done",
+  stepDone: "Ok, done",
   stepEnough: "That's enough for today",
   stepMore: "One more, even smaller?",
   stepClosed: "That's plenty. You showed up today.",
@@ -199,7 +198,7 @@ const FA: Dict = {
   stepYes: "یکی بده",
   stepNo: "برای امروز کافی است",
   stepIntro: "بگذار قدم بعدی آن‌قدر کوچک باشد که نشود به آن نه گفت.",
-  stepDone: "انجام شد",
+  stepDone: "باشه، انجام شد",
   stepEnough: "برای امروز همین کافی است",
   stepMore: "یکی دیگر، حتی کوچک‌تر؟",
   stepClosed: "همین کافی است. امروز آمدی، و همین مهم بود.",

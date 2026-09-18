@@ -78,9 +78,6 @@ describe("shaping the step", () => {
     const p = tinyStepPrompt({ wish: "my career taking off", today: "working on dawnhalo", done: [] });
     expect(p).toContain("do NOT guess");
     expect(p).toContain("ASK:");
-    // And to hand back the words for the button, in the step's own terms.
-    expect(p).toContain("DONE:");
-    expect(p).toContain('Never "Did it"');
   });
 
   it("carries what she has already explained, and stops asking when told to", () => {
@@ -96,19 +93,14 @@ describe("shaping the step", () => {
 });
 
 describe("reading the model's answer", () => {
-  it("a step with the words for its button", () => {
+  it("a step is a step", () => {
+    expect(parseStep("Open the laptop. That's all.")).toEqual({ kind: "step", text: "Open the laptop. That's all." });
+  });
+
+  it("an old-style DONE line under the step is dropped, not shown", () => {
     expect(parseStep("Put your shoes by the door.\nDONE: Shoes are by the door.")).toEqual({
       kind: "step",
       text: "Put your shoes by the door.",
-      done: "Shoes are by the door.",
-    });
-  });
-
-  it("a step without one is still a step", () => {
-    expect(parseStep("Open the laptop. That's all.")).toEqual({
-      kind: "step",
-      text: "Open the laptop. That's all.",
-      done: null,
     });
   });
 
@@ -116,10 +108,6 @@ describe("reading the model's answer", () => {
     expect(parseStep("ASK: What is dawnhalo?")).toEqual({ kind: "ask", text: "What is dawnhalo?" });
     expect(parseStep('```\n- "ask: What is dawnhalo?"\n```')).toEqual({ kind: "ask", text: "What is dawnhalo?" });
     expect(parseStep("ASK: داون‌هیلو چیست؟")).toEqual({ kind: "ask", text: "داون‌هیلو چیست؟" });
-  });
-
-  it("'Did it' is exactly the button we are replacing — it is dropped", () => {
-    expect(parseStep("Open it.\nDONE: Did it")!).toEqual({ kind: "step", text: "Open it.", done: null });
   });
 
   it("nothing is nothing", () => {
@@ -133,10 +121,9 @@ describe("asking for a step", () => {
   const input = { wish: "a body I trust", today: "walked to the corner", done: [] };
 
   it("returns the model's action", async () => {
-    expect(await nextTinyStep(input, { client: replying("Put your shoes by the door.\nDONE: Shoes are out.") })).toEqual({
+    expect(await nextTinyStep(input, { client: replying("Put your shoes by the door.") })).toEqual({
       kind: "step",
       text: "Put your shoes by the door.",
-      done: "Shoes are out.",
     });
   });
 
@@ -254,12 +241,12 @@ describe("the ladder, end to end", () => {
     expect((await h(request(api).post("/api/step/next"))).body.step).toBeNull();
   });
 
-  it("hands the client the words for the button along with the step", async () => {
-    const api = createApp(db, { client: replying("Open the laptop.\nDONE: It's open.") });
+  it("answers with the step and no question", async () => {
+    const api = createApp(db, { client: replying("Open the laptop.") });
     await h(request(api).put("/api/horizon")).send({ text: "my career taking off" });
     await h(request(api).post("/api/deed")).send({ kind: "did", text: "working on dawnhalo" });
     const step = await h(request(api).post("/api/step/next"));
-    expect(step.body).toEqual({ step: "Open the laptop.", done: "It's open.", ask: null });
+    expect(step.body).toEqual({ step: "Open the laptop.", ask: null });
   });
 });
 
@@ -277,7 +264,7 @@ describe("when the app does not know what a thing is", () => {
           const p: string = args.messages[0].content;
           prompts.push(p);
           const text = p.includes("they said:")
-            ? "Open the dawnhalo project. Just look at it.\nDONE: It's open."
+            ? "Open the dawnhalo project. Just look at it."
             : "ASK: What is dawnhalo?";
           return { content: [{ type: "text", text }] };
         },
@@ -297,7 +284,7 @@ describe("when the app does not know what a thing is", () => {
     await h(request(api).post("/api/deed")).send({ kind: "did", text: "working on dawnhalo" });
 
     const first = await h(request(api).post("/api/step/next"));
-    expect(first.body).toEqual({ step: null, done: null, ask: "What is dawnhalo?" });
+    expect(first.body).toEqual({ step: null, ask: "What is dawnhalo?" });
   });
 
   it("her answer is kept with the wish, and the step is built on it", async () => {
@@ -312,7 +299,6 @@ describe("when the app does not know what a thing is", () => {
       answer: "an app I'm building",
     });
     expect(answered.body.step).toBe("Open the dawnhalo project. Just look at it.");
-    expect(answered.body.done).toBe("It's open.");
     expect(prompts[1]).toContain(`Asked "What is dawnhalo?" they said: "an app I'm building"`);
 
     // Tomorrow it still knows. It does not ask what dawnhalo is a second time.

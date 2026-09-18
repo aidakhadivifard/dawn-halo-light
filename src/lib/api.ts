@@ -254,7 +254,6 @@ export const api = {
    * One more, smaller. `step: null` with `ask: null` means the ladder is over —
    * not an error. `ask` set means the app needs to know what something she
    * named is before it can offer anything, and is asking rather than guessing.
-   * `done` is the two or three words for the button, in the step's own terms.
    */
   async nextTinyStep(): Promise<ApiStep> {
     return req(`/step/next`, { method: "POST", body: JSON.stringify({}) });
@@ -384,7 +383,6 @@ export interface ApiDeed {
 /** What comes back when a step is asked for. */
 export interface ApiStep {
   step: string | null;
-  done: string | null;
   ask: string | null;
 }
 

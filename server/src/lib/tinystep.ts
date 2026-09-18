@@ -52,9 +52,7 @@ export interface TinyStepInput {
 }
 
 /** What comes back: a step to take, or a question we need answered first. */
-export type StepAnswer =
-  | { kind: "step"; text: string; done: string | null }
-  | { kind: "ask"; text: string };
+export type StepAnswer = { kind: "step"; text: string } | { kind: "ask"; text: string };
 
 function rules(noAsking: boolean): string {
   const asking = noAsking
@@ -70,15 +68,11 @@ function rules(noAsking: boolean): string {
     `- Use ONLY what they told you. Invent nothing about their job, family, city, body, or plans.\n` +
     asking +
     `- The step is one short sentence. Two at most, and only if the second gives permission to stop there.\n` +
-    `- Under the step, on its own line starting with the exact characters "DONE:", write two or ` +
-    `three words they could say once it is done, in the step's own terms — "It's open.", ` +
-    `"Shoes are on.", "Sent." Never "Did it".\n` +
     `- No advice, no encouragement, no explanation, no praise. Only the action.\n` +
     (noAsking
-      ? `- Write in the same language they used. The marker DONE: stays in English.\n\n` +
-        `Answer with the step and its DONE line, and nothing else.`
-      : `- Write in the same language they used. The markers ASK: and DONE: stay in English.\n\n` +
-        `Answer with the step and its DONE line, or with the ASK line, and nothing else.`)
+      ? `- Write in the same language they used.\n\n` + `Answer with the step and nothing else.`
+      : `- Write in the same language they used. The marker ASK: stays in English.\n\n` +
+        `Answer with the step, or with the ASK line, and nothing else.`)
   );
 }
 
@@ -158,9 +152,10 @@ export function cleanStep(raw: string): string | null {
 }
 
 /**
- * Read the model's answer: a step with the words for its button, or a question
- * the app needs answered before it can offer one. Anything empty is null — and
- * null means "offer nothing", never "make something up".
+ * Read the model's answer: a step, or a question the app needs answered before
+ * it can offer one. Anything empty is null — and null means "offer nothing",
+ * never "make something up". (Older prompts asked for a "DONE:" line of button
+ * words under the step; if a model still writes one, it is dropped.)
  */
 export function parseStep(raw: string): StepAnswer | null {
   if (!raw) return null;
@@ -175,19 +170,7 @@ export function parseStep(raw: string): StepAnswer | null {
     return q.length > 1 ? { kind: "ask", text: q.slice(0, 120) } : null;
   }
 
-  let done: string | null = null;
-  const body: string[] = [];
-  for (const l of lines) {
-    const m = /^done\s*:\s*(.*)$/i.exec(l);
-    if (m) {
-      if (!done) done = m[1].replace(/^["'“”«]+|["'“”»]+$/g, "").trim().slice(0, 40) || null;
-      continue;
-    }
-    body.push(l);
-  }
+  const body = lines.filter((l) => !/^done\s*:/i.test(l));
   const step = cleanStep(body.join("\n"));
-  if (!step) return null;
-  // "Did it" is exactly the button we are replacing; if the model slips, drop it.
-  if (done && /^did it\W*$/i.test(done)) done = null;
-  return { kind: "step", text: step, done };
+  return step ? { kind: "step", text: step } : null;
 }
