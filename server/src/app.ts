@@ -10,6 +10,7 @@ import { requireDevice, resolveLocalDate, rateLimit } from "./middleware";
 import { computeStreak } from "./lib/streak";
 import { PLANS, getStripe, createCheckoutSession, handleStripeEvent, type PlanId } from "./lib/stripe";
 import { createStickerJob } from "./stickerjob";
+import { getClient } from "./lib/anthropic";
 import { WISH_GROUPS } from "./lib/stickers";
 
 export interface AppOptions extends ServiceDeps {
@@ -453,8 +454,9 @@ export function createApp(db: DB, opts: AppOptions = {}) {
   });
 
   // --- The sticker deck ---------------------------------------------------
+  // Like every other model call: an injected client in tests, the real one otherwise.
   const stickers = createStickerJob(db, {
-    client: opts.client,
+    client: opts.client !== undefined ? opts.client : getClient(),
     fetch: opts.sketch?.fetch,
     geminiKey: opts.sketch?.apiKey,
     geminiModel: opts.sketch?.model,

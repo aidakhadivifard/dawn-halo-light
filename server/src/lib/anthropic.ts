@@ -164,7 +164,7 @@ export interface MessagesClient {
 }
 
 let cachedClient: MessagesClient | null = null;
-function getClient(): MessagesClient | null {
+export function getClient(): MessagesClient | null {
   const { anthropicApiKey } = getConfig();
   if (!anthropicApiKey) return null;
   if (!cachedClient) cachedClient = new Anthropic({ apiKey: anthropicApiKey }) as MessagesClient;
