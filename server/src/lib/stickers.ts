@@ -33,6 +33,36 @@ export function findGroup(id: string): WishGroup | undefined {
   return WISH_GROUPS.find((g) => g.id === id);
 }
 
+/**
+ * Aida's notes from reviewing the deck — what the everyday acts for a wish
+ * really are. Kept here so every future drawing remembers them.
+ * Keys: "group" for the whole group, "group#index" for one wish (0-based).
+ */
+export const SCENE_HINTS: Record<string, string> = {
+  // Pregnancy is not only vitamins: it is appointments, tests, the clinic.
+  "family#1":
+    "Getting pregnant is not only vitamins. Show the real everyday acts: going to the doctor's appointment, " +
+    "sitting in a clinic waiting room holding the appointment card, getting a blood test with a brave smile, " +
+    "circling a date on a calendar, a gentle check-up. Vary them — not vitamins every time.",
+  "family#2":
+    "A healthy pregnancy: prenatal check-ups, listening at the doctor's, a short walk, resting with feet up, " +
+    "a healthy snack. Not vitamins every time.",
+  "family#3":
+    "IVF: going to the clinic, sitting bravely in the waiting room, holding a tiny appointment card, " +
+    "being gentle with herself afterwards. Hopeful, never medical-scary, no needles shown up close.",
+  // Starting over is work: a job, a language.
+  move:
+    "Starting over in a new country is daily work. Show acts like: searching for a job on a laptop, " +
+    "sending a CV, practising for a job interview in a mirror, studying the new language with flashcards " +
+    "or a phrase book, practising pronunciation out loud, attending a language class, filling in forms, " +
+    "meeting a new neighbour. Not only suitcases and houses.",
+};
+
+export function hintFor(groupId: string, wishIndex: number): string | null {
+  const parts = [SCENE_HINTS[groupId], SCENE_HINTS[`${groupId}#${wishIndex}`]].filter(Boolean);
+  return parts.length ? parts.join(" ") : null;
+}
+
 /** How many variants each wish gets. She picks; the rest are kept as spares. */
 export const VARIANTS_PER_WISH = 3;
 
@@ -74,18 +104,34 @@ export const STYLE =
 export const SCENE_SYSTEM =
   "You write one-sentence scene descriptions for a cute illustrated sticker. You answer with JSON only.";
 
-export function scenePrompt(wish: string, groupTitle: string, character: string, lang: "fa" | "en"): string {
+export function scenePrompt(
+  wish: string,
+  groupTitle: string,
+  character: string,
+  lang: "fa" | "en",
+  extra: { hint?: string | null; avoid?: string[] } = {},
+): string {
+  const hint = extra.hint ? `\nWhat the everyday acts for this wish really are (from the person who knows):\n${extra.hint}\n` : "";
+  const avoid = extra.avoid?.length
+    ? `\nThese scenes are ALREADY in the deck for this group. Do something clearly different — a different action, ` +
+      `different props, a different setting:\n${extra.avoid.map((a) => `- ${a.slice(0, 160)}`).join("\n")}\n`
+    : "";
   return `A person's wish (group: ${groupTitle}):
 """
 ${wish}
 """
 
 Write ONE sticker scene for the day she did a small thing towards this wish. The character is: ${character}.
+${hint}${avoid}
+Avoid the lazy clichés unless the wish is literally about them: pouring tea or coffee for two, hearts on strings,
+piles of coins, a character just hugging a heart. Pick an action a real person does on an ordinary day.
 
 Rules:
 - Draw TODAY'S SMALL ACT, not the wish. Never illustrate the outcome (no wedding, no baby, no mansion).
   A concrete, gentle, slightly funny everyday action that fits the wish.
-- No sadness, no illness imagery, no medical equipment, no tears. Warm and hopeful.
+- No sadness, no illness imagery, no tears, nothing scary. A doctor's visit or a clinic waiting room is fine
+  when the wish is about health or pregnancy — keep it friendly (a smiling doctor, an appointment card),
+  never needles close up or hospital beds. Warm and hopeful.
 - Spell out the pose LIMB BY LIMB so a drawing model cannot get it wrong: what the right arm does,
   what the left arm does, what the legs do, where the head looks. The character has exactly two arms and two legs.
 - One or two props at most, and say which prop is coral and which is gold.
@@ -165,6 +211,7 @@ export async function writeScene(
   groupTitle: string,
   character: string,
   deps: StickerDeps,
+  extra: { hint?: string | null; avoid?: string[] } = {},
 ): Promise<Scene | null> {
   const client = deps.client;
   if (!client) return null;
@@ -175,7 +222,7 @@ export async function writeScene(
         model: anthropicModel,
         max_tokens: 500,
         system: SCENE_SYSTEM,
-        messages: [{ role: "user", content: scenePrompt(wish, groupTitle, character, "en") }],
+        messages: [{ role: "user", content: scenePrompt(wish, groupTitle, character, "en", extra) }],
       }),
       new Promise<never>((_, r) => setTimeout(() => r(new Error("timeout")), deps.timeoutMs ?? 30_000)),
     ]);

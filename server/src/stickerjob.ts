@@ -18,6 +18,7 @@ import {
   writeScene,
   drawScene,
   reviewDrawing,
+  hintFor,
   type StickerDeps,
 } from "./lib/stickers";
 
@@ -42,7 +43,13 @@ export function createStickerJob(db: DB, deps: StickerDeps) {
   async function makeOne(groupId: string, groupTitle: string, wishIndex: number, wish: string, variant: number) {
     // A different character per variant, and per wish, so the deck never repeats itself next door.
     const character = CHARACTERS[(wishIndex * 3 + variant * 5) % CHARACTERS.length];
-    const scene = await writeScene(wish, groupTitle, character, deps);
+    // What is already in this group, so the next scene does not repeat it.
+    const avoid = db
+      .listStickers(groupId)
+      .filter((r) => r.status !== "rejected" && r.status !== "failed")
+      .map((r) => r.scene)
+      .slice(-25);
+    const scene = await writeScene(wish, groupTitle, character, deps, { hint: hintFor(groupId, wishIndex), avoid });
     if (!scene) throw new Error("no_scene");
     const id = newId();
     db.insertSticker({
@@ -115,8 +122,40 @@ export function createStickerJob(db: DB, deps: StickerDeps) {
     }
   }
 
+  async function redraw(groupId: string, wishIndex: number) {
+    const g = WISH_GROUPS.find((x) => x.id === groupId);
+    if (!g || !g.wishes[wishIndex]) return;
+    status.running = true;
+    status.group = `${groupId}#${wishIndex}`;
+    status.done = 0;
+    status.limit = VARIANTS_PER_WISH;
+    status.startedAt = new Date().toISOString();
+    status.finishedAt = null;
+    try {
+      db.deleteUnapprovedStickers(groupId, wishIndex);
+      const have = db.countStickers(groupId, wishIndex);
+      for (let v = have + 1; v <= have + VARIANTS_PER_WISH; v++) {
+        try {
+          await makeOne(g.id, g.title_en, wishIndex, g.wishes[wishIndex], v);
+        } catch (err: any) {
+          status.lastError = `${groupId}#${wishIndex}v${v}: ${String(err?.message ?? err).slice(0, 160)}`;
+        }
+        status.done++;
+      }
+    } finally {
+      status.running = false;
+      status.finishedAt = new Date().toISOString();
+    }
+  }
+
   return {
     status: () => ({ ...status }),
+    /** Throw away the unapproved drawings of one wish and draw three fresh ones. */
+    redraw(groupId: string, wishIndex: number): boolean {
+      if (status.running) return false;
+      void redraw(groupId, wishIndex);
+      return true;
+    },
     /** Start a run. Returns false if one is already going. */
     start(groupId: string | null, limit = 30): boolean {
       if (status.running) return false;

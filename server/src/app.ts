@@ -502,6 +502,12 @@ export function createApp(db: DB, opts: AppOptions = {}) {
     const started = stickers.start(group, limit);
     res.json({ started, status: stickers.status() });
   });
+  app.post("/api/admin/stickers/redraw", (req, res) => {
+    if (!adminOnly(req, res)) return;
+    const group = String(req.query.group ?? "");
+    const index = Number(req.query.index ?? -1);
+    res.json({ started: stickers.redraw(group, index), status: stickers.status() });
+  });
   app.post("/api/admin/stickers/stop", (req, res) => {
     if (!adminOnly(req, res)) return;
     stickers.stop();
@@ -542,7 +548,7 @@ export function createApp(db: DB, opts: AppOptions = {}) {
 </figure>`,
           )
           .join("");
-        return `<section><h3>${i + 1}. ${esc(wish)}</h3><div class="row">${imgs}</div></section>`;
+        return `<section><h3>${i + 1}. ${esc(wish)} <button class="rd" onclick="redraw(${i})">↻ دوباره بکش</button></h3><div class="row">${imgs}</div></section>`;
       })
       .join("");
     res.setHeader("content-type", "text/html; charset=utf-8");
@@ -554,9 +560,11 @@ h3{font-size:16px;margin:22px 0 8px}.row{display:flex;gap:10px;overflow-x:auto;p
 figure{margin:0;flex:none;width:min(300px,80vw);border-radius:16px;padding:8px;background:#fff;box-shadow:0 8px 22px -18px rgba(61,41,71,.5);border:2px solid transparent}
 figure.approved{border-color:#7fbf8a}figure.rejected{opacity:.45}img{width:100%;aspect-ratio:1;border-radius:12px;background:#fff}
 figcaption{font-size:12px;color:#756579;margin-top:6px;line-height:1.5}.b{display:flex;gap:6px;margin-top:8px}.b button{flex:1;border:0;border-radius:999px;padding:8px;font-size:14px;cursor:pointer}
-.b button:first-child{background:#dff3e3}.b button:last-child{background:#fbe1de}
+.b button:first-child{background:#dff3e3}.rd{margin-inline-start:8px;border:0;border-radius:999px;padding:4px 12px;background:#f3eef6;color:#3d2947;font-size:13px;cursor:pointer}.b button:last-child{background:#fbe1de}
 </style><main><nav>${nav}</nav><h2>${esc(g.title_fa)} <small style="color:#756579;font-size:13px">${rows.length} تصویر</small></h2>${cards || "<p>هنوز چیزی کشیده نشده.</p>"}</main>
 <script>
+async function redraw(i){const r=await fetch('/api/admin/stickers/redraw?group=${group}&index='+i+'&key=${encodeURIComponent(key)}',{method:'POST'});const j=await r.json();
+alert(j.started?'دارد دوباره کشیده می‌شود — ۲ تا ۳ دقیقه بعد صفحه را رفرش کن. تیک‌خورده‌ها می‌مانند.':'یک کار دیگر در حال اجراست؛ چند دقیقه بعد دوباره بزن.');}
 async function setS(id, status){const r=await fetch('/api/admin/stickers/'+id+'/status?key=${encodeURIComponent(key)}',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({status})});
 if(r.ok){const f=document.querySelector('[data-id="'+id+'"]');f.className=status;f.querySelector('b').textContent=status;}}
 </script></html>`);

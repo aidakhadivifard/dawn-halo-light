@@ -699,6 +699,9 @@ export function createDb(path = ":memory:") {
     countStickers: sqlite.prepare<[string, number]>(
       "SELECT COUNT(*) AS n FROM stickers WHERE group_id = ? AND wish_index = ? AND status != 'failed'",
     ),
+    deleteUnapprovedStickers: sqlite.prepare<[string, number]>(
+      "DELETE FROM stickers WHERE group_id = ? AND wish_index = ? AND status != 'approved'",
+    ),
     stickerStats: sqlite.prepare("SELECT group_id, status, COUNT(*) AS n FROM stickers GROUP BY group_id, status"),
     insertNote: sqlite.prepare(
       `INSERT INTO wish_notes (id, horizon_id, question, answer, local_date, created_at)
@@ -1105,6 +1108,9 @@ export function createDb(path = ":memory:") {
     },
     countStickers(groupId: string, wishIndex: number): number {
       return (stmts.countStickers.get(groupId, wishIndex) as { n: number }).n;
+    },
+    deleteUnapprovedStickers(groupId: string, wishIndex: number) {
+      stmts.deleteUnapprovedStickers.run(groupId, wishIndex);
     },
     stickerStats(): { group_id: string; status: string; n: number }[] {
       return stmts.stickerStats.all() as any;
